@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>インボリュート歯車シミュレーター</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            display: flex;
+        }
+
+        .controls {
+            width: 350px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            overflow-y: auto;
+            max-height: 100vh;
+        }
+
+        h1 {
+            font-size: 1.4em;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #4fc3f7;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .control-group h3 {
+            font-size: 0.9em;
+            color: #81d4fa;
+            margin-bottom: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding-bottom: 8px;
+        }
+
+        .control-item {
+            margin-bottom: 15px;
+        }
+
+        .control-item:last-child {
+            margin-bottom: 0;
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85em;
+            margin-bottom: 6px;
+            color: #b3e5fc;
+        }
+
+        label span.value {
+            background: rgba(79, 195, 247, 0.3);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.2);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #4fc3f7;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #4fc3f7;
+            cursor: pointer;
+            border: none;
+        }
+
+        input[type="color"] {
+            width: 100%;
+            height: 35px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        canvas {
+            background: #0d1421;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .info-panel {
+            margin-top: 15px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            font-size: 0.75em;
+        }
+
+        .info-panel h4 {
+            color: #81d4fa;
+            margin-bottom: 8px;
+            font-size: 0.95em;
+        }
+
+        .info-panel p {
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .info-panel p span {
+            color: #4fc3f7;
+            font-family: monospace;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #4fc3f7, #29b6f6);
+            color: #0d1421;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(79, 195, 247, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #7c4dff, #651fff);
+            color: #fff;
+        }
+
+        .gear-tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+
+        .gear-tab {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #b3e5fc;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .gear-tab.active {
+            background: rgba(79, 195, 247, 0.3);
+            color: #fff;
+        }
+
+        .gear-tab:hover {
+            background: rgba(79, 195, 247, 0.2);
+        }
+
+        .color-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <h1>インボリュート歯車</h1>
+
+        <div class="control-group">
+            <h3>歯車選択</h3>
+            <div class="gear-tabs">
+                <button class="gear-tab active" id="tabGear1" onclick="selectGear(1)">
+                    <span class="color-indicator" style="background: #4fc3f7;"></span>歯車1
+                </button>
+                <button class="gear-tab" id="tabGear2" onclick="selectGear(2)">
+                    <span class="color-indicator" style="background: #ff7043;"></span>歯車2
+                </button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>基本パラメータ</h3>
+            <div class="control-item">
+                <label>歯数 (Z) <span class="value" id="teethValue">20</span></label>
+                <input type="range" id="teeth" min="8" max="60" value="20">
+            </div>
+            <div class="control-item">
+                <label>モジュール (m) <span class="value" id="moduleValue">8</span></label>
+                <input type="range" id="module" min="3" max="15" value="8">
+            </div>
+            <div class="control-item">
+                <label>圧力角 (α) <span class="value" id="pressureAngleValue">20°</span></label>
+                <input type="range" id="pressureAngle" min="14.5" max="25" value="20" step="0.5">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>詳細設定</h3>
+            <div class="control-item">
+                <label>転位係数 (x) <span class="value" id="shiftValue">0.00</span></label>
+                <input type="range" id="shift" min="-0.5" max="0.5" value="0" step="0.01">
+            </div>
+            <div class="control-item">
+                <label>回転速度 <span class="value" id="speedValue">1.0</span></label>
+                <input type="range" id="speed" min="0.1" max="3" value="1" step="0.1">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>表示オプション</h3>
+            <div class="control-item checkbox-item">
+                <input type="checkbox" id="showPitchCircle" checked>
+                <label for="showPitchCircle">ピッチ円</label>
+            </div>
+            <div class="control-item checkbox-item">
+                <input type="checkbox" id="showBaseCircle">
+                <label for="showBaseCircle">基礎円</label>
+            </div>
+            <div class="control-item checkbox-item">
+                <input type="checkbox" id="showAddendumCircle">
+                <label for="showAddendumCircle">歯先円</label>
+            </div>
+            <div class="control-item checkbox-item">
+                <input type="checkbox" id="showDedendumCircle">
+                <label for="showDedendumCircle">歯底円</label>
+            </div>
+            <div class="control-item checkbox-item">
+                <input type="checkbox" id="animate" checked>
+                <label for="animate">回転アニメーション</label>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>カラー設定</h3>
+            <div class="control-item">
+                <label>歯車1の色</label>
+                <input type="color" id="gear1Color" value="#4fc3f7">
+            </div>
+            <div class="control-item">
+                <label>歯車2の色</label>
+                <input type="color" id="gear2Color" value="#ff7043">
+            </div>
+        </div>
+
+        <div class="info-panel">
+            <h4>歯車1 (駆動)</h4>
+            <p>歯数: <span id="info1Teeth">-</span></p>
+            <p>ピッチ円直径: <span id="info1Pitch">-</span></p>
+            <h4 style="margin-top: 10px;">歯車2 (従動)</h4>
+            <p>歯数: <span id="info2Teeth">-</span></p>
+            <p>ピッチ円直径: <span id="info2Pitch">-</span></p>
+            <h4 style="margin-top: 10px;">噛み合い</h4>
+            <p>中心間距離: <span id="infoCenterDist">-</span></p>
+            <p>速度比: <span id="infoRatio">-</span></p>
+        </div>
+
+        <button class="btn" onclick="resetParams()">パラメータをリセット</button>
+        <button class="btn btn-secondary" onclick="downloadImage()">画像を保存</button>
+    </div>
+
+    <div class="canvas-container">
+        <canvas id="gearCanvas" width="800" height="700"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gearCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 歯車パラメータ
+        let gears = [
+            {
+                teeth: 20,
+                module: 8,
+                pressureAngle: 20,
+                shift: 0,
+                color: '#4fc3f7',
+                fillColor: '#1a3a4a'
+            },
+            {
+                teeth: 30,
+                module: 8,
+                pressureAngle: 20,
+                shift: 0,
+                color: '#ff7043',
+                fillColor: '#3a2a1a'
+            }
+        ];
+
+        let selectedGear = 0;
+        let params = {
+            showPitchCircle: true,
+            showBaseCircle: false,
+            showAddendumCircle: false,
+            showDedendumCircle: false,
+            animate: true,
+            speed: 1
+        };
+
+        let rotation1 = 0;
+        let animationId = null;
+
+        function selectGear(num) {
+            selectedGear = num - 1;
+            document.getElementById('tabGear1').classList.toggle('active', selectedGear === 0);
+            document.getElementById('tabGear2').classList.toggle('active', selectedGear === 1);
+
+            const gear = gears[selectedGear];
+            document.getElementById('teeth').value = gear.teeth;
+            document.getElementById('teethValue').textContent = gear.teeth;
+            document.getElementById('module').value = gear.module;
+            document.getElementById('moduleValue').textContent = gear.module;
+            document.getElementById('pressureAngle').value = gear.pressureAngle;
+            document.getElementById('pressureAngleValue').textContent = gear.pressureAngle + '°';
+            document.getElementById('shift').value = gear.shift;
+            document.getElementById('shiftValue').textContent = gear.shift.toFixed(2);
+        }
+
+        function involuteAngle(alpha) {
+            return Math.tan(alpha) - alpha;
+        }
+
+        function calculateGearSpec(gear) {
+            const z = gear.teeth;
+            const m = gear.module;
+            const alpha = gear.pressureAngle * Math.PI / 180;
+            const x = gear.shift;
+
+            const pitchDiameter = m * z;
+            const baseDiameter = pitchDiameter * Math.cos(alpha);
+            const addendum = m * (1 + x);
+            const dedendum = m * (1.25 - x);
+            const addendumDiameter = pitchDiameter + 2 * addendum;
+            const dedendumDiameter = pitchDiameter - 2 * dedendum;
+            const toothThickness = m * (Math.PI / 2 + 2 * x * Math.tan(alpha));
+
+            return {
+                z, m, alpha, x,
+                pitchRadius: pitchDiameter / 2,
+                baseRadius: baseDiameter / 2,
+                addendumRadius: addendumDiameter / 2,
+                dedendumRadius: dedendumDiameter / 2,
+                pitchDiameter,
+                baseDiameter,
+                addendumDiameter,
+                dedendumDiameter,
+                toothThickness
+            };
+        }
+
+        function generateToothProfile(spec, shift) {
+            const { baseRadius, addendumRadius, dedendumRadius, pitchRadius, alpha, z } = spec;
+            const tMax = Math.sqrt(Math.pow(addendumRadius / baseRadius, 2) - 1);
+            const invAlpha = involuteAngle(alpha);
+            const toothAngle = Math.PI / z;
+            const halfToothAngle = toothAngle / 2 + invAlpha + 2 * shift * Math.tan(alpha) / z;
+
+            const involutePoints = [];
+            const steps = 30;
+
+            for (let i = 0; i <= steps; i++) {
+                const t = (i / steps) * tMax;
+                const r = baseRadius * Math.sqrt(1 + t * t);
+                if (r <= addendumRadius) {
+                    const invT = involuteAngle(Math.atan(t));
+                    const angle = halfToothAngle - invT;
+                    involutePoints.push({
+                        x: r * Math.cos(angle),
+                        y: r * Math.sin(angle),
+                        r: r,
+                        angle: angle
+                    });
+                }
+            }
+
+            if (dedendumRadius < baseRadius && involutePoints.length > 0) {
+                const firstPoint = involutePoints[0];
+                involutePoints.unshift({
+                    x: dedendumRadius * Math.cos(firstPoint.angle),
+                    y: dedendumRadius * Math.sin(firstPoint.angle),
+                    r: dedendumRadius,
+                    angle: firstPoint.angle
+                });
+            }
+
+            return involutePoints;
+        }
+
+        function drawGearBody(spec, gear, rotation) {
+            const { z, baseRadius, addendumRadius, dedendumRadius, pitchRadius } = spec;
+            const toothAngle = 2 * Math.PI / z;
+
+            ctx.save();
+            ctx.rotate(rotation);
+            ctx.beginPath();
+
+            for (let i = 0; i < z; i++) {
+                const startAngle = i * toothAngle;
+                ctx.save();
+                ctx.rotate(startAngle);
+
+                const profile = generateToothProfile(spec, gear.shift);
+
+                if (profile.length > 0) {
+                    const leftRootAngle = -profile[0].angle;
+                    const rightRootAngle = profile[0].angle;
+                    const dedendumStartAngle = -toothAngle / 2 + profile[0].angle;
+
+                    if (i === 0) {
+                        ctx.moveTo(
+                            dedendumRadius * Math.cos(dedendumStartAngle),
+                            dedendumRadius * Math.sin(dedendumStartAngle)
+                        );
+                    }
+
+                    ctx.arc(0, 0, dedendumRadius, dedendumStartAngle, leftRootAngle, false);
+
+                    for (let j = 0; j < profile.length; j++) {
+                        ctx.lineTo(profile[j].x, -profile[j].y);
+                    }
+
+                    const tipStartAngle = Math.atan2(-profile[profile.length - 1].y, profile[profile.length - 1].x);
+                    const tipEndAngle = Math.atan2(profile[profile.length - 1].y, profile[profile.length - 1].x);
+                    ctx.arc(0, 0, addendumRadius, tipStartAngle, tipEndAngle, false);
+
+                    for (let j = profile.length - 1; j >= 0; j--) {
+                        ctx.lineTo(profile[j].x, profile[j].y);
+                    }
+
+                    const nextDedendumAngle = toothAngle / 2 + leftRootAngle;
+                    ctx.arc(0, 0, dedendumRadius, rightRootAngle, nextDedendumAngle, false);
+                }
+
+                ctx.restore();
+            }
+
+            ctx.closePath();
+            ctx.fillStyle = gear.fillColor;
+            ctx.fill();
+            ctx.strokeStyle = gear.color;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(0, 0, pitchRadius * 0.15, 0, Math.PI * 2);
+            ctx.fillStyle = '#0d1421';
+            ctx.fill();
+            ctx.strokeStyle = gear.color;
+            ctx.stroke();
+
+            const keyWidth = pitchRadius * 0.08;
+            const keyDepth = pitchRadius * 0.12;
+            ctx.beginPath();
+            ctx.rect(-keyWidth / 2, -pitchRadius * 0.15 - keyDepth, keyWidth, keyDepth);
+            ctx.fillStyle = '#0d1421';
+            ctx.fill();
+            ctx.strokeStyle = gear.color;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawHelperCircles(spec, gear, rotation) {
+            ctx.save();
+            ctx.rotate(rotation);
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+
+            if (params.showPitchCircle) {
+                ctx.beginPath();
+                ctx.arc(0, 0, spec.pitchRadius, 0, Math.PI * 2);
+                ctx.strokeStyle = '#ffeb3b';
+                ctx.stroke();
+            }
+
+            if (params.showBaseCircle) {
+                ctx.beginPath();
+                ctx.arc(0, 0, spec.baseRadius, 0, Math.PI * 2);
+                ctx.strokeStyle = '#4caf50';
+                ctx.stroke();
+            }
+
+            if (params.showAddendumCircle) {
+                ctx.beginPath();
+                ctx.arc(0, 0, spec.addendumRadius, 0, Math.PI * 2);
+                ctx.strokeStyle = '#f44336';
+                ctx.stroke();
+            }
+
+            if (params.showDedendumCircle) {
+                ctx.beginPath();
+                ctx.arc(0, 0, spec.dedendumRadius, 0, Math.PI * 2);
+                ctx.strokeStyle = '#9c27b0';
+                ctx.stroke();
+            }
+
+            ctx.setLineDash([]);
+            ctx.restore();
+        }
+
+        function drawGears() {
+            const spec1 = calculateGearSpec(gears[0]);
+            const spec2 = calculateGearSpec(gears[1]);
+
+            const centerDistance = spec1.pitchRadius + spec2.pitchRadius;
+
+            // 固定スケール: 2ピクセル/mm
+            const scale = 2;
+
+            const gear1X = canvas.width / 2 - centerDistance * scale / 2;
+            const gear1Y = canvas.height / 2;
+            const gear2X = canvas.width / 2 + centerDistance * scale / 2;
+            const gear2Y = canvas.height / 2;
+
+            const ratio = gears[0].teeth / gears[1].teeth;
+            const rotation2 = -rotation1 * ratio;
+
+            const toothAngle2 = Math.PI / gears[1].teeth;
+            const phaseOffset2 = toothAngle2 + Math.PI;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.translate(gear1X, gear1Y);
+            ctx.scale(scale, scale);
+            drawGearBody(spec1, gears[0], rotation1);
+            drawHelperCircles(spec1, gears[0], rotation1);
+            ctx.restore();
+
+            ctx.save();
+            ctx.translate(gear2X, gear2Y);
+            ctx.scale(scale, scale);
+            drawGearBody(spec2, gears[1], rotation2 + phaseOffset2);
+            drawHelperCircles(spec2, gears[1], rotation2 + phaseOffset2);
+            ctx.restore();
+
+            updateInfoPanel(spec1, spec2, centerDistance);
+        }
+
+        function updateInfoPanel(spec1, spec2, centerDistance) {
+            document.getElementById('info1Teeth').textContent = spec1.z;
+            document.getElementById('info1Pitch').textContent = spec1.pitchDiameter.toFixed(1) + ' mm';
+            document.getElementById('info2Teeth').textContent = spec2.z;
+            document.getElementById('info2Pitch').textContent = spec2.pitchDiameter.toFixed(1) + ' mm';
+            document.getElementById('infoCenterDist').textContent = centerDistance.toFixed(1) + ' mm';
+            document.getElementById('infoRatio').textContent = '1 : ' + (spec2.z / spec1.z).toFixed(2);
+        }
+
+        function animate() {
+            if (params.animate) {
+                rotation1 += 0.015 * params.speed;
+                drawGears();
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function setupEventListeners() {
+            document.getElementById('teeth').addEventListener('input', function() {
+                gears[selectedGear].teeth = parseInt(this.value);
+                document.getElementById('teethValue').textContent = this.value;
+                if (!params.animate) drawGears();
+            });
+
+            document.getElementById('module').addEventListener('input', function() {
+                const val = parseInt(this.value);
+                gears[0].module = val;
+                gears[1].module = val;
+                document.getElementById('moduleValue').textContent = val;
+                if (!params.animate) drawGears();
+            });
+
+            document.getElementById('pressureAngle').addEventListener('input', function() {
+                const val = parseFloat(this.value);
+                gears[0].pressureAngle = val;
+                gears[1].pressureAngle = val;
+                document.getElementById('pressureAngleValue').textContent = val + '°';
+                if (!params.animate) drawGears();
+            });
+
+            document.getElementById('shift').addEventListener('input', function() {
+                gears[selectedGear].shift = parseFloat(this.value);
+                document.getElementById('shiftValue').textContent = parseFloat(this.value).toFixed(2);
+                if (!params.animate) drawGears();
+            });
+
+            document.getElementById('speed').addEventListener('input', function() {
+                params.speed = parseFloat(this.value);
+                document.getElementById('speedValue').textContent = parseFloat(this.value).toFixed(1);
+            });
+
+            const checkboxes = ['showPitchCircle', 'showBaseCircle', 'showAddendumCircle', 'showDedendumCircle'];
+            checkboxes.forEach(id => {
+                document.getElementById(id).addEventListener('change', function() {
+                    params[id] = this.checked;
+                    if (!params.animate) drawGears();
+                });
+            });
+
+            document.getElementById('animate').addEventListener('change', function() {
+                params.animate = this.checked;
+                if (params.animate) {
+                    animate();
+                } else {
+                    if (animationId) cancelAnimationFrame(animationId);
+                    drawGears();
+                }
+            });
+
+            document.getElementById('gear1Color').addEventListener('input', function() {
+                gears[0].color = this.value;
+                gears[0].fillColor = adjustColorBrightness(this.value, -0.6);
+                document.querySelector('#tabGear1 .color-indicator').style.background = this.value;
+                if (!params.animate) drawGears();
+            });
+
+            document.getElementById('gear2Color').addEventListener('input', function() {
+                gears[1].color = this.value;
+                gears[1].fillColor = adjustColorBrightness(this.value, -0.6);
+                document.querySelector('#tabGear2 .color-indicator').style.background = this.value;
+                if (!params.animate) drawGears();
+            });
+        }
+
+        function adjustColorBrightness(hex, percent) {
+            const num = parseInt(hex.slice(1), 16);
+            const r = Math.max(0, Math.min(255, (num >> 16) + (num >> 16) * percent));
+            const g = Math.max(0, Math.min(255, ((num >> 8) & 0x00FF) + ((num >> 8) & 0x00FF) * percent));
+            const b = Math.max(0, Math.min(255, (num & 0x0000FF) + (num & 0x0000FF) * percent));
+            return '#' + (0x1000000 + (r << 16) + (g << 8) + b).toString(16).slice(1, 7);
+        }
+
+        function resetParams() {
+            gears = [
+                { teeth: 20, module: 8, pressureAngle: 20, shift: 0, color: '#4fc3f7', fillColor: '#1a3a4a' },
+                { teeth: 30, module: 8, pressureAngle: 20, shift: 0, color: '#ff7043', fillColor: '#3a2a1a' }
+            ];
+            params.speed = 1;
+            rotation1 = 0;
+
+            document.getElementById('teeth').value = 20;
+            document.getElementById('teethValue').textContent = '20';
+            document.getElementById('module').value = 8;
+            document.getElementById('moduleValue').textContent = '8';
+            document.getElementById('pressureAngle').value = 20;
+            document.getElementById('pressureAngleValue').textContent = '20°';
+            document.getElementById('shift').value = 0;
+            document.getElementById('shiftValue').textContent = '0.00';
+            document.getElementById('speed').value = 1;
+            document.getElementById('speedValue').textContent = '1.0';
+            document.getElementById('gear1Color').value = '#4fc3f7';
+            document.getElementById('gear2Color').value = '#ff7043';
+
+            selectGear(1);
+            drawGears();
+        }
+
+        function downloadImage() {
+            const link = document.createElement('a');
+            link.download = `gears-z${gears[0].teeth}-z${gears[1].teeth}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        setupEventListeners();
+        drawGears();
+        animate();
+    </script>
+</body>
+</html>
