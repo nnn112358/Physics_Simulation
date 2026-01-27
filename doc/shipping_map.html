@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>深圳からの送料マップ</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #1a1a2e; }
+        #map { width: 100vw; height: 100vh; }
+        .fee-label {
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            padding: 2px 6px;
+            color: #fff;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+            font-family: Arial, sans-serif;
+        }
+        .shenzhen-label {
+            background: #ff00ff;
+            border: 2px solid white;
+            border-radius: 6px;
+            padding: 4px 10px;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            white-space: nowrap;
+            font-family: Arial, sans-serif;
+            box-shadow: 0 0 15px #ff00ff;
+        }
+        .legend {
+            position: absolute;
+            bottom: 30px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px;
+            border-radius: 8px;
+            z-index: 1000;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        .legend h4 {
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        .legend-color {
+            width: 30px;
+            height: 4px;
+            border-radius: 2px;
+        }
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px 20px;
+            border-radius: 8px;
+            z-index: 1000;
+            color: white;
+            font-family: Arial, sans-serif;
+            display: none;
+            min-width: 200px;
+        }
+        .info-panel h3 {
+            color: #00d4ff;
+            margin-bottom: 10px;
+        }
+        .info-panel p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .info-panel .fee {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00ff00;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <div class="legend">
+        <h4>送料 (USD)</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #00ff00;"></div>
+            <span>$0 - 30</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #7fff00;"></div>
+            <span>$31 - 50</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #ffff00;"></div>
+            <span>$51 - 70</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #ff7f00;"></div>
+            <span>$71 - 100</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #ff0000;"></div>
+            <span>$100+</span>
+        </div>
+    </div>
+
+    <div class="info-panel" id="info-panel">
+        <h3 id="info-country"></h3>
+        <p class="fee">$<span id="info-fee"></span></p>
+        <p>距離: <span id="info-distance"></span> km</p>
+    </div>
+
+    <script>
+        const SHENZHEN = { lat: 22.5431, lng: 114.0579 };
+
+        const countries = [
+            { name: "China", nameJa: "中国", lat: 22.5431, lng: 114.0579, fee: 5 },
+            { name: "Vietnam", nameJa: "ベトナム", lat: 21.0285, lng: 105.8542, fee: 8 },
+            { name: "Hong Kong", nameJa: "香港", lat: 22.3193, lng: 114.1694, fee: 18 },
+            { name: "Macau", nameJa: "マカオ", lat: 22.1987, lng: 113.5439, fee: 18 },
+            { name: "Japan", nameJa: "日本", lat: 35.6762, lng: 139.6503, fee: 25 },
+            { name: "Thailand", nameJa: "タイ", lat: 13.7563, lng: 100.5018, fee: 27 },
+            { name: "Philippines", nameJa: "フィリピン", lat: 14.5995, lng: 120.9842, fee: 34 },
+            { name: "South Korea", nameJa: "韓国", lat: 37.5665, lng: 126.9780, fee: 38 },
+            { name: "Malaysia", nameJa: "マレーシア", lat: 3.1390, lng: 101.6869, fee: 39 },
+            { name: "Singapore", nameJa: "シンガポール", lat: 1.3521, lng: 103.8198, fee: 45 },
+            { name: "UAE", nameJa: "UAE", lat: 25.2048, lng: 55.2708, fee: 48 },
+            { name: "Brazil", nameJa: "ブラジル", lat: -15.8267, lng: -47.9218, fee: 55 },
+            { name: "Israel", nameJa: "イスラエル", lat: 31.7683, lng: 35.2137, fee: 61 },
+            { name: "Saudi Arabia", nameJa: "サウジ", lat: 24.7136, lng: 46.6753, fee: 65 },
+            { name: "Taiwan", nameJa: "台湾", lat: 25.0330, lng: 121.5654, fee: 65 },
+            { name: "European", nameJa: "EU", lat: 50.8503, lng: 4.3517, fee: 66 },
+            { name: "UK", nameJa: "イギリス", lat: 51.5074, lng: -0.1278, fee: 66 },
+            { name: "Switzerland", nameJa: "スイス", lat: 46.9480, lng: 7.4474, fee: 66 },
+            { name: "Norway", nameJa: "ノルウェー", lat: 59.9139, lng: 10.7522, fee: 66 },
+            { name: "Rwanda", nameJa: "ルワンダ", lat: -1.9403, lng: 29.8739, fee: 66 },
+            { name: "Indonesia", nameJa: "インドネシア", lat: -6.2088, lng: 106.8456, fee: 68 },
+            { name: "Cambodia", nameJa: "カンボジア", lat: 11.5564, lng: 104.9282, fee: 68 },
+            { name: "Laos", nameJa: "ラオス", lat: 17.9757, lng: 102.6331, fee: 68 },
+            { name: "Brunei", nameJa: "ブルネイ", lat: 4.9031, lng: 114.9398, fee: 68 },
+            { name: "Chile", nameJa: "チリ", lat: -33.4489, lng: -70.6693, fee: 69 },
+            { name: "Canada", nameJa: "カナダ", lat: 45.4215, lng: -75.6972, fee: 70 },
+            { name: "New Zealand", nameJa: "NZ", lat: -41.2865, lng: 174.7762, fee: 71 },
+            { name: "Colombia", nameJa: "コロンビア", lat: 4.7110, lng: -74.0721, fee: 79 },
+            { name: "Mexico", nameJa: "メキシコ", lat: 19.4326, lng: -99.1332, fee: 81 },
+            { name: "India", nameJa: "インド", lat: 28.6139, lng: 77.2090, fee: 83 },
+            { name: "Australia", nameJa: "豪州", lat: -33.8688, lng: 151.2093, fee: 86 },
+            { name: "USA", nameJa: "アメリカ", lat: 38.9072, lng: -77.0369, fee: 87 },
+            { name: "Uganda", nameJa: "ウガンダ", lat: 0.3476, lng: 32.5825, fee: 89 },
+            { name: "Turkey", nameJa: "トルコ", lat: 39.9334, lng: 32.8597, fee: 100 },
+            { name: "Egypt", nameJa: "エジプト", lat: 30.0444, lng: 31.2357, fee: 134 },
+            { name: "Oman", nameJa: "オマーン", lat: 23.5880, lng: 58.3829, fee: 182 },
+            { name: "Georgia", nameJa: "ジョージア", lat: 41.7151, lng: 44.8271, fee: 182 },
+        ];
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return Math.round(R * c);
+        }
+
+        countries.forEach(country => {
+            country.distance = calculateDistance(SHENZHEN.lat, SHENZHEN.lng, country.lat, country.lng);
+        });
+
+        function getFeeColor(fee) {
+            if (fee <= 30) return '#00ff00';
+            if (fee <= 50) return '#7fff00';
+            if (fee <= 70) return '#ffff00';
+            if (fee <= 100) return '#ff7f00';
+            return '#ff0000';
+        }
+
+        const map = L.map('map').setView([25, 60], 3);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+
+        // 深圳ラベル
+        const shenzhenLabel = L.divIcon({
+            className: 'shenzhen-marker',
+            html: '<div class="shenzhen-label">深圳</div>',
+            iconSize: [60, 30],
+            iconAnchor: [30, 15]
+        });
+        L.marker([SHENZHEN.lat, SHENZHEN.lng], { icon: shenzhenLabel }).addTo(map);
+
+        let selectedLine = null;
+        const lines = [];
+        const infoPanel = document.getElementById('info-panel');
+
+        // 各国のラインとラベル
+        countries.forEach(country => {
+            if (country.name === 'China') return;
+
+            const color = getFeeColor(country.fee);
+
+            // ライン（通常）
+            const line = L.polyline([[SHENZHEN.lat, SHENZHEN.lng], [country.lat, country.lng]], {
+                color: color,
+                weight: 2,
+                opacity: 0.5
+            }).addTo(map);
+
+            line.countryData = country;
+            lines.push(line);
+
+            // クリックで強調
+            line.on('click', function(e) {
+                L.DomEvent.stopPropagation(e);
+
+                // 前の選択を解除
+                if (selectedLine) {
+                    const prevColor = getFeeColor(selectedLine.countryData.fee);
+                    selectedLine.setStyle({ weight: 2, opacity: 0.5, color: prevColor });
+                }
+
+                // 新しい選択を強調
+                selectedLine = line;
+                line.setStyle({ weight: 6, opacity: 1, color: '#00d4ff' });
+                line.bringToFront();
+
+                // 情報パネル表示
+                document.getElementById('info-country').textContent = country.nameJa + ' (' + country.name + ')';
+                document.getElementById('info-fee').textContent = country.fee;
+                document.getElementById('info-distance').textContent = country.distance.toLocaleString();
+                infoPanel.style.display = 'block';
+                document.getElementById('info-fee').parentElement.style.color = color;
+            });
+
+            // 送料ラベル
+            const labelIcon = L.divIcon({
+                className: 'fee-marker',
+                html: `<div class="fee-label" style="border-color: ${color}; color: ${color};">${country.nameJa} $${country.fee}</div>`,
+                iconSize: [80, 20],
+                iconAnchor: [40, 10]
+            });
+
+            const marker = L.marker([country.lat, country.lng], { icon: labelIcon }).addTo(map);
+
+            marker.on('click', function(e) {
+                line.fire('click', e);
+            });
+        });
+
+        // 地図クリックで選択解除
+        map.on('click', function() {
+            if (selectedLine) {
+                const prevColor = getFeeColor(selectedLine.countryData.fee);
+                selectedLine.setStyle({ weight: 2, opacity: 0.5, color: prevColor });
+                selectedLine = null;
+                infoPanel.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
