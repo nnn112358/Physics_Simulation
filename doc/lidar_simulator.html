@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D LiDAR Robot Simulator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #2a2a2a;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            min-height: 100vh;
+        }
+        h1 {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #8f8;
+        }
+        .container {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .canvas-wrapper {
+            background: #333;
+            border: 2px solid #555;
+            border-radius: 5px;
+            padding: 5px;
+        }
+        canvas {
+            display: block;
+        }
+        #mainCanvas {
+            background: #fff;
+        }
+        #lidarCanvas {
+            background: #191928;
+        }
+        .info-panel {
+            margin-top: 10px;
+            padding: 10px;
+            background: #333;
+            border: 2px solid #555;
+            border-radius: 5px;
+            max-width: 1120px;
+            width: 100%;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            font-size: 12px;
+        }
+        .control-group h3 {
+            color: #8cf;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        .control-group p {
+            margin: 2px 0;
+            color: #ccc;
+        }
+        kbd {
+            background: #444;
+            padding: 2px 6px;
+            border-radius: 3px;
+            border: 1px solid #666;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 5px 10px;
+            background: #222;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+        .status span {
+            margin-right: 20px;
+        }
+        .mode-indicator {
+            color: #8f8;
+        }
+    </style>
+</head>
+<body>
+    <h1>2D LiDAR Robot Simulator</h1>
+    <div class="container">
+        <div class="canvas-wrapper">
+            <canvas id="mainCanvas" width="600" height="600"></canvas>
+        </div>
+        <div class="canvas-wrapper">
+            <canvas id="lidarCanvas" width="500" height="500"></canvas>
+        </div>
+    </div>
+    <div class="info-panel">
+        <div class="status">
+            <span>Position: <span id="posX">0.00</span>, <span id="posY">0.00</span></span>
+            <span>Angle: <span id="angle">0.0</span>&deg;</span>
+            <span class="mode-indicator">Mode: <span id="modeText">Normal</span></span>
+            <span>LiDAR View: <span id="lidarViewMode">Color</span></span>
+            <span>LiDAR Window: <span id="lidarWindowMode">Polar</span></span>
+        </div>
+        <div class="controls">
+            <div class="control-group">
+                <h3>Movement</h3>
+                <p><kbd>W</kbd> Forward</p>
+                <p><kbd>S</kbd> Backward</p>
+                <p><kbd>A</kbd> Rotate Left</p>
+                <p><kbd>D</kbd> Rotate Right</p>
+                <p><kbd>Space</kbd> Stop</p>
+                <p><kbd>R</kbd> Reset Position</p>
+            </div>
+            <div class="control-group">
+                <h3>View Control</h3>
+                <p><kbd>Arrow Keys</kbd> Pan View</p>
+                <p><kbd>PgUp/PgDn</kbd> Zoom In/Out</p>
+                <p>Mouse Drag: Pan</p>
+                <p>Mouse Wheel: Zoom</p>
+            </div>
+            <div class="control-group">
+                <h3>Display Mode</h3>
+                <p><kbd>L</kbd> Change LiDAR View</p>
+                <p><kbd>M</kbd> Change LiDAR Window</p>
+                <p><kbd>Z</kbd> Toggle Edit Mode</p>
+            </div>
+            <div class="control-group">
+                <h3>Edit Mode</h3>
+                <p>Left Click: Add obstacle vertex</p>
+                <p>Right Click: Remove last obstacle</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+// ============================================================
+// 2D LiDAR Robot Simulator - JavaScript Implementation
+// ============================================================
+
+// Constants
+const LRF_DATA_MAX = 1024;
+const OBSTACLE_MAX = 1024;
+const D_MIN = 1.0 / 1000000.0;
+const WIDTH = 600;
+const HEIGHT = 600;
+const LIDAR_WIN_WIDTH = 500;
+const LIDAR_WIN_HEIGHT = 500;
+
+// ============================================================
+// Data Structures
+// ============================================================
+
+class Robot {
+    constructor() {
+        // True state (ground truth)
+        this.x = 0.0001;
+        this.y = 0.0;
+        this.theta = 0.0;
+
+        // Control input
+        this.v = 0.0;  // linear velocity [m/s]
+        this.w = 0.0;  // angular velocity [rad/s]
+
+        // Physical parameters
+        this.size = 0.5;
+
+        // Odometry estimate (with noise)
+        this.x_dummy = 0.0001;
+        this.y_dummy = 0.0;
+        this.theta_dummy = 0.0;
+
+        // Actual velocity
+        this.real_v = 0.0;
+        this.real_w = 0.0;
+
+        // Acceleration limits
+        this.ac_trans_limit = 5.0;
+        this.ac_rot_limit = 5.0;
+
+        // Noise parameters
+        this.odom_noise_liner = 0.0;
+        this.odom_noise_liner_stdev = 1.0;
+        this.odom_noise_angle = 0.0;
+        this.odom_noise_angle_stdev = 1.0;
+    }
+
+    reset() {
+        this.x = 0.0001;
+        this.y = 0.0;
+        this.theta = 0.0;
+        this.x_dummy = this.x;
+        this.y_dummy = 0.0;
+        this.theta_dummy = 0.0;
+        this.v = 0.0;
+        this.w = 0.0;
+        this.real_v = 0.0;
+        this.real_w = 0.0;
+    }
+}
+
+class LRF {
+    constructor(dataNum = 768, startDeg = -120, totalDeg = 240, lengMax = 4.0, lengMin = 0.1, lengStdev = 0.0) {
+        this.data_num = dataNum;
+        this.start_rad = startDeg / 360.0 * 2 * Math.PI;
+        this.reso = totalDeg / dataNum / 360.0 * 2 * Math.PI;
+        this.leng_max = lengMax;
+        this.leng_min = lengMin;
+        this.leng_stdev = lengStdev;
+
+        this.leng = new Float32Array(LRF_DATA_MAX);
+        this.x = new Float32Array(LRF_DATA_MAX);
+        this.y = new Float32Array(LRF_DATA_MAX);
+    }
+}
+
+class Obstacle {
+    constructor() {
+        this.x1 = new Float32Array(OBSTACLE_MAX);
+        this.y1 = new Float32Array(OBSTACLE_MAX);
+        this.x2 = new Float32Array(OBSTACLE_MAX);
+        this.y2 = new Float32Array(OBSTACLE_MAX);
+        this.n = 0;
+        this.n_max = OBSTACLE_MAX;
+    }
+}
+
+class MoveObstacle {
+    constructor(n = 0, obstSize = 0.5, initArea = 30.0) {
+        this.n = n;
+        this.m = 5;  // vertices per obstacle (square = 5)
+        this.obst_size = obstSize;
+        this.init_area = initArea;
+
+        this.obst_x = [];
+        this.obst_y = [];
+        this.x = new Float32Array(100);
+        this.y = new Float32Array(100);
+        this.theta = new Float32Array(100);
+
+        for (let i = 0; i < 100; i++) {
+            this.obst_x.push(new Float32Array(5));
+            this.obst_y.push(new Float32Array(5));
+            this.x[i] = (Math.random() - 0.5) * initArea;
+            this.y[i] = (Math.random() - 0.5) * initArea;
+            this.theta[i] = (Math.random() - 0.5) * Math.PI;
+        }
+    }
+}
+
+// ============================================================
+// Simulation Functions
+// ============================================================
+
+function randNormal(mu, sigma) {
+    // Box-Muller transform
+    const u1 = Math.random();
+    const u2 = Math.random();
+    const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    return mu + sigma * z;
+}
+
+function crossCheck(a1_x, a1_y, a2_x, a2_y, b1_x, b1_y, b2_x, b2_y) {
+    const v1 = (a2_x - a1_x) * (b1_y - a1_y) - (a2_y - a1_y) * (b1_x - a1_x);
+    const v2 = (a2_x - a1_x) * (b2_y - a1_y) - (a2_y - a1_y) * (b2_x - a1_x);
+    const m1 = (b2_x - b1_x) * (a1_y - b1_y) - (b2_y - b1_y) * (a1_x - b1_x);
+    const m2 = (b2_x - b1_x) * (a2_y - b1_y) - (b2_y - b1_y) * (a2_x - b1_x);
+    return (v1 * v2 <= 0) && (m1 * m2 <= 0);
+}
+
+function crossXY(a1_x, a1_y, a2_x, a2_y, b1_x, b1_y, b2_x, b2_y) {
+    const dx_a = a2_x - a1_x;
+    const aa_a = Math.abs(dx_a) < D_MIN ? (a2_y - a1_y) / D_MIN : (a2_y - a1_y) / dx_a;
+    const aa_b = a1_y - aa_a * a1_x;
+
+    const dx_b = b2_x - b1_x;
+    const bb_a = Math.abs(dx_b) < D_MIN ? (b2_y - b1_y) / D_MIN : (b2_y - b1_y) / dx_b;
+    const bb_b = b1_y - bb_a * b1_x;
+
+    if (Math.abs(aa_a - bb_a) > D_MIN) {
+        const cro_x = -(bb_b - aa_b) / (bb_a - aa_a);
+        const cro_y = cro_x * aa_a + aa_b;
+        return { success: true, cro_x, cro_y };
+    }
+    return { success: false, cro_x: 0, cro_y: 0 };
+}
+
+function lrfNoise(lrfData) {
+    const dataNum = lrfData.data_num;
+    for (let i = 0; i < dataNum; i++) {
+        const noise = randNormal(0, lrfData.leng_stdev);
+        lrfData.leng[i] *= (1.0 + noise);
+        if (lrfData.leng[i] >= lrfData.leng_max) {
+            lrfData.leng[i] = NaN;
+        }
+    }
+}
+
+function lrfCalculate(robot, lrfArea, obst, moveObst, lrfDataOut) {
+    const dataNum = lrfDataOut.data_num;
+    const startRad = lrfDataOut.start_rad;
+    const reso = lrfDataOut.reso;
+    const lengMax = lrfDataOut.leng_max;
+
+    // Pre-calculate angles
+    const angles = new Float32Array(dataNum);
+    const areaX = new Float32Array(dataNum);
+    const areaY = new Float32Array(dataNum);
+
+    for (let i = 0; i < dataNum; i++) {
+        angles[i] = i * reso + startRad + robot.theta;
+        areaX[i] = -lengMax * Math.sin(angles[i]) + robot.x;
+        areaY[i] = lengMax * Math.cos(angles[i]) + robot.y;
+    }
+
+    // Initialize distances with infinity
+    const leng = new Float32Array(dataNum).fill(Infinity);
+
+    // Check static obstacles
+    for (let j = 0; j < obst.n; j++) {
+        const a1_x = obst.x1[j], a1_y = obst.y1[j];
+        const a2_x = obst.x2[j], a2_y = obst.y2[j];
+
+        for (let i = 0; i < dataNum; i++) {
+            if (crossCheck(a1_x, a1_y, a2_x, a2_y, robot.x, robot.y, areaX[i], areaY[i])) {
+                const result = crossXY(a1_x, a1_y, a2_x, a2_y, robot.x, robot.y, areaX[i], areaY[i]);
+                if (result.success) {
+                    const dist = Math.sqrt((result.cro_y - robot.y) ** 2 + (result.cro_x - robot.x) ** 2);
+                    if (dist < leng[i]) {
+                        leng[i] = dist;
+                    }
+                }
+            }
+        }
+    }
+
+    // Check moving obstacles
+    const nMove = moveObst.n;
+    const mEdges = moveObst.m - 1;
+
+    for (let j = 0; j < nMove; j++) {
+        for (let k = 0; k < mEdges; k++) {
+            const a1_x = moveObst.obst_x[j][k];
+            const a1_y = moveObst.obst_y[j][k];
+            const a2_x = moveObst.obst_x[j][k + 1];
+            const a2_y = moveObst.obst_y[j][k + 1];
+
+            for (let i = 0; i < dataNum; i++) {
+                if (crossCheck(a1_x, a1_y, a2_x, a2_y, robot.x, robot.y, areaX[i], areaY[i])) {
+                    const result = crossXY(a1_x, a1_y, a2_x, a2_y, robot.x, robot.y, areaX[i], areaY[i]);
+                    if (result.success) {
+                        const dist = Math.sqrt((result.cro_y - robot.y) ** 2 + (result.cro_x - robot.x) ** 2);
+                        if (dist < leng[i]) {
+                            leng[i] = dist;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Convert infinity to 0 (no hit)
+    for (let i = 0; i < dataNum; i++) {
+        lrfDataOut.leng[i] = isFinite(leng[i]) ? leng[i] : 0;
+    }
+
+    // Add noise
+    lrfNoise(lrfDataOut);
+
+    // Calculate XY coordinates
+    for (let i = 0; i < dataNum; i++) {
+        if (!isNaN(lrfDataOut.leng[i]) && lrfDataOut.leng[i] > 0) {
+            lrfDataOut.x[i] = -lrfDataOut.leng[i] * Math.sin(angles[i]) + robot.x;
+            lrfDataOut.y[i] = lrfDataOut.leng[i] * Math.cos(angles[i]) + robot.y;
+        }
+    }
+}
+
+function robotMove(robot, moveObst, dt) {
+    if (dt === 0) dt = D_MIN;
+
+    // Apply acceleration limits
+    let ac_v = Math.abs(robot.v - robot.real_v) / dt;
+    let ac_w = Math.abs(robot.w - robot.real_w) / dt;
+
+    ac_v = Math.min(ac_v, robot.ac_trans_limit);
+    ac_w = Math.min(ac_w, robot.ac_rot_limit);
+
+    // Update actual velocity
+    if (robot.v >= robot.real_v) {
+        robot.real_v += ac_v * dt;
+    } else {
+        robot.real_v -= ac_v * dt;
+    }
+
+    if (robot.w >= robot.real_w) {
+        robot.real_w += ac_w * dt;
+    } else {
+        robot.real_w -= ac_w * dt;
+    }
+
+    // Update true position
+    robot.x += robot.real_v * Math.sin(-robot.theta) * dt;
+    robot.y += robot.real_v * Math.cos(-robot.theta) * dt;
+    robot.theta -= robot.real_w * dt;
+
+    // Update odometry estimate (with noise)
+    const vNoiseFactor = 1.0 + Math.abs(randNormal(robot.odom_noise_liner, robot.odom_noise_liner_stdev));
+    const wNoiseFactor = 1.0 + Math.abs(randNormal(robot.odom_noise_angle, robot.odom_noise_angle_stdev));
+
+    robot.x_dummy += robot.real_v * Math.sin(-robot.theta_dummy) * dt * vNoiseFactor;
+    robot.y_dummy += robot.real_v * Math.cos(-robot.theta_dummy) * dt * vNoiseFactor;
+    robot.theta_dummy -= robot.real_w * dt * wNoiseFactor;
+}
+
+function moveObstacleCalculate(moveObst) {
+    const n = moveObst.n;
+    if (n === 0) return;
+
+    const size = moveObst.obst_size;
+
+    for (let i = 0; i < n; i++) {
+        const cx = moveObst.x[i];
+        const cy = moveObst.y[i];
+
+        moveObst.obst_x[i][0] = cx - size;
+        moveObst.obst_y[i][0] = cy - size;
+        moveObst.obst_x[i][1] = cx - size;
+        moveObst.obst_y[i][1] = cy + size;
+        moveObst.obst_x[i][2] = cx + size;
+        moveObst.obst_y[i][2] = cy + size;
+        moveObst.obst_x[i][3] = cx + size;
+        moveObst.obst_y[i][3] = cy - size;
+        moveObst.obst_x[i][4] = cx - size;
+        moveObst.obst_y[i][4] = cy - size;
+    }
+}
+
+// ============================================================
+// Graphics Functions
+// ============================================================
+
+function distanceToColor(distance, maxDistance) {
+    const ratio = Math.max(0.0, Math.min(1.0, distance / maxDistance));
+    const hue = ratio * 0.67;
+    const h = hue * 6.0;
+    const sector = Math.floor(h);
+    const f = h - sector;
+    const q = 1.0 - f;
+
+    let r = 0, g = 0, b = 0;
+    switch (sector % 6) {
+        case 0: r = 1.0; g = f; b = 0.0; break;
+        case 1: r = q; g = 1.0; b = 0.0; break;
+        case 2: r = 0.0; g = 1.0; b = f; break;
+        case 3: r = 0.0; g = q; b = 1.0; break;
+        case 4: r = f; g = 0.0; b = 1.0; break;
+        case 5: r = 1.0; g = 0.0; b = q; break;
+    }
+
+    return `rgb(${Math.floor(r * 255)}, ${Math.floor(g * 255)}, ${Math.floor(b * 255)})`;
+}
+
+// ============================================================
+// Main Simulator Class
+// ============================================================
+
+class LidarSimulator {
+    constructor() {
+        // Initialize data structures
+        this.robot = new Robot();
+        this.lrfData = new LRF();
+        this.lrfArea = new LRF();
+        this.obst = new Obstacle();
+        this.moveObst = new MoveObstacle(0);
+
+        // View state
+        this.viewOffsetX = 0.0;
+        this.viewOffsetY = 0.0;
+        this.viewScale = 30.0;
+
+        // Mode state
+        this.glMode = 0;  // 0: normal, 1: obstacle edit
+        this.lidarViewMode = 2;  // 0-3
+        this.lidarWindowMode = 0;  // 0-2
+
+        // Control state
+        this.running = true;
+
+        // Mouse state
+        this.leftButtonPressed = false;
+        this.rightButtonPressed = false;
+        this.lastMouseX = 0;
+        this.lastMouseY = 0;
+
+        // Obstacle edit state
+        this.editStartPoint = null;
+
+        // Key states
+        this.keys = {};
+
+        // Get canvas contexts
+        this.mainCanvas = document.getElementById('mainCanvas');
+        this.mainCtx = this.mainCanvas.getContext('2d');
+        this.lidarCanvas = document.getElementById('lidarCanvas');
+        this.lidarCtx = this.lidarCanvas.getContext('2d');
+
+        // Load default obstacles
+        this.loadDefaultObstacles();
+
+        // Setup event listeners
+        this.setupEventListeners();
+
+        // Start simulation
+        this.lastTime = performance.now();
+        this.simulate();
+    }
+
+    loadDefaultObstacles() {
+        // Default obstacle data from obstacle.csv
+        const obstacleData = [
+            [2.89949,-0.276142,2.69239,5.72995],
+            [2.69239,5.72995,5.45381,5.52285],
+            [5.45381,5.52285,5.59188,-0.276142],
+            [5.59188,-0.276142,3.1066,-0.0690356],
+            [-2.76142,0.345178,-3.17564,6.42031],
+            [-3.17564,6.42031,-6.28224,6.07513],
+            [-6.28224,6.07513,-5.38478,0.474214],
+            [-5.38478,0.474214,-4.0731,0.336142],
+            [-3.32467,0.336142,-3.1866,0.267107],
+            [-2.97949,0.267107,-2.84142,0.750356],
+            [-4.08406,0.336142,-2.84142,0.543249],
+            [-5.05056,0.474214,-3.73889,-0.0780712],
+            [-5.53381,-1.11361,3.50985,-0.975534],
+            [-8.01909,-3.32274,3.30274,-1.04457],
+            [3.50985,-2.77046,0.54132,-3.80599],
+            [-7.39777,-3.39178,-0.425178,-3.52985],
+            [3.78599,-1.04457,3.9931,-2.77046],
+            [-5.53381,-1.04457,-8.15716,-3.18467],
+            [-5.25767,12.4864,-10.0211,5.85899],
+            [-10.0211,5.85899,-14.3013,7.44681],
+            [-14.3013,7.44681,-11.4018,14.1433],
+            [-11.4018,14.1433,-5.64285,12.6935],
+            [-13.2368,3.51178,-10.3373,3.92599],
+            [-10.2682,2.82142,-10.1902,3.84853],
+            [-13.0897,3.22721,-13.78,-4.78092],
+            [-12.1922,-4.71188,-10.2592,2.74396],
+            [-10.9496,-4.71188,-12.4683,-4.84995],
+            [-15.5059,-4.71188,-11.9851,-4.71188],
+            [6.86163,-6.36874,11.4961,-6.34874],
+            [11.4961,-6.34874,10.9438,17.6066],
+            [10.9438,17.6066,7.28488,17.6066],
+            [7.28488,17.6066,7.9062,-5.58935],
+            [-3.38274,8.1462,1.24264,8.28427],
+            [1.24264,8.28427,1.03553,11.0457],
+            [1.03553,11.0457,-3.58985,10.6315],
+            [-3.38413,11.2148,-3.46283,8.49967],
+            [-3.40359,8.83559,-2.85352,8.04486],
+            [3.12276,-3.71757,-0.743513,-4.01497],
+            [-0.743513,-4.01497,-1.93313,-2.87492],
+            [-2.1314,8.17864,-4.06454,6.44378],
+            [-3.02362,0.842648,-1.38789,-2.87492],
+            [-10.7696,-7.24874,8.28427,-6.76549],
+            [7.24874,17.1008,-16.7756,16.9628],
+            [-16.7756,16.9628,-17.3279,-8.44234],
+            [-17.3279,-8.44234,-7.66295,-7.33777]
+        ];
+
+        for (const data of obstacleData) {
+            if (this.obst.n < OBSTACLE_MAX) {
+                this.obst.x1[this.obst.n] = data[0];
+                this.obst.y1[this.obst.n] = data[1];
+                this.obst.x2[this.obst.n] = data[2];
+                this.obst.y2[this.obst.n] = data[3];
+                this.obst.n++;
+            }
+        }
+    }
+
+    setupEventListeners() {
+        // Keyboard events
+        document.addEventListener('keydown', (e) => this.handleKeyDown(e));
+        document.addEventListener('keyup', (e) => this.handleKeyUp(e));
+
+        // Mouse events for main canvas
+        this.mainCanvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+        this.mainCanvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+        this.mainCanvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+        this.mainCanvas.addEventListener('wheel', (e) => this.handleMouseWheel(e));
+        this.mainCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
+
+    handleKeyDown(e) {
+        this.keys[e.key.toLowerCase()] = true;
+
+        const linearSpeed = 1.0;
+        const angularSpeed = 1.0;
+
+        switch (e.key.toLowerCase()) {
+            case 'escape':
+                this.running = false;
+                break;
+            case 'z':
+                this.glMode = this.glMode === 0 ? 1 : 0;
+                this.robot.v = 0;
+                this.robot.w = 0;
+                this.editStartPoint = null;
+                document.getElementById('modeText').textContent = this.glMode === 1 ? 'Edit' : 'Normal';
+                break;
+            case 'w':
+                this.robot.v = linearSpeed;
+                break;
+            case 's':
+                this.robot.v = -linearSpeed;
+                break;
+            case 'a':
+                this.robot.w = -angularSpeed;
+                break;
+            case 'd':
+                this.robot.w = angularSpeed;
+                break;
+            case ' ':
+                this.robot.v = 0;
+                this.robot.w = 0;
+                e.preventDefault();
+                break;
+            case 'r':
+                this.robot.reset();
+                break;
+            case 'l':
+                this.lidarViewMode = (this.lidarViewMode + 1) % 4;
+                const viewModes = ['Line+Point', 'Point Only', 'Color', 'Line Only'];
+                document.getElementById('lidarViewMode').textContent = viewModes[this.lidarViewMode];
+                break;
+            case 'm':
+                this.lidarWindowMode = (this.lidarWindowMode + 1) % 3;
+                const windowModes = ['Polar', 'Cartesian', 'Graph'];
+                document.getElementById('lidarWindowMode').textContent = windowModes[this.lidarWindowMode];
+                break;
+            case 'arrowleft':
+                this.viewOffsetX -= 0.5;
+                break;
+            case 'arrowright':
+                this.viewOffsetX += 0.5;
+                break;
+            case 'arrowup':
+                this.viewOffsetY += 0.5;
+                break;
+            case 'arrowdown':
+                this.viewOffsetY -= 0.5;
+                break;
+            case 'pageup':
+                this.viewScale *= 1.2;
+                break;
+            case 'pagedown':
+                this.viewScale /= 1.2;
+                break;
+        }
+    }
+
+    handleKeyUp(e) {
+        this.keys[e.key.toLowerCase()] = false;
+
+        switch (e.key.toLowerCase()) {
+            case 'w':
+            case 's':
+                this.robot.v = 0;
+                break;
+            case 'a':
+            case 'd':
+                this.robot.w = 0;
+                break;
+        }
+    }
+
+    handleMouseDown(e) {
+        const rect = this.mainCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        if (e.button === 0) {  // Left button
+            this.leftButtonPressed = true;
+            this.lastMouseX = x;
+            this.lastMouseY = y;
+
+            if (this.glMode === 1) {
+                const [wx, wy] = this.screenToWorld(x, y);
+                if (this.editStartPoint === null) {
+                    this.editStartPoint = [wx, wy];
+                } else {
+                    // Add obstacle
+                    if (this.obst.n < this.obst.n_max) {
+                        this.obst.x1[this.obst.n] = this.editStartPoint[0];
+                        this.obst.y1[this.obst.n] = this.editStartPoint[1];
+                        this.obst.x2[this.obst.n] = wx;
+                        this.obst.y2[this.obst.n] = wy;
+                        this.obst.n++;
+                    }
+                    this.editStartPoint = null;
+                }
+            }
+        } else if (e.button === 2) {  // Right button
+            this.rightButtonPressed = true;
+            this.lastMouseX = x;
+            this.lastMouseY = y;
+
+            if (this.glMode === 1 && this.obst.n > 0) {
+                // Remove last obstacle
+                this.obst.n--;
+                this.obst.x1[this.obst.n] = 0;
+                this.obst.y1[this.obst.n] = 0;
+                this.obst.x2[this.obst.n] = 0;
+                this.obst.y2[this.obst.n] = 0;
+                this.editStartPoint = null;
+            }
+        }
+    }
+
+    handleMouseUp(e) {
+        if (e.button === 0) {
+            this.leftButtonPressed = false;
+        } else if (e.button === 2) {
+            this.rightButtonPressed = false;
+        }
+    }
+
+    handleMouseMove(e) {
+        const rect = this.mainCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        if (this.leftButtonPressed && this.glMode === 0) {
+            const dx = x - this.lastMouseX;
+            const dy = y - this.lastMouseY;
+            this.viewOffsetX -= dx / this.viewScale;
+            this.viewOffsetY += dy / this.viewScale;
+        }
+
+        if (this.rightButtonPressed) {
+            const dx = x - this.lastMouseX;
+            this.viewScale *= (1 + dx / 100);
+            this.viewScale = Math.max(5.0, Math.min(200.0, this.viewScale));
+        }
+
+        this.lastMouseX = x;
+        this.lastMouseY = y;
+    }
+
+    handleMouseWheel(e) {
+        e.preventDefault();
+        this.viewScale *= (1 - e.deltaY * 0.001);
+        this.viewScale = Math.max(5.0, Math.min(200.0, this.viewScale));
+    }
+
+    worldToScreen(wx, wy) {
+        const sx = (wx - this.viewOffsetX) * this.viewScale + WIDTH / 2;
+        const sy = HEIGHT / 2 - (wy - this.viewOffsetY) * this.viewScale;
+        return [sx, sy];
+    }
+
+    screenToWorld(sx, sy) {
+        const wx = (sx - WIDTH / 2) / this.viewScale + this.viewOffsetX;
+        const wy = (HEIGHT / 2 - sy) / this.viewScale + this.viewOffsetY;
+        return [wx, wy];
+    }
+
+    simulate() {
+        if (!this.running) return;
+
+        const now = performance.now();
+        const dt = (now - this.lastTime) / 1000;
+        this.lastTime = now;
+
+        // Update simulation
+        robotMove(this.robot, this.moveObst, dt);
+        moveObstacleCalculate(this.moveObst);
+        lrfCalculate(this.robot, this.lrfArea, this.obst, this.moveObst, this.lrfData);
+
+        // Draw
+        this.drawMainView();
+        this.drawLidarView();
+
+        // Update status display
+        document.getElementById('posX').textContent = this.robot.x.toFixed(2);
+        document.getElementById('posY').textContent = this.robot.y.toFixed(2);
+        document.getElementById('angle').textContent = (this.robot.theta * 180 / Math.PI).toFixed(1);
+
+        // Request next frame
+        requestAnimationFrame(() => this.simulate());
+    }
+
+    drawMainView() {
+        const ctx = this.mainCtx;
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+        // Draw grid
+        this.drawGrid(ctx);
+
+        // Draw obstacles
+        this.drawObstacles(ctx);
+
+        // Draw moving obstacles
+        this.drawMoveObstacles(ctx);
+
+        if (this.glMode === 0) {
+            // Draw LiDAR
+            this.drawLidar(ctx);
+
+            // Draw robot
+            this.drawRobot(ctx);
+
+            // Draw info text
+            const modeNames = [
+                'LiDAR: Line+Point [L]',
+                'LiDAR: Point Only [L]',
+                'LiDAR: Color by Distance [L]',
+                'LiDAR: Line Only [L]'
+            ];
+            ctx.fillStyle = '#009600';
+            ctx.font = '14px monospace';
+            ctx.fillText(modeNames[this.lidarViewMode], 10, 20);
+            ctx.fillText(`Pos: (${this.robot.x.toFixed(2)}, ${this.robot.y.toFixed(2)}) Angle: ${(this.robot.theta * 180 / Math.PI).toFixed(1)}°`, 10, 40);
+        } else {
+            // Obstacle edit mode
+            ctx.fillStyle = '#c80000';
+            ctx.font = '14px monospace';
+            ctx.fillText('Obstacle Edit Mode [Z]', 10, 20);
+
+            // Draw edit preview line
+            if (this.editStartPoint !== null) {
+                const [startX, startY] = this.worldToScreen(this.editStartPoint[0], this.editStartPoint[1]);
+                const rect = this.mainCanvas.getBoundingClientRect();
+                const mouseX = this.lastMouseX;
+                const mouseY = this.lastMouseY;
+
+                ctx.strokeStyle = '#ff6464';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(mouseX, mouseY);
+                ctx.stroke();
+
+                ctx.fillStyle = '#ff0000';
+                ctx.beginPath();
+                ctx.arc(startX, startY, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+    }
+
+    drawGrid(ctx) {
+        const gridColor = '#e6e6e6';
+        const gridSize = 1.0;
+
+        // Calculate visible range
+        const [left] = this.screenToWorld(0, HEIGHT / 2);
+        const [right] = this.screenToWorld(WIDTH, HEIGHT / 2);
+        const [, bottom] = this.screenToWorld(WIDTH / 2, HEIGHT);
+        const [, top] = this.screenToWorld(WIDTH / 2, 0);
+
+        ctx.strokeStyle = gridColor;
+        ctx.lineWidth = 1;
+
+        // Draw vertical lines
+        let x = Math.floor(left / gridSize) * gridSize;
+        while (x <= right) {
+            const [sx] = this.worldToScreen(x, 0);
+            ctx.beginPath();
+            ctx.moveTo(sx, 0);
+            ctx.lineTo(sx, HEIGHT);
+            ctx.stroke();
+            x += gridSize;
+        }
+
+        // Draw horizontal lines
+        let y = Math.floor(bottom / gridSize) * gridSize;
+        while (y <= top) {
+            const [, sy] = this.worldToScreen(0, y);
+            ctx.beginPath();
+            ctx.moveTo(0, sy);
+            ctx.lineTo(WIDTH, sy);
+            ctx.stroke();
+            y += gridSize;
+        }
+
+        // Draw axes
+        const [ox, oy] = this.worldToScreen(0, 0);
+        ctx.strokeStyle = '#c8c8c8';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(ox, 0);
+        ctx.lineTo(ox, HEIGHT);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, oy);
+        ctx.lineTo(WIDTH, oy);
+        ctx.stroke();
+    }
+
+    drawObstacles(ctx) {
+        ctx.strokeStyle = '#00b450';
+        ctx.lineWidth = 2;
+
+        for (let i = 0; i < this.obst.n; i++) {
+            const [startX, startY] = this.worldToScreen(this.obst.x1[i], this.obst.y1[i]);
+            const [endX, endY] = this.worldToScreen(this.obst.x2[i], this.obst.y2[i]);
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+        }
+    }
+
+    drawMoveObstacles(ctx) {
+        ctx.strokeStyle = '#ff3200';
+        ctx.lineWidth = 2;
+
+        for (let i = 0; i < this.moveObst.n; i++) {
+            const points = [];
+            for (let j = 0; j < this.moveObst.m; j++) {
+                points.push(this.worldToScreen(this.moveObst.obst_x[i][j], this.moveObst.obst_y[i][j]));
+            }
+            if (points.length >= 3) {
+                ctx.beginPath();
+                ctx.moveTo(points[0][0], points[0][1]);
+                for (let j = 1; j < points.length; j++) {
+                    ctx.lineTo(points[j][0], points[j][1]);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            }
+        }
+    }
+
+    drawRobot(ctx) {
+        const [centerX, centerY] = this.worldToScreen(this.robot.x, this.robot.y);
+        const radius = this.robot.size * this.viewScale;
+
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Draw direction indicator
+        const frontX = this.robot.x + this.robot.size * Math.cos(this.robot.theta + Math.PI / 2);
+        const frontY = this.robot.y + this.robot.size * Math.sin(this.robot.theta + Math.PI / 2);
+        const [fx, fy] = this.worldToScreen(frontX, frontY);
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(fx, fy);
+        ctx.stroke();
+    }
+
+    drawLidar(ctx) {
+        const showLaserLines = this.lidarViewMode === 0 || this.lidarViewMode === 3;
+        const showPoints = this.lidarViewMode === 0 || this.lidarViewMode === 1 || this.lidarViewMode === 2;
+        const colorByDistance = this.lidarViewMode === 2;
+        const dataNum = this.lrfData.data_num;
+
+        const [robotScreenX, robotScreenY] = this.worldToScreen(this.robot.x, this.robot.y);
+
+        if (showLaserLines) {
+            ctx.strokeStyle = '#00b4ff';
+            ctx.lineWidth = 1;
+
+            for (let i = 0; i < dataNum; i++) {
+                const angle = i * this.lrfData.reso + this.lrfData.start_rad + this.robot.theta;
+                let len = this.lrfData.leng[i];
+                if (len === 0 || isNaN(len)) {
+                    len = this.lrfData.leng_max;
+                }
+                const xx = -len * Math.sin(angle) + this.robot.x;
+                const yy = len * Math.cos(angle) + this.robot.y;
+                const [sx, sy] = this.worldToScreen(xx, yy);
+
+                ctx.beginPath();
+                ctx.moveTo(robotScreenX, robotScreenY);
+                ctx.lineTo(sx, sy);
+                ctx.stroke();
+            }
+        }
+
+        if (showPoints) {
+            let prevPoint = null;
+            let prevValid = false;
+
+            for (let i = 0; i < dataNum; i++) {
+                const len = this.lrfData.leng[i];
+                const valid = len > 0 && !isNaN(len) && len < this.lrfData.leng_max;
+
+                if (valid) {
+                    const angle = i * this.lrfData.reso + this.lrfData.start_rad + this.robot.theta;
+                    const xx = -len * Math.sin(angle) + this.robot.x;
+                    const yy = len * Math.cos(angle) + this.robot.y;
+                    const [sx, sy] = this.worldToScreen(xx, yy);
+
+                    const color = colorByDistance ? distanceToColor(len, this.lrfData.leng_max) : '#ff0000';
+
+                    ctx.fillStyle = color;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Draw connecting lines for point modes
+                    if ((this.lidarViewMode === 1 || this.lidarViewMode === 2) && prevValid && prevPoint) {
+                        if (colorByDistance) {
+                            const rgb = distanceToColor(len, this.lrfData.leng_max);
+                            // Darken the color
+                            ctx.strokeStyle = rgb.replace('rgb(', 'rgba(').replace(')', ', 0.7)');
+                        } else {
+                            ctx.strokeStyle = '#b40000';
+                        }
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(prevPoint[0], prevPoint[1]);
+                        ctx.lineTo(sx, sy);
+                        ctx.stroke();
+                    }
+
+                    prevPoint = [sx, sy];
+                    prevValid = true;
+                } else {
+                    prevPoint = null;
+                    prevValid = false;
+                }
+            }
+        }
+    }
+
+    drawLidarView() {
+        switch (this.lidarWindowMode) {
+            case 0:
+                this.drawLidarPolarView();
+                break;
+            case 1:
+                this.drawLidarCartesianView();
+                break;
+            case 2:
+                this.drawLidarGraphView();
+                break;
+        }
+    }
+
+    drawLidarPolarView() {
+        const ctx = this.lidarCtx;
+        const centerX = LIDAR_WIN_WIDTH / 2;
+        const centerY = LIDAR_WIN_HEIGHT / 2;
+        const maxRadius = Math.min(centerX, centerY) - 20;
+        const dataNum = this.lrfData.data_num;
+
+        // Clear
+        ctx.fillStyle = '#191928';
+        ctx.fillRect(0, 0, LIDAR_WIN_WIDTH, LIDAR_WIN_HEIGHT);
+
+        // Draw concentric circles
+        ctx.strokeStyle = '#4b4b4b';
+        ctx.lineWidth = 1;
+        for (let r = 1; r <= 4; r++) {
+            const radius = r * maxRadius / 4;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // Draw radial lines
+        for (let i = 0; i < 12; i++) {
+            const angle = i * Math.PI / 6;
+            const endX = centerX + maxRadius * Math.cos(angle);
+            const endY = centerY - maxRadius * Math.sin(angle);
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+        }
+
+        // Draw robot indicator
+        ctx.fillStyle = '#00c800';
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY - 15);
+        ctx.lineTo(centerX - 8, centerY + 8);
+        ctx.lineTo(centerX + 8, centerY + 8);
+        ctx.closePath();
+        ctx.fill();
+
+        // Draw scan range
+        ctx.strokeStyle = '#326432';
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        for (let i = 0; i <= dataNum; i += 10) {
+            const idx = Math.min(i, dataNum - 1);
+            const angle = this.lrfData.start_rad + idx * this.lrfData.reso + Math.PI / 2;
+            const px = centerX + maxRadius * Math.cos(angle);
+            const py = centerY - maxRadius * Math.sin(angle);
+            ctx.lineTo(px, py);
+        }
+        ctx.lineTo(centerX, centerY);
+        ctx.stroke();
+
+        // Draw LiDAR points
+        let prevPoint = null;
+        let prevValid = false;
+
+        for (let i = 0; i < dataNum; i++) {
+            const len = this.lrfData.leng[i];
+            const valid = len > 0 && !isNaN(len) && len < this.lrfData.leng_max;
+
+            if (valid) {
+                const angle = this.lrfData.start_rad + i * this.lrfData.reso + Math.PI / 2;
+                const normLen = len / this.lrfData.leng_max;
+                const x = centerX + normLen * maxRadius * Math.cos(angle);
+                const y = centerY - normLen * maxRadius * Math.sin(angle);
+
+                const color = distanceToColor(len, this.lrfData.leng_max);
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(x, y, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                if (prevValid && prevPoint) {
+                    ctx.strokeStyle = color;
+                    ctx.globalAlpha = 0.8;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(prevPoint[0], prevPoint[1]);
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
+                    ctx.globalAlpha = 1.0;
+                }
+
+                prevPoint = [x, y];
+                prevValid = true;
+            } else {
+                prevPoint = null;
+                prevValid = false;
+            }
+        }
+
+        // Draw text
+        ctx.fillStyle = '#c8c8c8';
+        ctx.font = '14px monospace';
+        ctx.fillText('Polar View [M:change]', 10, 20);
+        ctx.fillText(`Max: ${this.lrfData.leng_max.toFixed(1)}m`, 10, 40);
+    }
+
+    drawLidarCartesianView() {
+        const ctx = this.lidarCtx;
+        const centerX = LIDAR_WIN_WIDTH / 2;
+        const centerY = LIDAR_WIN_HEIGHT / 2;
+        const scale = (Math.min(centerX, centerY) - 20) / this.lrfData.leng_max;
+        const dataNum = this.lrfData.data_num;
+
+        // Clear
+        ctx.fillStyle = '#191928';
+        ctx.fillRect(0, 0, LIDAR_WIN_WIDTH, LIDAR_WIN_HEIGHT);
+
+        // Draw grid
+        ctx.strokeStyle = '#4b4b4b';
+        ctx.lineWidth = 1;
+        for (let i = -10; i <= 10; i++) {
+            const pos = i * scale * this.lrfData.leng_max / 10;
+            ctx.beginPath();
+            ctx.moveTo(centerX + pos, 20);
+            ctx.lineTo(centerX + pos, LIDAR_WIN_HEIGHT - 20);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(20, centerY + pos);
+            ctx.lineTo(LIDAR_WIN_WIDTH - 20, centerY + pos);
+            ctx.stroke();
+        }
+
+        // Draw axes
+        ctx.strokeStyle = '#787878';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(20, centerY);
+        ctx.lineTo(LIDAR_WIN_WIDTH - 20, centerY);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(centerX, 20);
+        ctx.lineTo(centerX, LIDAR_WIN_HEIGHT - 20);
+        ctx.stroke();
+
+        // Draw robot position
+        ctx.fillStyle = '#00ff00';
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw LiDAR points
+        for (let i = 0; i < dataNum; i++) {
+            const len = this.lrfData.leng[i];
+            const valid = len > 0 && !isNaN(len) && len < this.lrfData.leng_max;
+
+            if (valid) {
+                const angle = this.lrfData.start_rad + i * this.lrfData.reso;
+                const x = centerX + (-len * Math.sin(angle) * scale);
+                const y = centerY - (len * Math.cos(angle) * scale);
+
+                const color = distanceToColor(len, this.lrfData.leng_max);
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(x, y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Draw text
+        ctx.fillStyle = '#c8c8c8';
+        ctx.font = '14px monospace';
+        ctx.fillText('Cartesian View [M:change]', 10, 20);
+        ctx.fillText(`Scale: 1=${this.lrfData.leng_max.toFixed(1)}m`, 10, 40);
+    }
+
+    drawLidarGraphView() {
+        const ctx = this.lidarCtx;
+        const margin = 50;
+        const graphWidth = LIDAR_WIN_WIDTH - 2 * margin;
+        const graphHeight = LIDAR_WIN_HEIGHT - 2 * margin;
+        const dataNum = this.lrfData.data_num;
+
+        // Clear
+        ctx.fillStyle = '#191928';
+        ctx.fillRect(0, 0, LIDAR_WIN_WIDTH, LIDAR_WIN_HEIGHT);
+
+        // Draw grid lines
+        ctx.strokeStyle = '#4b4b4b';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 5; i++) {
+            const y = margin + i * graphHeight / 4;
+            ctx.beginPath();
+            ctx.moveTo(margin, y);
+            ctx.lineTo(LIDAR_WIN_WIDTH - margin, y);
+            ctx.stroke();
+        }
+
+        // Draw axes
+        ctx.strokeStyle = '#969696';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(margin, LIDAR_WIN_HEIGHT - margin);
+        ctx.lineTo(LIDAR_WIN_WIDTH - margin, LIDAR_WIN_HEIGHT - margin);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(margin, margin);
+        ctx.lineTo(margin, LIDAR_WIN_HEIGHT - margin);
+        ctx.stroke();
+
+        // Draw distance graph
+        let prevPoint = null;
+
+        for (let i = 0; i < dataNum; i++) {
+            const len = this.lrfData.leng[i];
+            const valid = len > 0 && !isNaN(len) && len < this.lrfData.leng_max;
+
+            const x = margin + i * graphWidth / (dataNum - 1);
+            let y;
+            let color;
+
+            if (valid) {
+                y = LIDAR_WIN_HEIGHT - margin - (len / this.lrfData.leng_max * graphHeight);
+                color = distanceToColor(len, this.lrfData.leng_max);
+            } else {
+                y = margin;
+                color = '#646464';
+            }
+
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            if (prevPoint !== null) {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(prevPoint[0], prevPoint[1]);
+                ctx.lineTo(x, y);
+                ctx.stroke();
+            }
+
+            prevPoint = [x, y];
+        }
+
+        // Draw text
+        ctx.fillStyle = '#c8c8c8';
+        ctx.font = '14px monospace';
+        ctx.fillText('Graph View [M:change]', 10, 20);
+        ctx.fillText(`${this.lrfData.leng_max.toFixed(1)}m`, 10, margin);
+        ctx.fillText('0.0m', 10, LIDAR_WIN_HEIGHT - margin - 10);
+    }
+}
+
+// Start the simulator when the page loads
+window.addEventListener('load', () => {
+    new LidarSimulator();
+});
+    </script>
+</body>
+</html>
