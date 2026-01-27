@@ -11,15 +11,16 @@
         body { background: #1a1a2e; }
         #map { width: 100vw; height: 100vh; }
         .fee-label {
-            background: rgba(0, 0, 0, 0.8);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid;
             border-radius: 4px;
-            padding: 2px 6px;
+            padding: 3px 6px;
             color: #fff;
             font-size: 11px;
             font-weight: bold;
             white-space: nowrap;
             font-family: Arial, sans-serif;
+            text-shadow: 1px 1px 2px black;
         }
         .shenzhen-label {
             background: #ff00ff;
@@ -84,7 +85,6 @@
         .info-panel .fee {
             font-size: 24px;
             font-weight: bold;
-            color: #00ff00;
         }
     </style>
 </head>
@@ -124,44 +124,45 @@
     <script>
         const SHENZHEN = { lat: 22.5431, lng: 114.0579 };
 
+        // ラベル位置をずらして重なりを防ぐ
         const countries = [
-            { name: "China", nameJa: "中国", lat: 22.5431, lng: 114.0579, fee: 5 },
-            { name: "Vietnam", nameJa: "ベトナム", lat: 21.0285, lng: 105.8542, fee: 8 },
-            { name: "Hong Kong", nameJa: "香港", lat: 22.3193, lng: 114.1694, fee: 18 },
-            { name: "Macau", nameJa: "マカオ", lat: 22.1987, lng: 113.5439, fee: 18 },
-            { name: "Japan", nameJa: "日本", lat: 35.6762, lng: 139.6503, fee: 25 },
-            { name: "Thailand", nameJa: "タイ", lat: 13.7563, lng: 100.5018, fee: 27 },
-            { name: "Philippines", nameJa: "フィリピン", lat: 14.5995, lng: 120.9842, fee: 34 },
-            { name: "South Korea", nameJa: "韓国", lat: 37.5665, lng: 126.9780, fee: 38 },
-            { name: "Malaysia", nameJa: "マレーシア", lat: 3.1390, lng: 101.6869, fee: 39 },
-            { name: "Singapore", nameJa: "シンガポール", lat: 1.3521, lng: 103.8198, fee: 45 },
-            { name: "UAE", nameJa: "UAE", lat: 25.2048, lng: 55.2708, fee: 48 },
-            { name: "Brazil", nameJa: "ブラジル", lat: -15.8267, lng: -47.9218, fee: 55 },
-            { name: "Israel", nameJa: "イスラエル", lat: 31.7683, lng: 35.2137, fee: 61 },
-            { name: "Saudi Arabia", nameJa: "サウジ", lat: 24.7136, lng: 46.6753, fee: 65 },
-            { name: "Taiwan", nameJa: "台湾", lat: 25.0330, lng: 121.5654, fee: 65 },
-            { name: "European", nameJa: "EU", lat: 50.8503, lng: 4.3517, fee: 66 },
-            { name: "UK", nameJa: "イギリス", lat: 51.5074, lng: -0.1278, fee: 66 },
-            { name: "Switzerland", nameJa: "スイス", lat: 46.9480, lng: 7.4474, fee: 66 },
-            { name: "Norway", nameJa: "ノルウェー", lat: 59.9139, lng: 10.7522, fee: 66 },
-            { name: "Rwanda", nameJa: "ルワンダ", lat: -1.9403, lng: 29.8739, fee: 66 },
-            { name: "Indonesia", nameJa: "インドネシア", lat: -6.2088, lng: 106.8456, fee: 68 },
-            { name: "Cambodia", nameJa: "カンボジア", lat: 11.5564, lng: 104.9282, fee: 68 },
-            { name: "Laos", nameJa: "ラオス", lat: 17.9757, lng: 102.6331, fee: 68 },
-            { name: "Brunei", nameJa: "ブルネイ", lat: 4.9031, lng: 114.9398, fee: 68 },
-            { name: "Chile", nameJa: "チリ", lat: -33.4489, lng: -70.6693, fee: 69 },
-            { name: "Canada", nameJa: "カナダ", lat: 45.4215, lng: -75.6972, fee: 70 },
-            { name: "New Zealand", nameJa: "NZ", lat: -41.2865, lng: 174.7762, fee: 71 },
-            { name: "Colombia", nameJa: "コロンビア", lat: 4.7110, lng: -74.0721, fee: 79 },
-            { name: "Mexico", nameJa: "メキシコ", lat: 19.4326, lng: -99.1332, fee: 81 },
-            { name: "India", nameJa: "インド", lat: 28.6139, lng: 77.2090, fee: 83 },
-            { name: "Australia", nameJa: "豪州", lat: -33.8688, lng: 151.2093, fee: 86 },
-            { name: "USA", nameJa: "アメリカ", lat: 38.9072, lng: -77.0369, fee: 87 },
-            { name: "Uganda", nameJa: "ウガンダ", lat: 0.3476, lng: 32.5825, fee: 89 },
-            { name: "Turkey", nameJa: "トルコ", lat: 39.9334, lng: 32.8597, fee: 100 },
-            { name: "Egypt", nameJa: "エジプト", lat: 30.0444, lng: 31.2357, fee: 134 },
-            { name: "Oman", nameJa: "オマーン", lat: 23.5880, lng: 58.3829, fee: 182 },
-            { name: "Georgia", nameJa: "ジョージア", lat: 41.7151, lng: 44.8271, fee: 182 },
+            { name: "China", nameJa: "中国", lat: 22.5431, lng: 114.0579, fee: 5, labelLat: 20, labelLng: 110 },
+            { name: "Vietnam", nameJa: "ベトナム", lat: 21.0285, lng: 105.8542, fee: 8, labelLat: 16, labelLng: 106 },
+            { name: "Hong Kong", nameJa: "香港", lat: 22.3193, lng: 114.1694, fee: 18, labelLat: 20, labelLng: 117 },
+            { name: "Macau", nameJa: "マカオ", lat: 22.1987, lng: 113.5439, fee: 18, labelLat: 18, labelLng: 113 },
+            { name: "Japan", nameJa: "日本", lat: 35.6762, lng: 139.6503, fee: 25, labelLat: 36, labelLng: 140 },
+            { name: "Thailand", nameJa: "タイ", lat: 13.7563, lng: 100.5018, fee: 27, labelLat: 14, labelLng: 101 },
+            { name: "Philippines", nameJa: "フィリピン", lat: 14.5995, lng: 120.9842, fee: 34, labelLat: 12, labelLng: 122 },
+            { name: "South Korea", nameJa: "韓国", lat: 37.5665, lng: 126.9780, fee: 38, labelLat: 37, labelLng: 127 },
+            { name: "Malaysia", nameJa: "マレーシア", lat: 3.1390, lng: 101.6869, fee: 39, labelLat: 3, labelLng: 102 },
+            { name: "Singapore", nameJa: "シンガポール", lat: 1.3521, lng: 103.8198, fee: 45, labelLat: -1, labelLng: 104 },
+            { name: "UAE", nameJa: "UAE", lat: 25.2048, lng: 55.2708, fee: 48, labelLat: 24, labelLng: 54 },
+            { name: "Brazil", nameJa: "ブラジル", lat: -15.8267, lng: -47.9218, fee: 55, labelLat: -16, labelLng: -48 },
+            { name: "Israel", nameJa: "イスラエル", lat: 31.7683, lng: 35.2137, fee: 61, labelLat: 32, labelLng: 35 },
+            { name: "Saudi Arabia", nameJa: "サウジアラビア", lat: 24.7136, lng: 46.6753, fee: 65, labelLat: 25, labelLng: 45 },
+            { name: "Taiwan", nameJa: "台湾", lat: 25.0330, lng: 121.5654, fee: 65, labelLat: 24, labelLng: 121 },
+            { name: "European", nameJa: "EU(その他欧州)", lat: 50.8503, lng: 4.3517, fee: 66, labelLat: 50, labelLng: 4 },
+            { name: "UK", nameJa: "イギリス", lat: 51.5074, lng: -0.1278, fee: 66, labelLat: 54, labelLng: -2 },
+            { name: "Switzerland", nameJa: "スイス", lat: 46.9480, lng: 7.4474, fee: 66, labelLat: 47, labelLng: 8 },
+            { name: "Norway", nameJa: "ノルウェー", lat: 59.9139, lng: 10.7522, fee: 66, labelLat: 62, labelLng: 10 },
+            { name: "Rwanda", nameJa: "ルワンダ", lat: -1.9403, lng: 29.8739, fee: 66, labelLat: -2, labelLng: 30 },
+            { name: "Indonesia", nameJa: "インドネシア", lat: -6.2088, lng: 106.8456, fee: 68, labelLat: -8, labelLng: 115 },
+            { name: "Cambodia", nameJa: "カンボジア", lat: 11.5564, lng: 104.9282, fee: 68, labelLat: 11, labelLng: 105 },
+            { name: "Laos", nameJa: "ラオス", lat: 17.9757, lng: 102.6331, fee: 68, labelLat: 19, labelLng: 103 },
+            { name: "Brunei", nameJa: "ブルネイ", lat: 4.9031, lng: 114.9398, fee: 68, labelLat: 5, labelLng: 115 },
+            { name: "Chile", nameJa: "チリ", lat: -33.4489, lng: -70.6693, fee: 69, labelLat: -33, labelLng: -71 },
+            { name: "Canada", nameJa: "カナダ", lat: 45.4215, lng: -75.6972, fee: 70, labelLat: 50, labelLng: -100 },
+            { name: "New Zealand", nameJa: "ニュージーランド", lat: -41.2865, lng: 174.7762, fee: 71, labelLat: -41, labelLng: 175 },
+            { name: "Colombia", nameJa: "コロンビア", lat: 4.7110, lng: -74.0721, fee: 79, labelLat: 5, labelLng: -74 },
+            { name: "Mexico", nameJa: "メキシコ", lat: 19.4326, lng: -99.1332, fee: 81, labelLat: 23, labelLng: -102 },
+            { name: "India", nameJa: "インド", lat: 28.6139, lng: 77.2090, fee: 83, labelLat: 22, labelLng: 78 },
+            { name: "Australia", nameJa: "オーストラリア", lat: -33.8688, lng: 151.2093, fee: 86, labelLat: -25, labelLng: 135 },
+            { name: "USA", nameJa: "アメリカ", lat: 38.9072, lng: -77.0369, fee: 87, labelLat: 38, labelLng: -95 },
+            { name: "Uganda", nameJa: "ウガンダ", lat: 0.3476, lng: 32.5825, fee: 89, labelLat: 2, labelLng: 33 },
+            { name: "Turkey", nameJa: "トルコ", lat: 39.9334, lng: 32.8597, fee: 100, labelLat: 39, labelLng: 35 },
+            { name: "Egypt", nameJa: "エジプト", lat: 30.0444, lng: 31.2357, fee: 134, labelLat: 27, labelLng: 30 },
+            { name: "Oman", nameJa: "オマーン", lat: 23.5880, lng: 58.3829, fee: 182, labelLat: 21, labelLng: 58 },
+            { name: "Georgia", nameJa: "ジョージア", lat: 41.7151, lng: 44.8271, fee: 182, labelLat: 42, labelLng: 44 },
         ];
 
         function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -187,7 +188,7 @@
             return '#ff0000';
         }
 
-        const map = L.map('map').setView([25, 60], 3);
+        const map = L.map('map').setView([20, 50], 2);
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OpenStreetMap'
@@ -196,11 +197,11 @@
         // 深圳ラベル
         const shenzhenLabel = L.divIcon({
             className: 'shenzhen-marker',
-            html: '<div class="shenzhen-label">深圳</div>',
-            iconSize: [60, 30],
-            iconAnchor: [30, 15]
+            html: '<div class="shenzhen-label">深圳 (発送元)</div>',
+            iconSize: [100, 30],
+            iconAnchor: [50, 15]
         });
-        L.marker([SHENZHEN.lat, SHENZHEN.lng], { icon: shenzhenLabel }).addTo(map);
+        L.marker([SHENZHEN.lat, SHENZHEN.lng], { icon: shenzhenLabel, zIndexOffset: 1000 }).addTo(map);
 
         let selectedLine = null;
         const lines = [];
@@ -212,11 +213,11 @@
 
             const color = getFeeColor(country.fee);
 
-            // ライン（通常）
+            // ライン
             const line = L.polyline([[SHENZHEN.lat, SHENZHEN.lng], [country.lat, country.lng]], {
                 color: color,
                 weight: 2,
-                opacity: 0.5
+                opacity: 0.6
             }).addTo(map);
 
             line.countryData = country;
@@ -226,18 +227,15 @@
             line.on('click', function(e) {
                 L.DomEvent.stopPropagation(e);
 
-                // 前の選択を解除
                 if (selectedLine) {
                     const prevColor = getFeeColor(selectedLine.countryData.fee);
-                    selectedLine.setStyle({ weight: 2, opacity: 0.5, color: prevColor });
+                    selectedLine.setStyle({ weight: 2, opacity: 0.6, color: prevColor });
                 }
 
-                // 新しい選択を強調
                 selectedLine = line;
-                line.setStyle({ weight: 6, opacity: 1, color: '#00d4ff' });
+                line.setStyle({ weight: 8, opacity: 1, color: '#00d4ff' });
                 line.bringToFront();
 
-                // 情報パネル表示
                 document.getElementById('info-country').textContent = country.nameJa + ' (' + country.name + ')';
                 document.getElementById('info-fee').textContent = country.fee;
                 document.getElementById('info-distance').textContent = country.distance.toLocaleString();
@@ -245,26 +243,38 @@
                 document.getElementById('info-fee').parentElement.style.color = color;
             });
 
-            // 送料ラベル
+            // 送料ラベル（位置調整済み）
+            const labelLat = country.labelLat || country.lat;
+            const labelLng = country.labelLng || country.lng;
+
             const labelIcon = L.divIcon({
                 className: 'fee-marker',
                 html: `<div class="fee-label" style="border-color: ${color}; color: ${color};">${country.nameJa} $${country.fee}</div>`,
-                iconSize: [80, 20],
-                iconAnchor: [40, 10]
+                iconSize: [120, 24],
+                iconAnchor: [60, 12]
             });
 
-            const marker = L.marker([country.lat, country.lng], { icon: labelIcon }).addTo(map);
+            const marker = L.marker([labelLat, labelLng], { icon: labelIcon }).addTo(map);
 
             marker.on('click', function(e) {
                 line.fire('click', e);
             });
+
+            // 国の実際の位置に小さなドット
+            const dotIcon = L.divIcon({
+                className: 'dot-marker',
+                html: `<div style="background: ${color}; width: 8px; height: 8px; border-radius: 50%; border: 1px solid white;"></div>`,
+                iconSize: [8, 8],
+                iconAnchor: [4, 4]
+            });
+            L.marker([country.lat, country.lng], { icon: dotIcon }).addTo(map);
         });
 
         // 地図クリックで選択解除
         map.on('click', function() {
             if (selectedLine) {
                 const prevColor = getFeeColor(selectedLine.countryData.fee);
-                selectedLine.setStyle({ weight: 2, opacity: 0.5, color: prevColor });
+                selectedLine.setStyle({ weight: 2, opacity: 0.6, color: prevColor });
                 selectedLine = null;
                 infoPanel.style.display = 'none';
             }
