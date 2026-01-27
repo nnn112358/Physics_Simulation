@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>弾性振り子（ばね振り子）</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+        .main-content {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 450px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #fff;
+            display: block;
+        }
+        .control-section {
+            width: 280px;
+        }
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 0.95em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin-bottom: 12px;
+        }
+        .slider-container label {
+            display: block;
+            color: #555;
+            margin-bottom: 3px;
+            font-size: 0.85em;
+        }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            min-width: 70px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-reset { background: #6c757d; color: white; }
+        .info-display {
+            background: #e9ecef;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.8em;
+            line-height: 1.6;
+        }
+        .graphs-section {
+            width: 100%;
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .graph-container {
+            flex: 1;
+            min-width: 350px;
+        }
+        .graph-container h4 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>弾性振り子（ばね振り子）</h1>
+        <p class="description">ばねの伸縮と振れが結合した2自由度振動系</p>
+
+        <div class="main-content">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="500" height="480"></canvas>
+            </div>
+
+            <div class="control-section">
+                <div class="control-group">
+                    <h3>パラメータ設定</h3>
+
+                    <div class="slider-container">
+                        <label>質量 m: <span id="massVal">1.0</span> kg</label>
+                        <input type="range" id="massSlider" min="0.5" max="5.0" step="0.1" value="1.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>ばね定数 k: <span id="kVal">50</span> N/m</label>
+                        <input type="range" id="kSlider" min="10" max="200" step="5" value="50">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>自然長 ℓ₀: <span id="l0Val">1.0</span> m</label>
+                        <input type="range" id="l0Slider" min="0.3" max="2.0" step="0.1" value="1.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期伸び Δx₀: <span id="x0Val">0.3</span> m</label>
+                        <input type="range" id="x0Slider" min="0.0" max="1.0" step="0.05" value="0.3">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期角度 θ₀: <span id="theta0Val">30</span>°</label>
+                        <input type="range" id="theta0Slider" min="-60" max="60" step="5" value="30">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>重力 g: <span id="gravVal">9.8</span> m/s²</label>
+                        <input type="range" id="gravSlider" min="1.0" max="20.0" step="0.1" value="9.8">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>シミュレーション制御</h3>
+                    <div class="button-group">
+                        <button class="btn-start" id="startBtn">開始</button>
+                        <button class="btn-stop" id="stopBtn">停止</button>
+                        <button class="btn-reset" id="resetBtn">リセット</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>状態表示</h3>
+                    <div class="info-display" id="infoDisplay">
+                        時間: 0.00 s<br>
+                        伸び x: 0.00 m<br>
+                        角度 θ: 0.00°<br>
+                        全長 L: 0.00 m
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="graphs-section">
+            <div class="graph-container">
+                <h4>伸び x(t) と角度 θ(t)</h4>
+                <canvas id="graphX" width="380" height="180"></canvas>
+            </div>
+            <div class="graph-container">
+                <h4>エネルギー変化</h4>
+                <canvas id="graphEnergy" width="380" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const graphX = document.getElementById('graphX');
+        const ctxX = graphX.getContext('2d');
+        const graphEnergy = document.getElementById('graphEnergy');
+        const ctxEnergy = graphEnergy.getContext('2d');
+
+        // Parameters
+        let m = 1.0;
+        let k = 50;
+        let l0 = 1.0;  // natural length
+        let x0 = 0.3;  // initial extension
+        let theta0 = 30 * Math.PI / 180;
+        let g = 9.8;
+
+        // State: [x, xdot, theta, thetadot]
+        // x = extension from natural length (so total length L = l0 + x)
+        let state = [x0, 0, theta0, 0];
+        let time = 0;
+        let isRunning = false;
+        let animationId = null;
+
+        // Trajectory and history
+        let trajectory = [];
+        const maxTrajectory = 400;
+        let historyX = [], historyTheta = [];
+        let historyKE = [], historyPE = [], historyTE = [];
+        const maxHistory = 500;
+
+        // Sliders
+        const massSlider = document.getElementById('massSlider');
+        const kSlider = document.getElementById('kSlider');
+        const l0Slider = document.getElementById('l0Slider');
+        const x0Slider = document.getElementById('x0Slider');
+        const theta0Slider = document.getElementById('theta0Slider');
+        const gravSlider = document.getElementById('gravSlider');
+
+        const massVal = document.getElementById('massVal');
+        const kVal = document.getElementById('kVal');
+        const l0Val = document.getElementById('l0Val');
+        const x0Val = document.getElementById('x0Val');
+        const theta0Val = document.getElementById('theta0Val');
+        const gravVal = document.getElementById('gravVal');
+
+        massSlider.addEventListener('input', () => { m = parseFloat(massSlider.value); massVal.textContent = m.toFixed(1); });
+        kSlider.addEventListener('input', () => { k = parseFloat(kSlider.value); kVal.textContent = k.toFixed(0); });
+        l0Slider.addEventListener('input', () => { l0 = parseFloat(l0Slider.value); l0Val.textContent = l0.toFixed(1); if (!isRunning) reset(); });
+        x0Slider.addEventListener('input', () => { x0 = parseFloat(x0Slider.value); x0Val.textContent = x0.toFixed(2); if (!isRunning) reset(); });
+        theta0Slider.addEventListener('input', () => { theta0 = parseFloat(theta0Slider.value) * Math.PI / 180; theta0Val.textContent = parseFloat(theta0Slider.value).toFixed(0); if (!isRunning) reset(); });
+        gravSlider.addEventListener('input', () => { g = parseFloat(gravSlider.value); gravVal.textContent = g.toFixed(1); });
+
+        document.getElementById('startBtn').addEventListener('click', start);
+        document.getElementById('stopBtn').addEventListener('click', stop);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+
+        // Equations of motion for elastic pendulum
+        // L = l0 + x (total length)
+        // Position: (L*sin(theta), L*cos(theta))
+        // Lagrangian mechanics gives:
+        // m*x'' = m*(l0+x)*theta'^2 + m*g*cos(theta) - k*x
+        // m*(l0+x)^2*theta'' = -m*g*(l0+x)*sin(theta) - 2*m*(l0+x)*x'*theta'
+        //
+        // Simplified:
+        // x'' = (l0+x)*theta'^2 + g*cos(theta) - (k/m)*x
+        // theta'' = -g*sin(theta)/(l0+x) - 2*x'*theta'/(l0+x)
+
+        function derivatives(st) {
+            const [x, xdot, theta, thetadot] = st;
+            const L = l0 + x;
+
+            const x_ddot = L * thetadot * thetadot + g * Math.cos(theta) - (k / m) * x;
+            const theta_ddot = -g * Math.sin(theta) / L - 2 * xdot * thetadot / L;
+
+            return [xdot, x_ddot, thetadot, theta_ddot];
+        }
+
+        function rk4Step(dt) {
+            const k1 = derivatives(state);
+
+            const s2 = state.map((s, i) => s + k1[i] * dt / 2);
+            const k2 = derivatives(s2);
+
+            const s3 = state.map((s, i) => s + k2[i] * dt / 2);
+            const k3 = derivatives(s3);
+
+            const s4 = state.map((s, i) => s + k3[i] * dt);
+            const k4 = derivatives(s4);
+
+            for (let i = 0; i < 4; i++) {
+                state[i] += (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]) * dt / 6;
+            }
+
+            // Keep spring from going into compression beyond natural length
+            if (state[0] < -l0 * 0.9) {
+                state[0] = -l0 * 0.9;
+                state[1] = Math.abs(state[1]);
+            }
+        }
+
+        function computeEnergies() {
+            const [x, xdot, theta, thetadot] = state;
+            const L = l0 + x;
+
+            // Velocity components
+            const vr = xdot;  // radial velocity
+            const vt = L * thetadot;  // tangential velocity
+            const v2 = vr * vr + vt * vt;
+
+            const KE = 0.5 * m * v2;
+            const PE_spring = 0.5 * k * x * x;
+            const PE_grav = -m * g * L * Math.cos(theta);  // reference at pivot level
+            const PE = PE_spring + PE_grav;
+            const TE = KE + PE;
+
+            return { KE, PE, TE };
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const [x, xdot, theta, thetadot] = state;
+            const L = l0 + x;
+            const pivotX = canvas.width / 2;
+            const pivotY = 80;
+            const scale = 120;
+
+            // Draw ceiling
+            ctx.fillStyle = '#8B4513';
+            ctx.beginPath();
+            ctx.moveTo(pivotX - 40, pivotY - 25);
+            ctx.lineTo(pivotX + 40, pivotY - 25);
+            ctx.lineTo(pivotX, pivotY);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.strokeStyle = '#5D3A1A';
+            ctx.lineWidth = 1;
+            for (let i = -3; i <= 3; i++) {
+                ctx.beginPath();
+                ctx.moveTo(pivotX + i * 10 - 5, pivotY - 25);
+                ctx.lineTo(pivotX + i * 10 + 5, pivotY - 12);
+                ctx.stroke();
+            }
+
+            // Pivot A
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(pivotX, pivotY, 6, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('A', pivotX + 20, pivotY - 5);
+
+            // N.N. reference line
+            ctx.strokeStyle = '#999';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(50, pivotY);
+            ctx.lineTo(pivotX - 30, pivotY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#666';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText('N. N.', 60, pivotY - 5);
+
+            // Mass position
+            const massX = pivotX + L * scale * Math.sin(theta);
+            const massY = pivotY + L * scale * Math.cos(theta);
+
+            // Store trajectory
+            trajectory.push([massX, massY]);
+            if (trajectory.length > maxTrajectory) trajectory.shift();
+
+            // Draw trajectory
+            if (trajectory.length > 1) {
+                ctx.strokeStyle = 'rgba(102, 126, 234, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let i = 0; i < trajectory.length; i++) {
+                    const [tx, ty] = trajectory[i];
+                    if (i === 0) ctx.moveTo(tx, ty);
+                    else ctx.lineTo(tx, ty);
+                }
+                ctx.stroke();
+            }
+
+            // Draw spring
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            drawSpring(ctx, pivotX, pivotY, massX, massY, 12, 12);
+
+            // k label
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'left';
+            const midX = (pivotX + massX) / 2;
+            const midY = (pivotY + massY) / 2;
+            ctx.fillText('k', midX + 20 * Math.cos(theta), midY - 20 * Math.sin(theta));
+
+            // Draw mass
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(massX, massY, 18, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('m', massX, massY);
+
+            // Draw angle arc
+            if (Math.abs(theta) > 0.02) {
+                ctx.strokeStyle = '#667eea';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                const arcR = 50;
+                if (theta > 0) {
+                    ctx.arc(pivotX, pivotY, arcR, Math.PI / 2, Math.PI / 2 - theta, true);
+                } else {
+                    ctx.arc(pivotX, pivotY, arcR, Math.PI / 2 - theta, Math.PI / 2, false);
+                }
+                ctx.stroke();
+
+                ctx.fillStyle = '#667eea';
+                ctx.font = '14px serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('θ', pivotX + 60 * Math.sin(theta / 2), pivotY + 60 * Math.cos(theta / 2));
+            }
+
+            // Vertical reference line
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(pivotX, pivotY);
+            ctx.lineTo(pivotX, pivotY + (l0 + 1) * scale);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // l0 dimension
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(50, pivotY);
+            ctx.lineTo(50, pivotY + l0 * scale);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(45, pivotY);
+            ctx.lineTo(55, pivotY);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(45, pivotY + l0 * scale);
+            ctx.lineTo(55, pivotY + l0 * scale);
+            ctx.stroke();
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'right';
+            ctx.fillText('ℓ₀', 45, pivotY + l0 * scale / 2);
+
+            // x (extension) dimension
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(70, pivotY + l0 * scale);
+            ctx.lineTo(70, pivotY + L * scale);
+            ctx.stroke();
+            if (x > 0.01) {
+                ctx.beginPath();
+                ctx.moveTo(70, pivotY + L * scale);
+                ctx.lineTo(65, pivotY + L * scale - 8);
+                ctx.moveTo(70, pivotY + L * scale);
+                ctx.lineTo(75, pivotY + L * scale - 8);
+                ctx.stroke();
+            }
+            ctx.fillStyle = '#e74c3c';
+            ctx.font = '14px serif';
+            ctx.fillText('x', 85, pivotY + l0 * scale + x * scale / 2);
+
+            // Gravity arrow
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - 60, 60);
+            ctx.lineTo(canvas.width - 60, 100);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - 60, 100);
+            ctx.lineTo(canvas.width - 65, 90);
+            ctx.moveTo(canvas.width - 60, 100);
+            ctx.lineTo(canvas.width - 55, 90);
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('g', canvas.width - 60, 115);
+
+            // Update info
+            const energies = computeEnergies();
+            document.getElementById('infoDisplay').innerHTML =
+                `時間: ${time.toFixed(2)} s<br>` +
+                `伸び x: ${x.toFixed(3)} m<br>` +
+                `角度 θ: ${(theta * 180 / Math.PI).toFixed(2)}°<br>` +
+                `全長 L: ${L.toFixed(3)} m<br>` +
+                `ẋ: ${xdot.toFixed(3)} m/s<br>` +
+                `θ̇: ${thetadot.toFixed(3)} rad/s<br>` +
+                `全E: ${energies.TE.toFixed(3)} J`;
+        }
+
+        function drawSpring(ctx, x1, y1, x2, y2, coils, amp) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            const segLen = len / (coils * 2 + 2);
+            ctx.lineTo(segLen, 0);
+
+            for (let i = 0; i < coils * 2; i++) {
+                const px = segLen * (i + 1.5);
+                const py = (i % 2 === 0 ? amp : -amp);
+                ctx.lineTo(px, py);
+            }
+            ctx.lineTo(len - segLen, 0);
+            ctx.lineTo(len, 0);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawGraphX() {
+            ctxX.clearRect(0, 0, graphX.width, graphX.height);
+
+            const margin = 35;
+            const w = graphX.width - 2 * margin;
+            const h = graphX.height - 2 * margin;
+
+            ctxX.fillStyle = '#f8f9fa';
+            ctxX.fillRect(margin, margin, w, h);
+
+            ctxX.strokeStyle = '#333';
+            ctxX.lineWidth = 2;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin);
+            ctxX.lineTo(margin, margin + h);
+            ctxX.lineTo(margin + w, margin + h);
+            ctxX.stroke();
+
+            // Zero line
+            ctxX.strokeStyle = '#ccc';
+            ctxX.lineWidth = 1;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin + h / 2);
+            ctxX.lineTo(margin + w, margin + h / 2);
+            ctxX.stroke();
+
+            // Plot x (scaled)
+            if (historyX.length > 1) {
+                ctxX.strokeStyle = '#e74c3c';
+                ctxX.lineWidth = 2;
+                ctxX.beginPath();
+                for (let i = 0; i < historyX.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyX[i] / 1.0) * (h / 2);
+                    if (i === 0) ctxX.moveTo(px, py);
+                    else ctxX.lineTo(px, py);
+                }
+                ctxX.stroke();
+            }
+
+            // Plot theta (scaled)
+            if (historyTheta.length > 1) {
+                ctxX.strokeStyle = '#667eea';
+                ctxX.lineWidth = 2;
+                ctxX.beginPath();
+                for (let i = 0; i < historyTheta.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyTheta[i] / (Math.PI / 2)) * (h / 2);
+                    if (i === 0) ctxX.moveTo(px, py);
+                    else ctxX.lineTo(px, py);
+                }
+                ctxX.stroke();
+            }
+
+            ctxX.font = '10px Arial';
+            ctxX.fillStyle = '#e74c3c';
+            ctxX.fillText('x', margin + 5, margin + 12);
+            ctxX.fillStyle = '#667eea';
+            ctxX.fillText('θ', margin + 25, margin + 12);
+        }
+
+        function drawGraphEnergy() {
+            ctxEnergy.clearRect(0, 0, graphEnergy.width, graphEnergy.height);
+
+            const margin = 35;
+            const w = graphEnergy.width - 2 * margin;
+            const h = graphEnergy.height - 2 * margin;
+
+            let maxE = 1, minE = -1;
+            if (historyTE.length > 0) {
+                maxE = Math.max(...historyTE, ...historyKE, ...historyPE) * 1.1;
+                minE = Math.min(...historyTE, ...historyKE, ...historyPE) * 1.1;
+                if (maxE - minE < 0.1) maxE = minE + 0.1;
+            }
+
+            ctxEnergy.fillStyle = '#f8f9fa';
+            ctxEnergy.fillRect(margin, margin, w, h);
+
+            ctxEnergy.strokeStyle = '#333';
+            ctxEnergy.lineWidth = 2;
+            ctxEnergy.beginPath();
+            ctxEnergy.moveTo(margin, margin);
+            ctxEnergy.lineTo(margin, margin + h);
+            ctxEnergy.lineTo(margin + w, margin + h);
+            ctxEnergy.stroke();
+
+            const range = maxE - minE;
+
+            // Plot TE
+            if (historyTE.length > 1) {
+                ctxEnergy.strokeStyle = '#333';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyTE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - ((historyTE[i] - minE) / range) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot KE
+            if (historyKE.length > 1) {
+                ctxEnergy.strokeStyle = '#28a745';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyKE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - ((historyKE[i] - minE) / range) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot PE
+            if (historyPE.length > 1) {
+                ctxEnergy.strokeStyle = '#dc3545';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyPE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - ((historyPE[i] - minE) / range) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            ctxEnergy.font = '10px Arial';
+            ctxEnergy.textAlign = 'left';
+            ctxEnergy.fillStyle = '#28a745';
+            ctxEnergy.fillText('KE', margin + 5, margin + 12);
+            ctxEnergy.fillStyle = '#dc3545';
+            ctxEnergy.fillText('PE', margin + 35, margin + 12);
+            ctxEnergy.fillStyle = '#333';
+            ctxEnergy.fillText('TE', margin + 65, margin + 12);
+        }
+
+        function animate() {
+            const dt = 0.01;
+            const substeps = 5;
+
+            for (let i = 0; i < substeps; i++) {
+                rk4Step(dt / substeps);
+            }
+            time += dt;
+
+            historyX.push(state[0]);
+            historyTheta.push(state[2]);
+            const energies = computeEnergies();
+            historyKE.push(energies.KE);
+            historyPE.push(energies.PE);
+            historyTE.push(energies.TE);
+
+            if (historyX.length > maxHistory) {
+                historyX.shift();
+                historyTheta.shift();
+                historyKE.shift();
+                historyPE.shift();
+                historyTE.shift();
+            }
+
+            draw();
+            drawGraphX();
+            drawGraphEnergy();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function start() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stop() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+
+        function reset() {
+            stop();
+            state = [x0, 0, theta0, 0];
+            time = 0;
+            trajectory = [];
+            historyX = [];
+            historyTheta = [];
+            historyKE = [];
+            historyPE = [];
+            historyTE = [];
+            draw();
+            drawGraphX();
+            drawGraphEnergy();
+        }
+
+        reset();
+    </script>
+</body>
+</html>

@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スライダー・クランク機構シミュレーション</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            color: #000;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #000;
+            margin-bottom: 10px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        canvas {
+            background: #fff;
+            border: 1px solid #000;
+        }
+        .controls {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #000;
+            min-width: 250px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #000;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .value {
+            text-align: right;
+            font-size: 0.9em;
+            color: #666;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            background: #fff;
+            color: #000;
+            border: 1px solid #000;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background: #eee;
+        }
+        .stats {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        .equation {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 0.85em;
+        }
+        .graph-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>スライダー・クランク機構</h1>
+
+    <div class="container">
+        <canvas id="animCanvas" width="550" height="350"></canvas>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>クランク長さ r (m)</label>
+                <input type="range" id="crankLen" min="0.05" max="0.15" step="0.01" value="0.08">
+                <div class="value" id="crankLenValue">0.08 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>連接棒長さ L (m)</label>
+                <input type="range" id="rodLen" min="0.15" max="0.35" step="0.01" value="0.25">
+                <div class="value" id="rodLenValue">0.25 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>回転速度 ω (rad/s)</label>
+                <input type="range" id="omega" min="1" max="10" step="0.5" value="3">
+                <div class="value" id="omegaValue">3.0 rad/s</div>
+            </div>
+
+            <div class="control-group">
+                <label>オフセット e (m)</label>
+                <input type="range" id="offset" min="-0.05" max="0.05" step="0.01" value="0">
+                <div class="value" id="offsetValue">0.00 m</div>
+            </div>
+
+            <div class="control-group">
+                <input type="checkbox" id="showCentrode" checked>
+                <label style="display: inline;">瞬間中心軌跡を表示</label>
+            </div>
+
+            <button id="resetBtn">リセット</button>
+            <button id="pauseBtn">一時停止</button>
+
+            <div class="stats" id="stats">
+                クランク角: 0°<br>
+                スライダー位置: 0.00 m<br>
+                スライダー速度: 0.00 m/s
+            </div>
+
+            <div class="equation">
+                <strong>機構学:</strong><br>
+                x_C = r·cos(φ) + √(L² - (r·sin(φ) - e)²)<br>
+                <small>Rastpolbahn: 瞬間中心の軌跡</small>
+            </div>
+        </div>
+
+        <div class="graph-container">
+            <canvas id="graphCanvas" width="400" height="200"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // キャンバス設定
+        const animCanvas = document.getElementById('animCanvas');
+        const animCtx = animCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+
+        // パラメータ
+        let r = 0.08;          // クランク長さ
+        let L = 0.25;          // 連接棒長さ
+        let omega = 3.0;       // 回転速度
+        let e = 0;             // オフセット
+
+        // 状態変数
+        let phi = 0;           // クランク角
+        let t = 0;
+        let paused = false;
+        let showCentrode = true;
+
+        // 瞬間中心の軌跡
+        let centrodePoints = [];
+
+        // グラフデータ
+        let history = [];
+        const maxHistory = 500;
+
+        // 位置定数
+        const pivotX = 120;
+        const pivotY = 180;
+        const scale = 800;
+
+        // UI要素
+        document.getElementById('crankLen').addEventListener('input', (ev) => {
+            r = parseFloat(ev.target.value);
+            document.getElementById('crankLenValue').textContent = r.toFixed(2) + ' m';
+            centrodePoints = [];
+        });
+
+        document.getElementById('rodLen').addEventListener('input', (ev) => {
+            L = parseFloat(ev.target.value);
+            document.getElementById('rodLenValue').textContent = L.toFixed(2) + ' m';
+            centrodePoints = [];
+        });
+
+        document.getElementById('omega').addEventListener('input', (ev) => {
+            omega = parseFloat(ev.target.value);
+            document.getElementById('omegaValue').textContent = omega.toFixed(1) + ' rad/s';
+        });
+
+        document.getElementById('offset').addEventListener('input', (ev) => {
+            e = parseFloat(ev.target.value);
+            document.getElementById('offsetValue').textContent = e.toFixed(2) + ' m';
+            centrodePoints = [];
+        });
+
+        document.getElementById('showCentrode').addEventListener('change', (ev) => {
+            showCentrode = ev.target.checked;
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', reset);
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            paused = !paused;
+            document.getElementById('pauseBtn').textContent = paused ? '再開' : '一時停止';
+        });
+
+        function reset() {
+            phi = 0;
+            t = 0;
+            centrodePoints = [];
+            history = [];
+            paused = false;
+            document.getElementById('pauseBtn').textContent = '一時停止';
+        }
+
+        // スライダー位置を計算
+        function calcSliderPos(angle) {
+            const Bx = r * Math.cos(angle);
+            const By = r * Math.sin(angle);
+
+            // スライダーのy座標は e（オフセット）
+            const dy = By - e;
+
+            if (Math.abs(dy) > L) {
+                return null;  // 無効な構成
+            }
+
+            const dx = Math.sqrt(L * L - dy * dy);
+            const Cx = Bx + dx;
+
+            return { Bx, By, Cx };
+        }
+
+        // 瞬間中心を計算
+        function calcInstantCenter(angle) {
+            const pos = calcSliderPos(angle);
+            if (!pos) return null;
+
+            const { Bx, By, Cx } = pos;
+
+            // クランクの延長線（Aを通り、ABに垂直）
+            // スライダーの運動方向（x軸に平行）に垂直な線
+            // 瞬間中心は、クランクABの延長線とスライダー運動方向に垂直な線の交点
+
+            // ABの方向
+            const ABx = Bx;
+            const ABy = By;
+
+            // 瞬間中心: スライダーCからの垂線（y方向）とABの延長線の交点
+            // ABの延長線: 点(0,0)から(Bx, By)方向
+            // Cからの垂線: x = Cx
+
+            if (Math.abs(Bx) < 0.001) {
+                return null;  // 特異点
+            }
+
+            const ICx = Cx;
+            const ICy = (By / Bx) * Cx;
+
+            return { x: ICx, y: ICy };
+        }
+
+        function simulate(dt) {
+            phi += omega * dt;
+            if (phi > 2 * Math.PI) {
+                phi -= 2 * Math.PI;
+            }
+            t += dt;
+
+            // 瞬間中心を記録
+            if (showCentrode) {
+                const IC = calcInstantCenter(phi);
+                if (IC && Math.abs(IC.y) < 0.5) {
+                    centrodePoints.push(IC);
+                    if (centrodePoints.length > 500) {
+                        centrodePoints.shift();
+                    }
+                }
+            }
+
+            // スライダー位置と速度
+            const pos = calcSliderPos(phi);
+            if (pos) {
+                history.push({ t: t, x: pos.Cx });
+                if (history.length > maxHistory) history.shift();
+            }
+        }
+
+        function draw() {
+            animCtx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+
+            const pos = calcSliderPos(phi);
+            if (!pos) return;
+
+            const { Bx, By, Cx } = pos;
+
+            // スクリーン座標に変換
+            const Ax = pivotX;
+            const Ay = pivotY;
+            const Bsx = pivotX + Bx * scale;
+            const Bsy = pivotY - By * scale;
+            const Csx = pivotX + Cx * scale;
+            const Csy = pivotY - e * scale;
+
+            // 瞬間中心の軌跡（Rastpolbahn）
+            if (showCentrode && centrodePoints.length > 1) {
+                animCtx.strokeStyle = '#aaa';
+                animCtx.lineWidth = 1;
+                animCtx.beginPath();
+                for (let i = 0; i < centrodePoints.length; i++) {
+                    const px = pivotX + centrodePoints[i].x * scale;
+                    const py = pivotY - centrodePoints[i].y * scale;
+                    if (i === 0) {
+                        animCtx.moveTo(px, py);
+                    } else {
+                        animCtx.lineTo(px, py);
+                    }
+                }
+                animCtx.stroke();
+            }
+
+            // スライダーレール
+            animCtx.fillStyle = '#eee';
+            animCtx.fillRect(pivotX - 20, Csy - 5, 450, 30);
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+            animCtx.strokeRect(pivotX - 20, Csy - 5, 450, 30);
+
+            // ハッチング
+            for (let i = 0; i < 22; i++) {
+                animCtx.beginPath();
+                animCtx.moveTo(pivotX - 15 + i * 20, Csy + 25);
+                animCtx.lineTo(pivotX - 25 + i * 20, Csy + 35);
+                animCtx.stroke();
+            }
+
+            // 固定支持（点A）
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            animCtx.beginPath();
+            animCtx.moveTo(Ax - 15, Ay + 20);
+            animCtx.lineTo(Ax + 15, Ay + 20);
+            animCtx.lineTo(Ax, Ay);
+            animCtx.closePath();
+            animCtx.stroke();
+
+            // ハッチング
+            for (let i = 0; i < 3; i++) {
+                animCtx.beginPath();
+                animCtx.moveTo(Ax - 10 + i * 10, Ay + 20);
+                animCtx.lineTo(Ax - 18 + i * 10, Ay + 28);
+                animCtx.stroke();
+            }
+
+            // クランク（A-B）
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 4;
+            animCtx.beginPath();
+            animCtx.moveTo(Ax, Ay);
+            animCtx.lineTo(Bsx, Bsy);
+            animCtx.stroke();
+
+            // 連接棒（B-C）
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 3;
+            animCtx.beginPath();
+            animCtx.moveTo(Bsx, Bsy);
+            animCtx.lineTo(Csx, Csy);
+            animCtx.stroke();
+
+            // スライダー
+            animCtx.fillStyle = '#ccc';
+            animCtx.fillRect(Csx - 25, Csy - 15, 50, 30);
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            animCtx.strokeRect(Csx - 25, Csy - 15, 50, 30);
+
+            // 関節点
+            animCtx.fillStyle = '#fff';
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 2;
+
+            // 点A
+            animCtx.beginPath();
+            animCtx.arc(Ax, Ay, 6, 0, Math.PI * 2);
+            animCtx.fill();
+            animCtx.stroke();
+
+            // 点B
+            animCtx.beginPath();
+            animCtx.arc(Bsx, Bsy, 6, 0, Math.PI * 2);
+            animCtx.fill();
+            animCtx.stroke();
+
+            // 点C（スライダー上）
+            animCtx.beginPath();
+            animCtx.arc(Csx, Csy, 5, 0, Math.PI * 2);
+            animCtx.fill();
+            animCtx.stroke();
+
+            // ラベル
+            animCtx.fillStyle = '#000';
+            animCtx.font = '14px Arial';
+            animCtx.textAlign = 'center';
+
+            // 円形ラベル
+            animCtx.beginPath();
+            animCtx.arc(Ax - 15, Ay - 15, 10, 0, Math.PI * 2);
+            animCtx.stroke();
+            animCtx.fillText('A', Ax - 15, Ay - 11);
+
+            animCtx.beginPath();
+            animCtx.arc(Bsx + 15, Bsy - 15, 10, 0, Math.PI * 2);
+            animCtx.stroke();
+            animCtx.fillText('B', Bsx + 15, Bsy - 11);
+
+            animCtx.beginPath();
+            animCtx.arc(Csx + 35, Csy, 10, 0, Math.PI * 2);
+            animCtx.stroke();
+            animCtx.fillText('C', Csx + 35, Csy + 4);
+
+            // 角度表示
+            animCtx.strokeStyle = '#666';
+            animCtx.lineWidth = 1;
+            animCtx.beginPath();
+            animCtx.moveTo(Ax, Ay);
+            animCtx.lineTo(Ax + 40, Ay);
+            animCtx.stroke();
+
+            animCtx.beginPath();
+            animCtx.arc(Ax, Ay, 30, 0, -phi, true);
+            animCtx.stroke();
+            animCtx.fillText('φ', Ax + 40, Ay - 20);
+
+            // 座標軸
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+            // x軸
+            animCtx.beginPath();
+            animCtx.moveTo(Ax, Ay);
+            animCtx.lineTo(Ax + 50, Ay);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(Ax + 45, Ay - 5);
+            animCtx.lineTo(Ax + 50, Ay);
+            animCtx.lineTo(Ax + 45, Ay + 5);
+            animCtx.stroke();
+            animCtx.fillText('x', Ax + 55, Ay + 5);
+
+            // z軸
+            animCtx.beginPath();
+            animCtx.moveTo(Ax, Ay);
+            animCtx.lineTo(Ax, Ay - 50);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(Ax - 5, Ay - 45);
+            animCtx.lineTo(Ax, Ay - 50);
+            animCtx.lineTo(Ax + 5, Ay - 45);
+            animCtx.stroke();
+            animCtx.fillText('z', Ax - 15, Ay - 45);
+
+            // Rastpolbahn ラベル
+            if (showCentrode) {
+                animCtx.font = '12px Arial';
+                animCtx.textAlign = 'left';
+                animCtx.fillText('Rastpolbahn', pivotX + 150, pivotY + 100);
+            }
+
+            // 統計更新
+            const v = -r * omega * Math.sin(phi) * (1 + r * Math.cos(phi) / Math.sqrt(L * L - Math.pow(r * Math.sin(phi) - e, 2)));
+            document.getElementById('stats').innerHTML =
+                `クランク角: ${(phi * 180 / Math.PI).toFixed(1)}°<br>` +
+                `スライダー位置: ${Cx.toFixed(3)} m<br>` +
+                `スライダー速度: ${v.toFixed(3)} m/s`;
+        }
+
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            // 背景
+            graphCtx.fillStyle = '#f9f9f9';
+            graphCtx.fillRect(50, 10, 340, 170);
+
+            // 軸
+            graphCtx.strokeStyle = '#000';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(50, 180);
+            graphCtx.lineTo(390, 180);
+            graphCtx.stroke();
+            graphCtx.beginPath();
+            graphCtx.moveTo(50, 10);
+            graphCtx.lineTo(50, 180);
+            graphCtx.stroke();
+
+            // ラベル
+            graphCtx.fillStyle = '#000';
+            graphCtx.font = '12px Arial';
+            graphCtx.textAlign = 'left';
+            graphCtx.fillText('x_C (m)', 5, 20);
+            graphCtx.fillText('t (s)', 365, 195);
+
+            // データプロット
+            if (history.length > 1) {
+                const tMax = Math.max(history[history.length - 1].t, 5);
+                const xMin = L - r;
+                const xMax = L + r;
+                const xRange = xMax - xMin;
+
+                graphCtx.strokeStyle = '#000';
+                graphCtx.lineWidth = 1.5;
+                graphCtx.beginPath();
+
+                for (let i = 0; i < history.length; i++) {
+                    const px = 50 + (history[i].t / tMax) * 340;
+                    const py = 180 - ((history[i].x - xMin) / xRange) * 160;
+
+                    if (i === 0) {
+                        graphCtx.moveTo(px, py);
+                    } else {
+                        graphCtx.lineTo(px, py);
+                    }
+                }
+                graphCtx.stroke();
+            }
+        }
+
+        // メインループ
+        function animate() {
+            if (!paused) {
+                for (let i = 0; i < 3; i++) {
+                    simulate(0.016 / 3);
+                }
+            }
+            draw();
+            drawGraph();
+            requestAnimationFrame(animate);
+        }
+
+        // 初期化
+        reset();
+        animate();
+    </script>
+</body>
+</html>

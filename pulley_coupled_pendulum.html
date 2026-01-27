@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>プーリー結合振り子系</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.7em;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+        .main-content {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 500px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #fff;
+            display: block;
+        }
+        .control-section {
+            width: 280px;
+        }
+        .control-group {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+        }
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin-bottom: 10px;
+        }
+        .slider-container label {
+            display: block;
+            color: #555;
+            margin-bottom: 2px;
+            font-size: 0.8em;
+        }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 5px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            min-width: 70px;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-reset { background: #6c757d; color: white; }
+        .info-display {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.75em;
+            line-height: 1.5;
+        }
+        .formula-box {
+            background: #fff3cd;
+            padding: 8px;
+            border-radius: 6px;
+            margin-top: 8px;
+            font-size: 0.7em;
+            line-height: 1.4;
+        }
+        .graphs-section {
+            width: 100%;
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .graph-container {
+            flex: 1;
+            min-width: 350px;
+        }
+        .graph-container h4 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>プーリー結合振り子系</h1>
+        <p class="description">回転振り子と吊り質量がロープで結合（常に張った状態）</p>
+
+        <div class="main-content">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="550" height="450"></canvas>
+            </div>
+
+            <div class="control-section">
+                <div class="control-group">
+                    <h3>パラメータ設定</h3>
+
+                    <div class="slider-container">
+                        <label>振り子質量 m₁: <span id="m1Val">1.0</span> kg</label>
+                        <input type="range" id="m1Slider" min="0.5" max="3.0" step="0.1" value="1.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>吊り質量 m₂: <span id="m2Val">1.5</span> kg</label>
+                        <input type="range" id="m2Slider" min="0.5" max="5.0" step="0.1" value="1.5">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>棒の長さ ℓ₁: <span id="l1Val">1.0</span> m</label>
+                        <input type="range" id="l1Slider" min="0.5" max="2.0" step="0.1" value="1.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>重力 g: <span id="gVal">9.8</span> m/s²</label>
+                        <input type="range" id="gSlider" min="1.0" max="20.0" step="0.1" value="9.8">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期角度 φ₀: <span id="phi0Val">30</span>°</label>
+                        <input type="range" id="phi0Slider" min="-60" max="60" step="5" value="30">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期伸び r₀: <span id="r0Val">0.5</span> m</label>
+                        <input type="range" id="r0Slider" min="0.1" max="1.5" step="0.1" value="0.5">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>シミュレーション制御</h3>
+                    <div class="button-group">
+                        <button class="btn-start" id="startBtn">開始</button>
+                        <button class="btn-stop" id="stopBtn">停止</button>
+                        <button class="btn-reset" id="resetBtn">リセット</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>状態表示</h3>
+                    <div class="info-display" id="infoDisplay">
+                        時間: 0.00 s<br>
+                        角度 φ: 0.00°<br>
+                        伸び r: 0.00 m<br>
+                        φ̇: 0.00 rad/s<br>
+                        ṙ: 0.00 m/s
+                    </div>
+                    <div class="formula-box">
+                        <strong>運動方程式:</strong><br>
+                        m₁(ℓ₁+r)²φ̈ + 2m₁(ℓ₁+r)ṙφ̇<br>
+                        + (ℓ₁+r)m₁g sin(φ) = 0<br>
+                        (m₁+m₂)r̈ - m₁(ℓ₁+r)φ̇²<br>
+                        + m₂g - m₁g cos(φ) = 0
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="graphs-section">
+            <div class="graph-container">
+                <h4>角度 φ(t) と伸び r(t)</h4>
+                <canvas id="graphX" width="380" height="180"></canvas>
+            </div>
+            <div class="graph-container">
+                <h4>エネルギー変化</h4>
+                <canvas id="graphEnergy" width="380" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const graphX = document.getElementById('graphX');
+        const ctxX = graphX.getContext('2d');
+        const graphEnergy = document.getElementById('graphEnergy');
+        const ctxEnergy = graphEnergy.getContext('2d');
+
+        // Parameters
+        let m1 = 1.0;     // pendulum mass
+        let m2 = 1.5;     // hanging mass
+        let l1 = 1.0;     // rod length
+        let g = 9.8;      // gravity
+        let phi0 = 30 * Math.PI / 180;  // initial angle
+        let r0 = 0.5;     // initial extension
+
+        // State: [phi, phidot, r, rdot]
+        let state = [phi0, 0, r0, 0];
+        let time = 0;
+        let isRunning = false;
+        let animationId = null;
+
+        // History
+        let historyPhi = [], historyR = [];
+        let historyKE = [], historyPE = [], historyTE = [];
+        const maxHistory = 500;
+
+        // Sliders
+        const sliders = {
+            m1: document.getElementById('m1Slider'),
+            m2: document.getElementById('m2Slider'),
+            l1: document.getElementById('l1Slider'),
+            g: document.getElementById('gSlider'),
+            phi0: document.getElementById('phi0Slider'),
+            r0: document.getElementById('r0Slider')
+        };
+
+        const vals = {
+            m1: document.getElementById('m1Val'),
+            m2: document.getElementById('m2Val'),
+            l1: document.getElementById('l1Val'),
+            g: document.getElementById('gVal'),
+            phi0: document.getElementById('phi0Val'),
+            r0: document.getElementById('r0Val')
+        };
+
+        sliders.m1.addEventListener('input', () => { m1 = parseFloat(sliders.m1.value); vals.m1.textContent = m1.toFixed(1); });
+        sliders.m2.addEventListener('input', () => { m2 = parseFloat(sliders.m2.value); vals.m2.textContent = m2.toFixed(1); });
+        sliders.l1.addEventListener('input', () => { l1 = parseFloat(sliders.l1.value); vals.l1.textContent = l1.toFixed(1); if (!isRunning) reset(); });
+        sliders.g.addEventListener('input', () => { g = parseFloat(sliders.g.value); vals.g.textContent = g.toFixed(1); });
+        sliders.phi0.addEventListener('input', () => { phi0 = parseFloat(sliders.phi0.value) * Math.PI / 180; vals.phi0.textContent = parseFloat(sliders.phi0.value).toFixed(0); if (!isRunning) reset(); });
+        sliders.r0.addEventListener('input', () => { r0 = parseFloat(sliders.r0.value); vals.r0.textContent = r0.toFixed(1); if (!isRunning) reset(); });
+
+        document.getElementById('startBtn').addEventListener('click', start);
+        document.getElementById('stopBtn').addEventListener('click', stop);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+
+        // Equations of motion
+        // m1*(l1+r)^2 * phi_ddot + 2*m1*(l1+r)*r_dot*phi_dot + (l1+r)*m1*g*sin(phi) = 0
+        // (m1+m2)*r_ddot - m1*(l1+r)*phi_dot^2 + m2*g - m1*g*cos(phi) = 0
+        //
+        // Rearranging:
+        // phi_ddot = -(2*r_dot*phi_dot/(l1+r)) - g*sin(phi)/(l1+r)
+        // r_ddot = (m1*(l1+r)*phi_dot^2 - m2*g + m1*g*cos(phi)) / (m1+m2)
+
+        function derivatives(st) {
+            const [phi, phidot, r, rdot] = st;
+
+            const L = l1 + r;
+
+            // phi equation
+            const phi_ddot = -2 * rdot * phidot / L - g * Math.sin(phi) / L;
+
+            // r equation
+            const r_ddot = (m1 * L * phidot * phidot - m2 * g + m1 * g * Math.cos(phi)) / (m1 + m2);
+
+            return [phidot, phi_ddot, rdot, r_ddot];
+        }
+
+        function rk4Step(dt) {
+            const k1 = derivatives(state);
+
+            const s2 = state.map((s, i) => s + k1[i] * dt / 2);
+            const k2 = derivatives(s2);
+
+            const s3 = state.map((s, i) => s + k2[i] * dt / 2);
+            const k3 = derivatives(s3);
+
+            const s4 = state.map((s, i) => s + k3[i] * dt);
+            const k4 = derivatives(s4);
+
+            for (let i = 0; i < 4; i++) {
+                state[i] += (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]) * dt / 6;
+            }
+
+            // Keep r positive (rope can't have negative length)
+            if (state[2] < 0.05) {
+                state[2] = 0.05;
+                state[3] = Math.abs(state[3]);
+            }
+        }
+
+        function computeEnergies() {
+            const [phi, phidot, r, rdot] = state;
+            const L = l1 + r;
+
+            // Kinetic energy of m1 (pendulum)
+            // velocity of m1: v1^2 = rdot^2 + L^2*phidot^2
+            const v1_sq = rdot * rdot + L * L * phidot * phidot;
+            const KE1 = 0.5 * m1 * v1_sq;
+
+            // Kinetic energy of m2 (hanging mass moves with speed rdot)
+            const KE2 = 0.5 * m2 * rdot * rdot;
+
+            const KE = KE1 + KE2;
+
+            // Potential energy
+            // m1 at height: -L*cos(phi) from pivot
+            // m2 at height: -(some reference) - r changes
+            // Using reference where PE=0 when phi=0, r=r0
+            const PE1 = -m1 * g * L * Math.cos(phi);
+            const PE2 = m2 * g * r;  // as r increases, m2 goes down
+
+            const PE = PE1 + PE2;
+            const TE = KE + PE;
+
+            return { KE, PE, TE };
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const [phi, phidot, r, rdot] = state;
+            const scale = 100;
+
+            // Pivot and pulley positions
+            const pivotAX = 120;
+            const pivotAY = 80;
+            const pivotBX = 420;
+            const pivotBY = 80;
+
+            // Draw beam
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(50, pivotAY - 25, 450, 25);
+
+            // Hatch
+            ctx.strokeStyle = '#5D3A1A';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 25; i++) {
+                ctx.beginPath();
+                ctx.moveTo(50 + i * 20, pivotAY - 25);
+                ctx.lineTo(50 + i * 20 + 15, pivotAY);
+                ctx.stroke();
+            }
+
+            // Pulley A
+            ctx.fillStyle = '#ddd';
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(pivotAX, pivotAY, 15, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('A', pivotAX, pivotAY - 25);
+
+            // Pulley B
+            ctx.fillStyle = '#ddd';
+            ctx.beginPath();
+            ctx.arc(pivotBX, pivotBY, 15, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#333';
+            ctx.fillText('B', pivotBX, pivotBY - 25);
+
+            // Pendulum rod pivot (can move vertically)
+            const rodPivotX = pivotAX;
+            const rodPivotY = pivotAY + 30 + r * scale * 0.3;
+
+            // Rod with mass m1
+            const L = l1 + r;
+            const m1X = rodPivotX + L * scale * Math.sin(phi);
+            const m1Y = rodPivotY + L * scale * Math.cos(phi);
+
+            // Draw rope from pulley A down to rod pivot
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(pivotAX, pivotAY + 15);
+            ctx.lineTo(rodPivotX, rodPivotY - 10);
+            ctx.stroke();
+
+            // Draw rope between pulleys
+            ctx.beginPath();
+            ctx.moveTo(pivotAX + 15, pivotAY);
+            ctx.lineTo(pivotBX - 15, pivotBY);
+            ctx.stroke();
+
+            // "stets gespannt" label
+            ctx.fillStyle = '#666';
+            ctx.font = '12px Arial';
+            ctx.fillText('stets gespannt', (pivotAX + pivotBX) / 2, pivotAY - 10);
+
+            // Hanging mass m2 position
+            const m2X = pivotBX;
+            const m2Y = pivotBY + 50 + r * scale * 0.5;
+
+            // Draw rope from pulley B to m2
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(pivotBX, pivotBY + 15);
+            ctx.lineTo(m2X, m2Y - 25);
+            ctx.stroke();
+
+            // Draw rod pivot
+            ctx.fillStyle = '#666';
+            ctx.beginPath();
+            ctx.arc(rodPivotX, rodPivotY, 8, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Draw pendulum rod
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(rodPivotX, rodPivotY);
+            ctx.lineTo(m1X, m1Y);
+            ctx.stroke();
+
+            // Draw angle arc
+            if (Math.abs(phi) > 0.02) {
+                ctx.strokeStyle = '#667eea';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                const arcR = 40;
+                ctx.arc(rodPivotX, rodPivotY, arcR, Math.PI / 2 - phi, Math.PI / 2, phi > 0);
+                ctx.stroke();
+                ctx.fillStyle = '#667eea';
+                ctx.font = '14px serif';
+                ctx.fillText('φ', rodPivotX + 50 * Math.sin(phi / 2), rodPivotY + 50 * Math.cos(phi / 2));
+            }
+
+            // Draw mass m1
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(m1X, m1Y, 18, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('m₁', m1X, m1Y);
+
+            // l1 label
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.fillText('ℓ₁', rodPivotX + 20, (rodPivotY + m1Y) / 2);
+
+            // Draw mass m2
+            ctx.fillStyle = '#667eea';
+            ctx.fillRect(m2X - 25, m2Y - 25, 50, 50);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(m2X - 25, m2Y - 25, 50, 50);
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('m₂', m2X, m2Y);
+
+            // z1 coordinate indicator
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(40, pivotAY + 30);
+            ctx.lineTo(40, rodPivotY);
+            ctx.stroke();
+            ctx.fillStyle = '#e74c3c';
+            ctx.font = '12px serif';
+            ctx.textAlign = 'right';
+            ctx.fillText('z₁', 35, (pivotAY + 30 + rodPivotY) / 2);
+
+            // z2 coordinate indicator
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - 40, pivotBY + 50);
+            ctx.lineTo(canvas.width - 40, m2Y);
+            ctx.stroke();
+            ctx.fillText('z₂', canvas.width - 45, (pivotBY + 50 + m2Y) / 2);
+
+            // r label
+            ctx.fillStyle = '#28a745';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('r', rodPivotX + 15, rodPivotY - 20);
+
+            // Gravity arrow
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(270, 160);
+            ctx.lineTo(270, 200);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(270, 200);
+            ctx.lineTo(265, 190);
+            ctx.moveTo(270, 200);
+            ctx.lineTo(275, 190);
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('g', 270, 215);
+
+            // Ground
+            ctx.fillStyle = '#ddd';
+            ctx.fillRect(0, 420, canvas.width, 30);
+
+            // Update info
+            const energies = computeEnergies();
+            document.getElementById('infoDisplay').innerHTML =
+                `時間: ${time.toFixed(2)} s<br>` +
+                `角度 φ: ${(phi * 180 / Math.PI).toFixed(2)}°<br>` +
+                `伸び r: ${r.toFixed(3)} m<br>` +
+                `φ̇: ${phidot.toFixed(3)} rad/s<br>` +
+                `ṙ: ${rdot.toFixed(3)} m/s<br>` +
+                `全長 L: ${(l1 + r).toFixed(3)} m<br>` +
+                `全E: ${energies.TE.toFixed(3)} J`;
+        }
+
+        function drawGraphX() {
+            ctxX.clearRect(0, 0, graphX.width, graphX.height);
+
+            const margin = 35;
+            const w = graphX.width - 2 * margin;
+            const h = graphX.height - 2 * margin;
+
+            ctxX.fillStyle = '#f8f9fa';
+            ctxX.fillRect(margin, margin, w, h);
+
+            ctxX.strokeStyle = '#333';
+            ctxX.lineWidth = 2;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin);
+            ctxX.lineTo(margin, margin + h);
+            ctxX.lineTo(margin + w, margin + h);
+            ctxX.stroke();
+
+            // Zero line
+            ctxX.strokeStyle = '#ccc';
+            ctxX.lineWidth = 1;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin + h / 2);
+            ctxX.lineTo(margin + w, margin + h / 2);
+            ctxX.stroke();
+
+            // Plot phi (scaled)
+            if (historyPhi.length > 1) {
+                ctxX.strokeStyle = '#667eea';
+                ctxX.lineWidth = 2;
+                ctxX.beginPath();
+                for (let i = 0; i < historyPhi.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyPhi[i] / (Math.PI / 2)) * (h / 2);
+                    if (i === 0) ctxX.moveTo(px, py);
+                    else ctxX.lineTo(px, py);
+                }
+                ctxX.stroke();
+            }
+
+            // Plot r (scaled to fit)
+            if (historyR.length > 1) {
+                ctxX.strokeStyle = '#28a745';
+                ctxX.lineWidth = 2;
+                ctxX.beginPath();
+                for (let i = 0; i < historyR.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyR[i] / 2.0) * (h / 2);
+                    if (i === 0) ctxX.moveTo(px, py);
+                    else ctxX.lineTo(px, py);
+                }
+                ctxX.stroke();
+            }
+
+            // Legend
+            ctxX.font = '10px Arial';
+            ctxX.fillStyle = '#667eea';
+            ctxX.fillText('φ', margin + 5, margin + 12);
+            ctxX.fillStyle = '#28a745';
+            ctxX.fillText('r', margin + 25, margin + 12);
+        }
+
+        function drawGraphEnergy() {
+            ctxEnergy.clearRect(0, 0, graphEnergy.width, graphEnergy.height);
+
+            const margin = 35;
+            const w = graphEnergy.width - 2 * margin;
+            const h = graphEnergy.height - 2 * margin;
+
+            let maxE = 1, minE = 0;
+            if (historyTE.length > 0) {
+                maxE = Math.max(...historyTE, ...historyKE, ...historyPE) * 1.1;
+                minE = Math.min(...historyTE, ...historyKE, ...historyPE) * 1.1;
+                if (maxE - minE < 0.1) maxE = minE + 0.1;
+            }
+
+            ctxEnergy.fillStyle = '#f8f9fa';
+            ctxEnergy.fillRect(margin, margin, w, h);
+
+            ctxEnergy.strokeStyle = '#333';
+            ctxEnergy.lineWidth = 2;
+            ctxEnergy.beginPath();
+            ctxEnergy.moveTo(margin, margin);
+            ctxEnergy.lineTo(margin, margin + h);
+            ctxEnergy.lineTo(margin + w, margin + h);
+            ctxEnergy.stroke();
+
+            const range = maxE - minE;
+
+            // Plot KE
+            if (historyKE.length > 1) {
+                ctxEnergy.strokeStyle = '#28a745';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyKE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - ((historyKE[i] - minE) / range) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot PE
+            if (historyPE.length > 1) {
+                ctxEnergy.strokeStyle = '#dc3545';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyPE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - ((historyPE[i] - minE) / range) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot TE
+            if (historyTE.length > 1) {
+                ctxEnergy.strokeStyle = '#333';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyTE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - ((historyTE[i] - minE) / range) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Legend
+            ctxEnergy.font = '10px Arial';
+            ctxEnergy.textAlign = 'left';
+            ctxEnergy.fillStyle = '#28a745';
+            ctxEnergy.fillText('KE', margin + 5, margin + 12);
+            ctxEnergy.fillStyle = '#dc3545';
+            ctxEnergy.fillText('PE', margin + 35, margin + 12);
+            ctxEnergy.fillStyle = '#333';
+            ctxEnergy.fillText('TE', margin + 65, margin + 12);
+        }
+
+        function animate() {
+            const dt = 0.01;
+            const substeps = 5;
+
+            for (let i = 0; i < substeps; i++) {
+                rk4Step(dt / substeps);
+            }
+            time += dt;
+
+            historyPhi.push(state[0]);
+            historyR.push(state[2]);
+            const energies = computeEnergies();
+            historyKE.push(energies.KE);
+            historyPE.push(energies.PE);
+            historyTE.push(energies.TE);
+
+            if (historyPhi.length > maxHistory) {
+                historyPhi.shift();
+                historyR.shift();
+                historyKE.shift();
+                historyPE.shift();
+                historyTE.shift();
+            }
+
+            draw();
+            drawGraphX();
+            drawGraphEnergy();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function start() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stop() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+
+        function reset() {
+            stop();
+            state = [phi0, 0, r0, 0];
+            time = 0;
+            historyPhi = [];
+            historyR = [];
+            historyKE = [];
+            historyPE = [];
+            historyTE = [];
+            draw();
+            drawGraphX();
+            drawGraphEnergy();
+        }
+
+        reset();
+    </script>
+</body>
+</html>

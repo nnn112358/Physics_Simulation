@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ばね-質量-壁衝突シミュレーション</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            color: #000;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #000;
+            margin-bottom: 10px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        canvas {
+            background: #fff;
+            border: 1px solid #000;
+        }
+        .controls {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #000;
+            min-width: 250px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #000;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .value {
+            text-align: right;
+            font-size: 0.9em;
+            color: #666;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            background: #fff;
+            color: #000;
+            border: 1px solid #000;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background: #eee;
+        }
+        .stats {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 1em;
+            text-align: center;
+            font-weight: bold;
+        }
+        .equation {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 0.85em;
+        }
+        .graph-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>ばね-質量-壁衝突</h1>
+
+    <div class="container">
+        <canvas id="animCanvas" width="550" height="220"></canvas>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>質量 m (kg)</label>
+                <input type="range" id="mass" min="0.5" max="5" step="0.1" value="1">
+                <div class="value" id="massValue">1.0 kg</div>
+            </div>
+
+            <div class="control-group">
+                <label>ばね定数 k (N/m)</label>
+                <input type="range" id="spring" min="10" max="200" step="5" value="50">
+                <div class="value" id="springValue">50 N/m</div>
+            </div>
+
+            <div class="control-group">
+                <label>ばね領域 a (m)</label>
+                <input type="range" id="regionA" min="0.1" max="0.4" step="0.02" value="0.2">
+                <div class="value" id="regionAValue">0.20 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>自由領域 b (m)</label>
+                <input type="range" id="regionB" min="0.3" max="1" step="0.05" value="0.6">
+                <div class="value" id="regionBValue">0.60 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>初期位置 x₀ (m)</label>
+                <input type="range" id="initPos" min="0.05" max="0.8" step="0.05" value="0.1">
+                <div class="value" id="initPosValue">0.10 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>反発係数 e</label>
+                <input type="range" id="restitution" min="0.5" max="1" step="0.05" value="1">
+                <div class="value" id="restitutionValue">1.00</div>
+            </div>
+
+            <button id="resetBtn">リセット</button>
+            <button id="pauseBtn">一時停止</button>
+
+            <div class="stats" id="collisionCount">
+                # Collisions: 0
+            </div>
+
+            <div class="equation">
+                <strong>運動方程式:</strong><br>
+                mẍ = -k(x - a), x ≤ a<br>
+                mẍ = 0, x > a<br>
+                μ = 0（摩擦なし）<br>
+                壁で: v' = -e·v
+            </div>
+        </div>
+
+        <div class="graph-container">
+            <canvas id="graphCanvas" width="450" height="200"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // キャンバス設定
+        const animCanvas = document.getElementById('animCanvas');
+        const animCtx = animCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+
+        // パラメータ
+        let m = 1.0;           // 質量
+        let k = 50;            // ばね定数
+        let a = 0.2;           // ばね領域
+        let b = 0.6;           // 自由領域
+        let x0 = 0.1;          // 初期位置
+        let e = 1.0;           // 反発係数
+
+        // 状態変数
+        let x = 0;             // 位置
+        let v = 0;             // 速度
+        let t = 0;
+        let collisions = 0;
+        let paused = false;
+
+        // グラフデータ
+        let history = [];
+        const maxHistory = 500;
+
+        // 位置定数
+        const leftWall = 50;
+        const scale = 500;
+
+        // UI要素
+        document.getElementById('mass').addEventListener('input', (ev) => {
+            m = parseFloat(ev.target.value);
+            document.getElementById('massValue').textContent = m.toFixed(1) + ' kg';
+        });
+
+        document.getElementById('spring').addEventListener('input', (ev) => {
+            k = parseFloat(ev.target.value);
+            document.getElementById('springValue').textContent = k.toFixed(0) + ' N/m';
+        });
+
+        document.getElementById('regionA').addEventListener('input', (ev) => {
+            a = parseFloat(ev.target.value);
+            document.getElementById('regionAValue').textContent = a.toFixed(2) + ' m';
+            reset();
+        });
+
+        document.getElementById('regionB').addEventListener('input', (ev) => {
+            b = parseFloat(ev.target.value);
+            document.getElementById('regionBValue').textContent = b.toFixed(2) + ' m';
+            reset();
+        });
+
+        document.getElementById('initPos').addEventListener('input', (ev) => {
+            x0 = parseFloat(ev.target.value);
+            document.getElementById('initPosValue').textContent = x0.toFixed(2) + ' m';
+        });
+
+        document.getElementById('restitution').addEventListener('input', (ev) => {
+            e = parseFloat(ev.target.value);
+            document.getElementById('restitutionValue').textContent = e.toFixed(2);
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', reset);
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            paused = !paused;
+            document.getElementById('pauseBtn').textContent = paused ? '再開' : '一時停止';
+        });
+
+        function reset() {
+            x = x0;
+            v = 0;
+            t = 0;
+            collisions = 0;
+            history = [];
+            paused = false;
+            document.getElementById('pauseBtn').textContent = '一時停止';
+            updateCollisionDisplay();
+        }
+
+        function updateCollisionDisplay() {
+            document.getElementById('collisionCount').textContent = `# Collisions: ${collisions}`;
+        }
+
+        // 運動方程式
+        function derivatives(state) {
+            const [x, v] = state;
+
+            let acc = 0;
+            if (x <= a) {
+                // ばねの力を受ける領域
+                // ばねの自然長を a とする（左壁に固定）
+                acc = -k * (x - a) / m;
+            }
+            // x > a では力なし（自由領域）
+
+            return [v, acc];
+        }
+
+        function rk4Step(state, dt) {
+            const k1 = derivatives(state);
+            const k2 = derivatives([
+                state[0] + k1[0] * dt / 2,
+                state[1] + k1[1] * dt / 2
+            ]);
+            const k3 = derivatives([
+                state[0] + k2[0] * dt / 2,
+                state[1] + k2[1] * dt / 2
+            ]);
+            const k4 = derivatives([
+                state[0] + k3[0] * dt,
+                state[1] + k3[1] * dt
+            ]);
+
+            return [
+                state[0] + (k1[0] + 2*k2[0] + 2*k3[0] + k4[0]) * dt / 6,
+                state[1] + (k1[1] + 2*k2[1] + 2*k3[1] + k4[1]) * dt / 6
+            ];
+        }
+
+        function simulate(dt) {
+            const state = rk4Step([x, v], dt);
+            x = state[0];
+            v = state[1];
+
+            // 右壁との衝突判定
+            const totalLength = a + b;
+            const massWidth = 0.05;
+
+            if (x + massWidth >= totalLength) {
+                x = totalLength - massWidth;
+                v = -e * v;
+                collisions++;
+                updateCollisionDisplay();
+            }
+
+            // 左壁との衝突判定（ばねが完全に圧縮された場合）
+            if (x < 0.01) {
+                x = 0.01;
+                if (v < 0) {
+                    v = -e * v;
+                    collisions++;
+                    updateCollisionDisplay();
+                }
+            }
+
+            t += dt;
+
+            // 履歴保存
+            history.push({ t: t, x: x });
+            if (history.length > maxHistory) history.shift();
+        }
+
+        function drawSpring(x1, y1, x2, y2, coils) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            if (len < 15) return;
+
+            const ux = dx / len;
+            const uy = dy / len;
+            const px = -uy;
+            const py = ux;
+
+            const coilWidth = 12;
+            const endLen = 8;
+
+            animCtx.beginPath();
+            animCtx.moveTo(x1, y1);
+            animCtx.lineTo(x1 + ux * endLen, y1 + uy * endLen);
+
+            const coilLen = (len - 2 * endLen) / coils;
+            for (let i = 0; i < coils; i++) {
+                const startX = x1 + ux * (endLen + i * coilLen);
+                const startY = y1 + uy * (endLen + i * coilLen);
+
+                animCtx.lineTo(startX + ux * coilLen * 0.25 + px * coilWidth,
+                              startY + uy * coilLen * 0.25 + py * coilWidth);
+                animCtx.lineTo(startX + ux * coilLen * 0.75 - px * coilWidth,
+                              startY + uy * coilLen * 0.75 - py * coilWidth);
+            }
+
+            animCtx.lineTo(x2 - ux * endLen, y2 - uy * endLen);
+            animCtx.lineTo(x2, y2);
+            animCtx.stroke();
+        }
+
+        function draw() {
+            animCtx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+
+            const baseY = 110;
+            const totalLength = a + b;
+            const rightWall = leftWall + totalLength * scale;
+            const massWidth = 50;
+            const massHeight = 40;
+
+            // 左壁
+            animCtx.fillStyle = '#ddd';
+            animCtx.fillRect(leftWall - 20, baseY - 50, 20, 100);
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+            animCtx.strokeRect(leftWall - 20, baseY - 50, 20, 100);
+
+            // 左壁ハッチング
+            for (let i = 0; i < 10; i++) {
+                animCtx.beginPath();
+                animCtx.moveTo(leftWall - 20, baseY - 45 + i * 10);
+                animCtx.lineTo(leftWall - 30, baseY - 35 + i * 10);
+                animCtx.stroke();
+            }
+
+            // 右壁
+            animCtx.fillStyle = '#ddd';
+            animCtx.fillRect(rightWall, baseY - 50, 20, 100);
+            animCtx.strokeRect(rightWall, baseY - 50, 20, 100);
+
+            // 右壁ハッチング
+            for (let i = 0; i < 10; i++) {
+                animCtx.beginPath();
+                animCtx.moveTo(rightWall + 20, baseY - 45 + i * 10);
+                animCtx.lineTo(rightWall + 30, baseY - 35 + i * 10);
+                animCtx.stroke();
+            }
+
+            // 床と天井（チャンネル）
+            animCtx.fillStyle = '#f5f5f5';
+            animCtx.fillRect(leftWall, baseY - 50, totalLength * scale, 10);
+            animCtx.fillRect(leftWall, baseY + 40, totalLength * scale, 10);
+            animCtx.strokeRect(leftWall, baseY - 50, totalLength * scale, 10);
+            animCtx.strokeRect(leftWall, baseY + 40, totalLength * scale, 10);
+
+            // ハッチング（上下）
+            for (let i = 0; i < Math.floor(totalLength * scale / 15); i++) {
+                // 上
+                animCtx.beginPath();
+                animCtx.moveTo(leftWall + 5 + i * 15, baseY - 50);
+                animCtx.lineTo(leftWall + 15 + i * 15, baseY - 40);
+                animCtx.stroke();
+                // 下
+                animCtx.beginPath();
+                animCtx.moveTo(leftWall + 5 + i * 15, baseY + 50);
+                animCtx.lineTo(leftWall + 15 + i * 15, baseY + 40);
+                animCtx.stroke();
+            }
+
+            // 領域 a と b の境界線
+            const boundaryX = leftWall + a * scale;
+            animCtx.strokeStyle = '#aaa';
+            animCtx.setLineDash([5, 5]);
+            animCtx.beginPath();
+            animCtx.moveTo(boundaryX, baseY - 40);
+            animCtx.lineTo(boundaryX, baseY + 40);
+            animCtx.stroke();
+            animCtx.setLineDash([]);
+
+            // 質量の位置
+            const massX = leftWall + x * scale;
+
+            // ばね
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            if (x > 0.02) {
+                drawSpring(leftWall, baseY, massX - massWidth/2, baseY, 8);
+            }
+
+            // 質量 m
+            animCtx.fillStyle = '#ccc';
+            animCtx.fillRect(massX - massWidth/2, baseY - massHeight/2, massWidth, massHeight);
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            animCtx.strokeRect(massX - massWidth/2, baseY - massHeight/2, massWidth, massHeight);
+
+            // 質量ラベル
+            animCtx.fillStyle = '#000';
+            animCtx.font = '16px Arial';
+            animCtx.textAlign = 'center';
+            animCtx.fillText('m', massX, baseY + 5);
+
+            // ばねラベル
+            animCtx.font = '14px Arial';
+            animCtx.fillText('k', leftWall + (x < a ? x/2 : a/2) * scale, baseY - 30);
+
+            // 変位 x(t) 表示
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+            animCtx.beginPath();
+            animCtx.moveTo(leftWall, baseY - 70);
+            animCtx.lineTo(massX, baseY - 70);
+            animCtx.stroke();
+
+            // 矢印
+            animCtx.beginPath();
+            animCtx.moveTo(massX - 8, baseY - 75);
+            animCtx.lineTo(massX, baseY - 70);
+            animCtx.lineTo(massX - 8, baseY - 65);
+            animCtx.stroke();
+            animCtx.fillText('x(t)', (leftWall + massX) / 2, baseY - 80);
+
+            // 領域ラベル
+            animCtx.font = '14px Arial';
+            animCtx.fillText('a', leftWall + a * scale / 2, baseY + 75);
+            animCtx.fillText('b', leftWall + a * scale + b * scale / 2, baseY + 75);
+
+            // 領域寸法線
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+            // a
+            animCtx.beginPath();
+            animCtx.moveTo(leftWall, baseY + 60);
+            animCtx.lineTo(leftWall + a * scale, baseY + 60);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(leftWall, baseY + 55);
+            animCtx.lineTo(leftWall, baseY + 65);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(leftWall + a * scale, baseY + 55);
+            animCtx.lineTo(leftWall + a * scale, baseY + 65);
+            animCtx.stroke();
+
+            // b
+            animCtx.beginPath();
+            animCtx.moveTo(leftWall + a * scale, baseY + 60);
+            animCtx.lineTo(rightWall, baseY + 60);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(rightWall, baseY + 55);
+            animCtx.lineTo(rightWall, baseY + 65);
+            animCtx.stroke();
+
+            // 反発係数
+            animCtx.font = '12px Arial';
+            animCtx.textAlign = 'left';
+            animCtx.fillText('e = ' + e.toFixed(2), rightWall + 25, baseY);
+
+            // 摩擦係数
+            animCtx.fillText('μ = 0', leftWall + totalLength * scale / 2 - 20, baseY + 95);
+
+            // 重力
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            animCtx.beginPath();
+            animCtx.moveTo(rightWall + 60, 30);
+            animCtx.lineTo(rightWall + 60, 60);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(rightWall + 55, 55);
+            animCtx.lineTo(rightWall + 60, 60);
+            animCtx.lineTo(rightWall + 65, 55);
+            animCtx.stroke();
+            animCtx.font = '14px Arial';
+            animCtx.fillText('g', rightWall + 70, 50);
+        }
+
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            // 背景
+            graphCtx.fillStyle = '#f9f9f9';
+            graphCtx.fillRect(50, 10, 390, 170);
+
+            // 軸
+            graphCtx.strokeStyle = '#000';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(50, 180);
+            graphCtx.lineTo(440, 180);
+            graphCtx.stroke();
+            graphCtx.beginPath();
+            graphCtx.moveTo(50, 10);
+            graphCtx.lineTo(50, 180);
+            graphCtx.stroke();
+
+            // ラベル
+            graphCtx.fillStyle = '#000';
+            graphCtx.font = '12px Arial';
+            graphCtx.textAlign = 'left';
+            graphCtx.fillText('x (m)', 5, 20);
+            graphCtx.fillText('t (s)', 415, 195);
+
+            // データプロット
+            if (history.length > 1) {
+                const tMax = Math.max(history[history.length - 1].t, 5);
+                const xMax = a + b;
+
+                graphCtx.strokeStyle = '#000';
+                graphCtx.lineWidth = 1.5;
+                graphCtx.beginPath();
+
+                for (let i = 0; i < history.length; i++) {
+                    const px = 50 + (history[i].t / tMax) * 390;
+                    const py = 180 - (history[i].x / xMax) * 160;
+
+                    if (i === 0) {
+                        graphCtx.moveTo(px, py);
+                    } else {
+                        graphCtx.lineTo(px, py);
+                    }
+                }
+                graphCtx.stroke();
+
+                // 領域境界線
+                graphCtx.strokeStyle = '#aaa';
+                graphCtx.setLineDash([5, 5]);
+                const aLine = 180 - (a / xMax) * 160;
+                graphCtx.beginPath();
+                graphCtx.moveTo(50, aLine);
+                graphCtx.lineTo(440, aLine);
+                graphCtx.stroke();
+                graphCtx.setLineDash([]);
+
+                graphCtx.font = '10px Arial';
+                graphCtx.fillText('a', 440, aLine + 4);
+            }
+        }
+
+        // メインループ
+        function animate() {
+            if (!paused) {
+                for (let i = 0; i < 5; i++) {
+                    simulate(0.016 / 5);
+                }
+            }
+            draw();
+            drawGraph();
+            requestAnimationFrame(animate);
+        }
+
+        // 初期化
+        reset();
+        animate();
+    </script>
+</body>
+</html>

@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>T型複合振り子シミュレーション</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+        .simulation-area {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 450px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #f8f9fa;
+            display: block;
+        }
+        .controls {
+            flex: 0 0 300px;
+        }
+        .control-group {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 1em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin: 10px 0;
+        }
+        .slider-container label {
+            display: flex;
+            justify-content: space-between;
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            font-size: 1em;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .start-btn { background: #4CAF50; color: white; }
+        .stop-btn { background: #f44336; color: white; }
+        .reset-btn { background: #2196F3; color: white; }
+        button:hover { transform: scale(1.05); opacity: 0.9; }
+        .info-display {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+        .info-display h3 {
+            color: #2e7d32;
+            margin-bottom: 10px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+        .graphs {
+            width: 100%;
+            margin-top: 20px;
+        }
+        .graph-container {
+            margin-bottom: 15px;
+        }
+        .graph-container h3 {
+            color: #555;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>T型複合振り子シミュレーション</h1>
+
+        <div class="simulation-area">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="450" height="400"></canvas>
+                <div class="graphs">
+                    <div class="graph-container">
+                        <h3>角度グラフ</h3>
+                        <canvas id="graphCanvas" width="450" height="120"></canvas>
+                    </div>
+                    <div class="graph-container">
+                        <h3>エネルギーグラフ</h3>
+                        <canvas id="energyCanvas" width="450" height="120"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <h3>物理パラメータ</h3>
+                    <div class="slider-container">
+                        <label><span>基準質量 m</span><span id="mVal">1.0 kg</span></label>
+                        <input type="range" id="m" min="0.5" max="3" step="0.1" value="1.0">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>棒の長さ L</span><span id="LVal">1.5 m</span></label>
+                        <input type="range" id="L" min="0.5" max="2.5" step="0.1" value="1.5">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>重力加速度 g</span><span id="gVal">9.8 m/s²</span></label>
+                        <input type="range" id="g" min="1" max="20" step="0.5" value="9.8">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>初期条件</h3>
+                    <div class="slider-container">
+                        <label><span>初期角度 θ₀</span><span id="theta0Val">30°</span></label>
+                        <input type="range" id="theta0" min="-90" max="90" step="1" value="30">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>初期角速度 ω₀</span><span id="omega0Val">0 rad/s</span></label>
+                        <input type="range" id="omega0" min="-3" max="3" step="0.1" value="0">
+                    </div>
+                </div>
+
+                <div class="buttons">
+                    <button class="start-btn" onclick="startSim()">開始</button>
+                    <button class="stop-btn" onclick="stopSim()">停止</button>
+                    <button class="reset-btn" onclick="resetSim()">リセット</button>
+                </div>
+
+                <div class="info-display">
+                    <h3>状態表示</h3>
+                    <div class="info-row"><span>時間:</span><span id="timeDisplay">0.00 s</span></div>
+                    <div class="info-row"><span>角度 θ:</span><span id="thetaDisplay">0.00°</span></div>
+                    <div class="info-row"><span>角速度 ω:</span><span id="omegaDisplay">0.00 rad/s</span></div>
+                    <div class="info-row"><span>運動エネルギー:</span><span id="keDisplay">0.00 J</span></div>
+                    <div class="info-row"><span>位置エネルギー:</span><span id="peDisplay">0.00 J</span></div>
+                    <div class="info-row"><span>全エネルギー:</span><span id="totalEDisplay">0.00 J</span></div>
+                    <div class="info-row"><span>周期 T:</span><span id="periodDisplay">0.00 s</span></div>
+                </div>
+
+                <div class="control-group" style="margin-top: 15px;">
+                    <h3>質量配置</h3>
+                    <p style="font-size: 0.85em; color: #666; line-height: 1.5;">
+                        • 棒中心: 3m<br>
+                        • 水平棒中心: 6m<br>
+                        • 水平棒両端: 各m<br>
+                        • 水平棒長さ: L/2
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const simCanvas = document.getElementById('simCanvas');
+        const simCtx = simCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+        const energyCanvas = document.getElementById('energyCanvas');
+        const energyCtx = energyCanvas.getContext('2d');
+
+        let animationId = null;
+        let isRunning = false;
+        let time = 0;
+        const dt = 0.001;
+        const stepsPerFrame = 16;
+
+        // State: [theta, omega]
+        let state = [Math.PI / 6, 0];
+
+        // History for graphs
+        let history = [];
+        const maxHistory = 500;
+
+        // Get parameters
+        function getParams() {
+            return {
+                m: parseFloat(document.getElementById('m').value),
+                L: parseFloat(document.getElementById('L').value),
+                g: parseFloat(document.getElementById('g').value),
+                theta0: parseFloat(document.getElementById('theta0').value) * Math.PI / 180,
+                omega0: parseFloat(document.getElementById('omega0').value)
+            };
+        }
+
+        // Calculate moment of inertia about pivot A
+        // Masses: 3m at L/2, 6m at L, 2×m at sqrt(L² + (L/4)²) from A
+        function calcMomentOfInertia(p) {
+            const m = p.m;
+            const L = p.L;
+
+            // 3m at distance L/2
+            const I1 = 3 * m * (L / 2) * (L / 2);
+
+            // 6m at distance L
+            const I2 = 6 * m * L * L;
+
+            // Two masses m at distance sqrt(L² + (L/4)²)
+            const d = Math.sqrt(L * L + (L / 4) * (L / 4));
+            const I3 = 2 * m * d * d;
+
+            return I1 + I2 + I3;
+        }
+
+        // Calculate effective pendulum length for gravity torque
+        // Torque = -M_eff * g * L_eff * sin(theta)
+        // M_eff * L_eff = sum of m_i * vertical_distance_i from A
+        function calcEffectiveLength(p) {
+            const m = p.m;
+            const L = p.L;
+
+            // 3m at vertical distance L/2
+            // 6m at vertical distance L
+            // 2×m at vertical distance L (horizontal bar doesn't change vertical distance)
+            const sum = 3 * m * (L / 2) + 6 * m * L + 2 * m * L;
+            // sum = 1.5mL + 6mL + 2mL = 9.5mL
+
+            return sum; // This is M_eff * L_eff
+        }
+
+        // Derivatives
+        function derivatives(state, p) {
+            const [theta, omega] = state;
+            const I = calcMomentOfInertia(p);
+            const mL_eff = calcEffectiveLength(p);
+
+            // Torque = -mL_eff * g * sin(theta)
+            // I * alpha = -mL_eff * g * sin(theta)
+            const alpha = -mL_eff * p.g * Math.sin(theta) / I;
+
+            return [omega, alpha];
+        }
+
+        // RK4 integration
+        function rk4Step(state, dt, p) {
+            const k1 = derivatives(state, p);
+            const s2 = [state[0] + k1[0] * dt / 2, state[1] + k1[1] * dt / 2];
+            const k2 = derivatives(s2, p);
+            const s3 = [state[0] + k2[0] * dt / 2, state[1] + k2[1] * dt / 2];
+            const k3 = derivatives(s3, p);
+            const s4 = [state[0] + k3[0] * dt, state[1] + k3[1] * dt];
+            const k4 = derivatives(s4, p);
+
+            return [
+                state[0] + (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]) * dt / 6,
+                state[1] + (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1]) * dt / 6
+            ];
+        }
+
+        // Calculate energies
+        function calcEnergies(p) {
+            const [theta, omega] = state;
+            const I = calcMomentOfInertia(p);
+            const mL_eff = calcEffectiveLength(p);
+
+            const KE = 0.5 * I * omega * omega;
+            // PE = -mL_eff * g * cos(theta), shifted so PE=0 at bottom
+            const PE = mL_eff * p.g * (1 - Math.cos(theta));
+
+            return { KE, PE, total: KE + PE };
+        }
+
+        // Calculate theoretical period (small angle)
+        function calcPeriod(p) {
+            const I = calcMomentOfInertia(p);
+            const mL_eff = calcEffectiveLength(p);
+            // omega_n = sqrt(mL_eff * g / I)
+            const omega_n = Math.sqrt(mL_eff * p.g / I);
+            return 2 * Math.PI / omega_n;
+        }
+
+        // Draw simulation
+        function drawSim() {
+            const p = getParams();
+            simCtx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+
+            const scale = 120; // pixels per meter
+            const pivotX = simCanvas.width / 2;
+            const pivotY = 60;
+
+            const [theta, omega] = state;
+            const L = p.L;
+
+            // Calculate positions
+            // Rod endpoint (bottom of vertical rod)
+            const rodEndX = pivotX + L * scale * Math.sin(theta);
+            const rodEndY = pivotY + L * scale * Math.cos(theta);
+
+            // Mass at center of rod (3m)
+            const m3X = pivotX + (L / 2) * scale * Math.sin(theta);
+            const m3Y = pivotY + (L / 2) * scale * Math.cos(theta);
+
+            // Horizontal bar direction (perpendicular to rod)
+            const barDirX = Math.cos(theta);
+            const barDirY = -Math.sin(theta);
+
+            // Mass positions on horizontal bar
+            const barLen = L / 4 * scale;
+            const mLeftX = rodEndX - barLen * barDirX;
+            const mLeftY = rodEndY - barLen * barDirY;
+            const mRightX = rodEndX + barLen * barDirX;
+            const mRightY = rodEndY + barLen * barDirY;
+
+            // Draw pivot support
+            simCtx.fillStyle = '#888';
+            simCtx.beginPath();
+            simCtx.moveTo(pivotX - 30, pivotY - 15);
+            simCtx.lineTo(pivotX + 30, pivotY - 15);
+            simCtx.lineTo(pivotX + 25, pivotY);
+            simCtx.lineTo(pivotX - 25, pivotY);
+            simCtx.closePath();
+            simCtx.fill();
+
+            // Hatch pattern
+            simCtx.strokeStyle = '#666';
+            simCtx.lineWidth = 1;
+            for (let i = -25; i < 30; i += 8) {
+                simCtx.beginPath();
+                simCtx.moveTo(pivotX + i, pivotY - 15);
+                simCtx.lineTo(pivotX + i - 10, pivotY - 5);
+                simCtx.stroke();
+            }
+
+            // Draw vertical rod
+            simCtx.strokeStyle = '#333';
+            simCtx.lineWidth = 6;
+            simCtx.beginPath();
+            simCtx.moveTo(pivotX, pivotY);
+            simCtx.lineTo(rodEndX, rodEndY);
+            simCtx.stroke();
+
+            // Draw horizontal bar
+            simCtx.lineWidth = 5;
+            simCtx.beginPath();
+            simCtx.moveTo(mLeftX, mLeftY);
+            simCtx.lineTo(mRightX, mRightY);
+            simCtx.stroke();
+
+            // Draw pivot point
+            simCtx.fillStyle = 'white';
+            simCtx.strokeStyle = '#333';
+            simCtx.lineWidth = 2;
+            simCtx.beginPath();
+            simCtx.arc(pivotX, pivotY, 8, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.stroke();
+
+            // Draw 3m mass (center of rod)
+            simCtx.fillStyle = '#e74c3c';
+            simCtx.beginPath();
+            simCtx.arc(m3X, m3Y, 15, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.strokeStyle = '#c0392b';
+            simCtx.lineWidth = 2;
+            simCtx.stroke();
+            simCtx.fillStyle = 'white';
+            simCtx.font = 'bold 11px Arial';
+            simCtx.textAlign = 'center';
+            simCtx.textBaseline = 'middle';
+            simCtx.fillText('3m', m3X, m3Y);
+
+            // Draw 6m mass (center of horizontal bar)
+            simCtx.fillStyle = '#3498db';
+            simCtx.beginPath();
+            simCtx.arc(rodEndX, rodEndY, 18, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.strokeStyle = '#2980b9';
+            simCtx.lineWidth = 2;
+            simCtx.stroke();
+            simCtx.fillStyle = 'white';
+            simCtx.font = 'bold 11px Arial';
+            simCtx.fillText('6m', rodEndX, rodEndY);
+
+            // Draw m masses at ends
+            simCtx.fillStyle = '#27ae60';
+            simCtx.beginPath();
+            simCtx.arc(mLeftX, mLeftY, 12, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.strokeStyle = '#1e8449';
+            simCtx.stroke();
+            simCtx.fillStyle = 'white';
+            simCtx.font = 'bold 10px Arial';
+            simCtx.fillText('m', mLeftX, mLeftY);
+
+            simCtx.fillStyle = '#27ae60';
+            simCtx.beginPath();
+            simCtx.arc(mRightX, mRightY, 12, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.strokeStyle = '#1e8449';
+            simCtx.stroke();
+            simCtx.fillStyle = 'white';
+            simCtx.fillText('m', mRightX, mRightY);
+
+            // Draw angle arc
+            if (Math.abs(theta) > 0.05) {
+                simCtx.strokeStyle = '#9b59b6';
+                simCtx.lineWidth = 2;
+                simCtx.beginPath();
+                const arcRadius = 40;
+                const startAngle = Math.PI / 2 - theta;
+                const endAngle = Math.PI / 2;
+                if (theta > 0) {
+                    simCtx.arc(pivotX, pivotY, arcRadius, startAngle, endAngle);
+                } else {
+                    simCtx.arc(pivotX, pivotY, arcRadius, endAngle, startAngle);
+                }
+                simCtx.stroke();
+
+                // Angle label
+                simCtx.fillStyle = '#9b59b6';
+                simCtx.font = '14px Arial';
+                simCtx.textAlign = 'left';
+                simCtx.fillText('θ', pivotX + 45, pivotY + 20);
+            }
+
+            // Draw length labels
+            simCtx.fillStyle = '#666';
+            simCtx.font = '14px Arial';
+            simCtx.textAlign = 'left';
+            // L label
+            const midRodX = (pivotX + rodEndX) / 2 + 15;
+            const midRodY = (pivotY + rodEndY) / 2;
+            simCtx.fillText('L', midRodX, midRodY);
+
+            // L/4 labels
+            simCtx.font = '12px Arial';
+            simCtx.textAlign = 'center';
+            const labelOffset = 20;
+            simCtx.fillText('L/4', (rodEndX + mLeftX) / 2, (rodEndY + mLeftY) / 2 + labelOffset);
+            simCtx.fillText('L/4', (rodEndX + mRightX) / 2, (rodEndY + mRightY) / 2 + labelOffset);
+
+            // Draw gravity arrow
+            simCtx.fillStyle = '#333';
+            simCtx.font = '14px Arial';
+            simCtx.textAlign = 'left';
+            const gX = simCanvas.width - 50;
+            const gY = 30;
+            simCtx.beginPath();
+            simCtx.moveTo(gX, gY);
+            simCtx.lineTo(gX, gY + 30);
+            simCtx.strokeStyle = '#333';
+            simCtx.lineWidth = 2;
+            simCtx.stroke();
+            simCtx.beginPath();
+            simCtx.moveTo(gX, gY + 30);
+            simCtx.lineTo(gX - 5, gY + 22);
+            simCtx.lineTo(gX + 5, gY + 22);
+            simCtx.closePath();
+            simCtx.fill();
+            simCtx.fillText('g', gX + 10, gY + 20);
+
+            // Draw point A label
+            simCtx.fillStyle = '#333';
+            simCtx.font = '14px Arial';
+            simCtx.textAlign = 'center';
+            simCtx.fillText('A', pivotX, pivotY - 25);
+        }
+
+        // Draw angle graph
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            graphCtx.fillStyle = '#f8f9fa';
+            graphCtx.fillRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            // Grid
+            graphCtx.strokeStyle = '#ddd';
+            graphCtx.lineWidth = 1;
+            const midY = graphCanvas.height / 2;
+            graphCtx.beginPath();
+            graphCtx.moveTo(0, midY);
+            graphCtx.lineTo(graphCanvas.width, midY);
+            graphCtx.stroke();
+
+            // Draw angle history
+            if (history.length > 1) {
+                graphCtx.strokeStyle = '#9b59b6';
+                graphCtx.lineWidth = 2;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const x = (i / maxHistory) * graphCanvas.width;
+                    const y = midY - history[i].theta * 50;
+                    if (i === 0) graphCtx.moveTo(x, y);
+                    else graphCtx.lineTo(x, y);
+                }
+                graphCtx.stroke();
+            }
+
+            // Label
+            graphCtx.font = '12px Arial';
+            graphCtx.fillStyle = '#9b59b6';
+            graphCtx.fillText('θ (rad)', 10, 15);
+        }
+
+        // Draw energy graph
+        function drawEnergy() {
+            energyCtx.clearRect(0, 0, energyCanvas.width, energyCanvas.height);
+
+            energyCtx.fillStyle = '#f8f9fa';
+            energyCtx.fillRect(0, 0, energyCanvas.width, energyCanvas.height);
+
+            if (history.length < 2) return;
+
+            // Find max energy for scaling
+            let maxE = 0.1;
+            for (const h of history) {
+                maxE = Math.max(maxE, h.KE + h.PE);
+            }
+            const scale = (energyCanvas.height - 20) / maxE;
+
+            // Draw KE (red)
+            energyCtx.strokeStyle = '#e74c3c';
+            energyCtx.lineWidth = 2;
+            energyCtx.beginPath();
+            for (let i = 0; i < history.length; i++) {
+                const x = (i / maxHistory) * energyCanvas.width;
+                const y = energyCanvas.height - 10 - history[i].KE * scale;
+                if (i === 0) energyCtx.moveTo(x, y);
+                else energyCtx.lineTo(x, y);
+            }
+            energyCtx.stroke();
+
+            // Draw PE (blue)
+            energyCtx.strokeStyle = '#3498db';
+            energyCtx.beginPath();
+            for (let i = 0; i < history.length; i++) {
+                const x = (i / maxHistory) * energyCanvas.width;
+                const y = energyCanvas.height - 10 - history[i].PE * scale;
+                if (i === 0) energyCtx.moveTo(x, y);
+                else energyCtx.lineTo(x, y);
+            }
+            energyCtx.stroke();
+
+            // Draw Total (green)
+            energyCtx.strokeStyle = '#27ae60';
+            energyCtx.beginPath();
+            for (let i = 0; i < history.length; i++) {
+                const x = (i / maxHistory) * energyCanvas.width;
+                const y = energyCanvas.height - 10 - (history[i].KE + history[i].PE) * scale;
+                if (i === 0) energyCtx.moveTo(x, y);
+                else energyCtx.lineTo(x, y);
+            }
+            energyCtx.stroke();
+
+            // Legend
+            energyCtx.font = '11px Arial';
+            energyCtx.fillStyle = '#e74c3c';
+            energyCtx.fillText('KE', 10, 12);
+            energyCtx.fillStyle = '#3498db';
+            energyCtx.fillText('PE', 40, 12);
+            energyCtx.fillStyle = '#27ae60';
+            energyCtx.fillText('Total', 70, 12);
+        }
+
+        // Update display
+        function updateDisplay() {
+            const p = getParams();
+            const [theta, omega] = state;
+            const energies = calcEnergies(p);
+            const period = calcPeriod(p);
+
+            document.getElementById('timeDisplay').textContent = time.toFixed(2) + ' s';
+            document.getElementById('thetaDisplay').textContent = (theta * 180 / Math.PI).toFixed(2) + '°';
+            document.getElementById('omegaDisplay').textContent = omega.toFixed(3) + ' rad/s';
+            document.getElementById('keDisplay').textContent = energies.KE.toFixed(3) + ' J';
+            document.getElementById('peDisplay').textContent = energies.PE.toFixed(3) + ' J';
+            document.getElementById('totalEDisplay').textContent = energies.total.toFixed(3) + ' J';
+            document.getElementById('periodDisplay').textContent = period.toFixed(3) + ' s';
+        }
+
+        // Update slider displays
+        function updateSliderDisplays() {
+            document.getElementById('mVal').textContent = document.getElementById('m').value + ' kg';
+            document.getElementById('LVal').textContent = document.getElementById('L').value + ' m';
+            document.getElementById('gVal').textContent = document.getElementById('g').value + ' m/s²';
+            document.getElementById('theta0Val').textContent = document.getElementById('theta0').value + '°';
+            document.getElementById('omega0Val').textContent = document.getElementById('omega0').value + ' rad/s';
+        }
+
+        // Animation loop
+        function animate() {
+            const p = getParams();
+
+            for (let i = 0; i < stepsPerFrame; i++) {
+                state = rk4Step(state, dt, p);
+                time += dt;
+            }
+
+            // Record history
+            const energies = calcEnergies(p);
+            history.push({
+                theta: state[0],
+                KE: energies.KE,
+                PE: energies.PE
+            });
+            if (history.length > maxHistory) history.shift();
+
+            drawSim();
+            drawGraph();
+            drawEnergy();
+            updateDisplay();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function startSim() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stopSim() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+        }
+
+        function resetSim() {
+            stopSim();
+            const p = getParams();
+            state = [p.theta0, p.omega0];
+            time = 0;
+            history = [];
+            drawSim();
+            drawGraph();
+            drawEnergy();
+            updateDisplay();
+        }
+
+        // Event listeners
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            slider.addEventListener('input', () => {
+                updateSliderDisplays();
+                if (!isRunning) {
+                    const p = getParams();
+                    updateDisplay();
+                }
+            });
+        });
+
+        // Initialize
+        updateSliderDisplays();
+        resetSim();
+    </script>
+</body>
+</html>

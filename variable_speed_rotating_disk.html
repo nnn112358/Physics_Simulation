@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>可変角速度回転円盤 - 偏心質量シミュレーション</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            color: #000;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #000;
+            margin-bottom: 10px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        canvas {
+            background: #fff;
+            border: 1px solid #000;
+        }
+        .controls {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #000;
+            min-width: 250px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #000;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .value {
+            text-align: right;
+            font-size: 0.9em;
+            color: #666;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            background: #fff;
+            color: #000;
+            border: 1px solid #000;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background: #eee;
+        }
+        .equation {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.9em;
+            text-align: center;
+        }
+        .graph-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>可変角速度回転円盤 - 偏心質量</h1>
+
+    <div class="container">
+        <div class="graph-container">
+            <canvas id="animCanvas" width="450" height="400"></canvas>
+            <canvas id="graphCanvas" width="450" height="200"></canvas>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>基準角速度 ΩK (rad/s)</label>
+                <input type="range" id="omegaK" min="0.5" max="5" step="0.1" value="2">
+                <div class="value" id="omegaKValue">2.0 rad/s</div>
+            </div>
+
+            <div class="control-group">
+                <label>偏心距離 R (m)</label>
+                <input type="range" id="radius" min="0.05" max="0.3" step="0.01" value="0.15">
+                <div class="value" id="radiusValue">0.15 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>質量 m (kg)</label>
+                <input type="range" id="mass" min="0.1" max="2" step="0.1" value="0.5">
+                <div class="value" id="massValue">0.5 kg</div>
+            </div>
+
+            <div class="control-group">
+                <label>円盤半径 (表示)</label>
+                <input type="range" id="diskRadius" min="0.2" max="0.5" step="0.01" value="0.35">
+                <div class="value" id="diskRadiusValue">0.35 m</div>
+            </div>
+
+            <button id="resetBtn">リセット</button>
+            <button id="pauseBtn">一時停止</button>
+
+            <div class="equation">
+                <strong>角速度:</strong><br>
+                Ω(t) = ΩK/2 × (1 + cos(ΩK·t))<br><br>
+                <strong>遠心力:</strong><br>
+                F = m·R·Ω²
+            </div>
+
+            <div class="equation" id="forceDisplay">
+                遠心力: 0 N
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // キャンバス設定
+        const animCanvas = document.getElementById('animCanvas');
+        const animCtx = animCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+
+        // パラメータ
+        let omegaK = 2.0;       // 基準角速度
+        let R = 0.15;           // 偏心距離
+        let m = 0.5;            // 質量
+        let diskRadius = 0.35;  // 円盤半径
+
+        // 状態変数
+        let theta = 0;      // 現在の角度
+        let t = 0;          // 時間
+        let paused = false;
+        let history = [];
+        const maxHistory = 500;
+
+        // 角速度関数 Ω(t)
+        function omega(time) {
+            return (omegaK / 2) * (1 + Math.cos(omegaK * time));
+        }
+
+        // UI要素
+        document.getElementById('omegaK').addEventListener('input', (e) => {
+            omegaK = parseFloat(e.target.value);
+            document.getElementById('omegaKValue').textContent = omegaK.toFixed(1) + ' rad/s';
+        });
+
+        document.getElementById('radius').addEventListener('input', (e) => {
+            R = parseFloat(e.target.value);
+            document.getElementById('radiusValue').textContent = R.toFixed(2) + ' m';
+        });
+
+        document.getElementById('mass').addEventListener('input', (e) => {
+            m = parseFloat(e.target.value);
+            document.getElementById('massValue').textContent = m.toFixed(1) + ' kg';
+        });
+
+        document.getElementById('diskRadius').addEventListener('input', (e) => {
+            diskRadius = parseFloat(e.target.value);
+            document.getElementById('diskRadiusValue').textContent = diskRadius.toFixed(2) + ' m';
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', reset);
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            paused = !paused;
+            document.getElementById('pauseBtn').textContent = paused ? '再開' : '一時停止';
+        });
+
+        function reset() {
+            theta = 0;
+            t = 0;
+            history = [];
+            paused = false;
+            document.getElementById('pauseBtn').textContent = '一時停止';
+        }
+
+        // 物理シミュレーション
+        function simulate(dt) {
+            const currentOmega = omega(t);
+            theta += currentOmega * dt;
+            t += dt;
+
+            // 遠心力
+            const centrifugalForce = m * R * currentOmega * currentOmega;
+
+            history.push({
+                t: t,
+                omega: currentOmega,
+                force: centrifugalForce,
+                theta: theta
+            });
+            if (history.length > maxHistory) history.shift();
+
+            // 力の表示を更新
+            document.getElementById('forceDisplay').innerHTML =
+                `遠心力: ${centrifugalForce.toFixed(2)} N<br>速度: ${(currentOmega * R).toFixed(2)} m/s`;
+        }
+
+        // アニメーション描画
+        function drawAnimation() {
+            animCtx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+
+            const centerX = 225;
+            const centerY = 200;
+            const scale = 400;
+            const currentOmega = omega(t);
+
+            // 重力の方向（紙面垂直）を示す記号
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 2;
+            animCtx.beginPath();
+            animCtx.arc(40, 120, 12, 0, Math.PI * 2);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(32, 112);
+            animCtx.lineTo(48, 128);
+            animCtx.moveTo(32, 128);
+            animCtx.lineTo(48, 112);
+            animCtx.stroke();
+            animCtx.fillStyle = '#000';
+            animCtx.font = '14px Arial';
+            animCtx.fillText('g', 55, 125);
+
+            // 円盤
+            const diskR = diskRadius * scale;
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 2;
+            animCtx.beginPath();
+            animCtx.arc(centerX, centerY, diskR, 0, Math.PI * 2);
+            animCtx.stroke();
+
+            // スポーク（回転を可視化）
+            animCtx.lineWidth = 2;
+            for (let i = 0; i < 4; i++) {
+                const angle = theta + i * Math.PI / 2;
+                animCtx.beginPath();
+                animCtx.moveTo(centerX, centerY);
+                animCtx.lineTo(
+                    centerX + diskR * 0.9 * Math.cos(angle),
+                    centerY + diskR * 0.9 * Math.sin(angle)
+                );
+                animCtx.stroke();
+            }
+
+            // 偏心距離Rの円
+            animCtx.strokeStyle = '#999';
+            animCtx.setLineDash([5, 5]);
+            animCtx.lineWidth = 1;
+            animCtx.beginPath();
+            animCtx.arc(centerX, centerY, R * scale, 0, Math.PI * 2);
+            animCtx.stroke();
+            animCtx.setLineDash([]);
+
+            // 偏心質量の位置
+            const massX = centerX + R * scale * Math.cos(theta);
+            const massY = centerY + R * scale * Math.sin(theta);
+
+            // 偏心質量
+            animCtx.fillStyle = '#000';
+            animCtx.beginPath();
+            animCtx.arc(massX, massY, 15, 0, Math.PI * 2);
+            animCtx.fill();
+
+            // 中心から質量への線
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            animCtx.beginPath();
+            animCtx.moveTo(centerX, centerY);
+            animCtx.lineTo(massX, massY);
+            animCtx.stroke();
+
+            // 中心点
+            animCtx.fillStyle = '#000';
+            animCtx.beginPath();
+            animCtx.arc(centerX, centerY, 5, 0, Math.PI * 2);
+            animCtx.fill();
+
+            // 中心点Aのラベル
+            animCtx.font = '14px Arial';
+            animCtx.fillText('A', centerX - 20, centerY - 10);
+
+            // 距離Rのラベル
+            const labelAngle = theta - 0.3;
+            animCtx.fillText('R',
+                centerX + R * scale * 0.5 * Math.cos(labelAngle) - 15,
+                centerY + R * scale * 0.5 * Math.sin(labelAngle)
+            );
+
+            // 遠心力ベクトル（外向き）
+            const forceScale = 30;
+            const forceMag = m * R * currentOmega * currentOmega;
+            const forceLen = Math.min(forceMag * forceScale, 80);
+            if (forceLen > 5) {
+                animCtx.strokeStyle = '#c00';
+                animCtx.fillStyle = '#c00';
+                animCtx.lineWidth = 2;
+                const forceEndX = massX + forceLen * Math.cos(theta);
+                const forceEndY = massY + forceLen * Math.sin(theta);
+                animCtx.beginPath();
+                animCtx.moveTo(massX, massY);
+                animCtx.lineTo(forceEndX, forceEndY);
+                animCtx.stroke();
+                // 矢印の先端
+                const arrowAngle = theta;
+                animCtx.beginPath();
+                animCtx.moveTo(forceEndX, forceEndY);
+                animCtx.lineTo(forceEndX - 8 * Math.cos(arrowAngle - 0.3), forceEndY - 8 * Math.sin(arrowAngle - 0.3));
+                animCtx.moveTo(forceEndX, forceEndY);
+                animCtx.lineTo(forceEndX - 8 * Math.cos(arrowAngle + 0.3), forceEndY - 8 * Math.sin(arrowAngle + 0.3));
+                animCtx.stroke();
+            }
+
+            // 角速度Ω(t)の表示（弧矢印）
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            animCtx.beginPath();
+            animCtx.arc(centerX, centerY, diskR + 20, -0.5, 0.5);
+            animCtx.stroke();
+            // 矢印
+            animCtx.beginPath();
+            animCtx.moveTo(centerX + (diskR + 20) * Math.cos(0.5), centerY + (diskR + 20) * Math.sin(0.5));
+            animCtx.lineTo(centerX + (diskR + 25) * Math.cos(0.4), centerY + (diskR + 25) * Math.sin(0.4));
+            animCtx.stroke();
+            animCtx.fillStyle = '#000';
+            animCtx.fillText('Ω(t)', centerX + diskR + 30, centerY - 20);
+
+            // 座標系の表示
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+            // 慣性座標系
+            animCtx.beginPath();
+            animCtx.moveTo(centerX, centerY);
+            animCtx.lineTo(centerX + 50, centerY);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(centerX + 45, centerY - 5);
+            animCtx.lineTo(centerX + 50, centerY);
+            animCtx.lineTo(centerX + 45, centerY + 5);
+            animCtx.stroke();
+            animCtx.font = '12px Arial';
+            animCtx.fillText('ᵢê₁', centerX + 55, centerY + 5);
+
+            animCtx.beginPath();
+            animCtx.moveTo(centerX, centerY);
+            animCtx.lineTo(centerX, centerY - 50);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(centerX - 5, centerY - 45);
+            animCtx.lineTo(centerX, centerY - 50);
+            animCtx.lineTo(centerX + 5, centerY - 45);
+            animCtx.stroke();
+            animCtx.fillText('ᵢê₂', centerX + 5, centerY - 55);
+
+            // 状態表示
+            animCtx.fillStyle = '#000';
+            animCtx.font = '14px Arial';
+            animCtx.textAlign = 'left';
+            animCtx.fillText(`Ω(t) = ${currentOmega.toFixed(2)} rad/s`, 10, 30);
+            animCtx.fillText(`θ = ${((theta * 180 / Math.PI) % 360).toFixed(1)}°`, 10, 50);
+            animCtx.fillText(`t = ${t.toFixed(2)} s`, 10, 70);
+
+            // 速度ベクトル v（円周上に表示）
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+            const vDir = theta + Math.PI / 2; // 接線方向
+            const vLen = Math.min(currentOmega * R * scale * 0.5, 40);
+            if (vLen > 5) {
+                animCtx.beginPath();
+                animCtx.moveTo(massX, massY);
+                animCtx.lineTo(massX + vLen * Math.cos(vDir), massY + vLen * Math.sin(vDir));
+                animCtx.stroke();
+                animCtx.fillText('v', massX + vLen * Math.cos(vDir) + 5, massY + vLen * Math.sin(vDir));
+            }
+        }
+
+        // グラフ描画
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            const padding = 50;
+            const width = graphCanvas.width - padding * 2;
+            const height = graphCanvas.height - padding * 2;
+
+            // 軸
+            graphCtx.strokeStyle = '#000';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(padding, padding);
+            graphCtx.lineTo(padding, graphCanvas.height - padding);
+            graphCtx.lineTo(graphCanvas.width - padding, graphCanvas.height - padding);
+            graphCtx.stroke();
+
+            // ラベル
+            graphCtx.fillStyle = '#000';
+            graphCtx.font = '12px Arial';
+            graphCtx.textAlign = 'center';
+            graphCtx.fillText('時間 t (s)', graphCanvas.width/2, graphCanvas.height - 5);
+
+            graphCtx.save();
+            graphCtx.translate(12, graphCanvas.height/2);
+            graphCtx.rotate(-Math.PI/2);
+            graphCtx.fillText('Ω (rad/s) / F (N)', 0, 0);
+            graphCtx.restore();
+
+            // 履歴描画
+            if (history.length > 1) {
+                const tMax = Math.max(history[history.length-1].t, 5);
+                const maxOmega = omegaK;
+                const maxForce = m * R * omegaK * omegaK;
+                const yMax = Math.max(maxOmega, maxForce) * 1.2;
+
+                // 角速度Ω（実線）
+                graphCtx.strokeStyle = '#000';
+                graphCtx.lineWidth = 1.5;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const px = padding + (history[i].t / tMax) * width;
+                    const py = graphCanvas.height - padding - (history[i].omega / yMax) * height;
+                    if (i === 0) graphCtx.moveTo(px, py);
+                    else graphCtx.lineTo(px, py);
+                }
+                graphCtx.stroke();
+
+                // 遠心力F（点線）
+                graphCtx.strokeStyle = '#c00';
+                graphCtx.setLineDash([5, 5]);
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const px = padding + (history[i].t / tMax) * width;
+                    const py = graphCanvas.height - padding - (history[i].force / yMax) * height;
+                    if (i === 0) graphCtx.moveTo(px, py);
+                    else graphCtx.lineTo(px, py);
+                }
+                graphCtx.stroke();
+                graphCtx.setLineDash([]);
+            }
+
+            // 凡例
+            graphCtx.fillStyle = '#000';
+            graphCtx.font = '11px Arial';
+            graphCtx.textAlign = 'left';
+            graphCtx.strokeStyle = '#000';
+            graphCtx.lineWidth = 1.5;
+            graphCtx.beginPath();
+            graphCtx.moveTo(graphCanvas.width - 100, 20);
+            graphCtx.lineTo(graphCanvas.width - 70, 20);
+            graphCtx.stroke();
+            graphCtx.fillText('Ω (rad/s)', graphCanvas.width - 65, 24);
+
+            graphCtx.strokeStyle = '#c00';
+            graphCtx.setLineDash([5, 5]);
+            graphCtx.beginPath();
+            graphCtx.moveTo(graphCanvas.width - 100, 35);
+            graphCtx.lineTo(graphCanvas.width - 70, 35);
+            graphCtx.stroke();
+            graphCtx.setLineDash([]);
+            graphCtx.fillStyle = '#c00';
+            graphCtx.fillText('F (N)', graphCanvas.width - 65, 39);
+        }
+
+        // メインループ
+        function animate() {
+            if (!paused) {
+                simulate(0.016);
+            }
+            drawAnimation();
+            drawGraph();
+            requestAnimationFrame(animate);
+        }
+
+        // 初期化
+        animate();
+    </script>
+</body>
+</html>

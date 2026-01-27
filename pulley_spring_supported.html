@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>プーリー・ばね支持系</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+        .main-content {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 500px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #fff;
+            display: block;
+        }
+        .control-section {
+            width: 280px;
+        }
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 0.95em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin-bottom: 12px;
+        }
+        .slider-container label {
+            display: block;
+            color: #555;
+            margin-bottom: 3px;
+            font-size: 0.85em;
+        }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            min-width: 70px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-reset { background: #6c757d; color: white; }
+        .info-display {
+            background: #e9ecef;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.8em;
+            line-height: 1.6;
+        }
+        .graphs-section {
+            width: 100%;
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .graph-container {
+            flex: 1;
+            min-width: 350px;
+        }
+        .graph-container h4 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>プーリー・ばね支持系</h1>
+        <p class="description">両側のプーリーを通してばねで支持された質量（常に張った状態）</p>
+
+        <div class="main-content">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="550" height="380"></canvas>
+            </div>
+
+            <div class="control-section">
+                <div class="control-group">
+                    <h3>パラメータ設定</h3>
+
+                    <div class="slider-container">
+                        <label>質量 M: <span id="massVal">2.0</span> kg</label>
+                        <input type="range" id="massSlider" min="0.5" max="5.0" step="0.1" value="2.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>ばね定数 k: <span id="kVal">50</span> N/m</label>
+                        <input type="range" id="kSlider" min="10" max="200" step="5" value="50">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>重力 g: <span id="gravVal">9.8</span> m/s²</label>
+                        <input type="range" id="gravSlider" min="0" max="20.0" step="0.1" value="9.8">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期変位 x₀: <span id="x0Val">0.2</span> m</label>
+                        <input type="range" id="x0Slider" min="-0.5" max="0.5" step="0.05" value="0.2">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期速度 ẋ₀: <span id="v0Val">0.0</span> m/s</label>
+                        <input type="range" id="v0Slider" min="-2.0" max="2.0" step="0.1" value="0.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>シミュレーション制御</h3>
+                    <div class="button-group">
+                        <button class="btn-start" id="startBtn">開始</button>
+                        <button class="btn-stop" id="stopBtn">停止</button>
+                        <button class="btn-reset" id="resetBtn">リセット</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>状態表示</h3>
+                    <div class="info-display" id="infoDisplay">
+                        時間: 0.00 s<br>
+                        変位 x: 0.00 m<br>
+                        速度 ẋ: 0.00 m/s<br>
+                        周期 T: 0.00 s
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="graphs-section">
+            <div class="graph-container">
+                <h4>変位の時間変化 x(t)</h4>
+                <canvas id="graphX" width="380" height="180"></canvas>
+            </div>
+            <div class="graph-container">
+                <h4>エネルギー変化</h4>
+                <canvas id="graphEnergy" width="380" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const graphX = document.getElementById('graphX');
+        const ctxX = graphX.getContext('2d');
+        const graphEnergy = document.getElementById('graphEnergy');
+        const ctxEnergy = graphEnergy.getContext('2d');
+
+        // Parameters
+        let M = 2.0;
+        let k = 50;
+        let g = 9.8;
+        let x0 = 0.2;
+        let v0 = 0.0;
+
+        // State (x positive = down from equilibrium)
+        let x = x0;
+        let v = v0;
+        let time = 0;
+        let isRunning = false;
+        let animationId = null;
+
+        // History
+        let historyX = [];
+        let historyKE = [];
+        let historyPE = [];
+        let historyTE = [];
+        const maxHistory = 500;
+
+        // Sliders
+        const massSlider = document.getElementById('massSlider');
+        const kSlider = document.getElementById('kSlider');
+        const gravSlider = document.getElementById('gravSlider');
+        const x0Slider = document.getElementById('x0Slider');
+        const v0Slider = document.getElementById('v0Slider');
+
+        const massVal = document.getElementById('massVal');
+        const kVal = document.getElementById('kVal');
+        const gravVal = document.getElementById('gravVal');
+        const x0Val = document.getElementById('x0Val');
+        const v0Val = document.getElementById('v0Val');
+
+        massSlider.addEventListener('input', () => { M = parseFloat(massSlider.value); massVal.textContent = M.toFixed(1); });
+        kSlider.addEventListener('input', () => { k = parseFloat(kSlider.value); kVal.textContent = k.toFixed(0); });
+        gravSlider.addEventListener('input', () => { g = parseFloat(gravSlider.value); gravVal.textContent = g.toFixed(1); });
+        x0Slider.addEventListener('input', () => { x0 = parseFloat(x0Slider.value); x0Val.textContent = x0.toFixed(2); if (!isRunning) reset(); });
+        v0Slider.addEventListener('input', () => { v0 = parseFloat(v0Slider.value); v0Val.textContent = v0.toFixed(1); if (!isRunning) reset(); });
+
+        document.getElementById('startBtn').addEventListener('click', start);
+        document.getElementById('stopBtn').addEventListener('click', stop);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+
+        // With pulleys, each spring extends by x when mass moves down by x
+        // Total spring force = 2 * k * x (both springs contribute)
+        // But with pulley, the rope tension = k * extension
+        // Net upward force on M = 2 * T = 2 * k * x
+        // Equation: M * x'' = M * g - 2 * k * x (at equilibrium, springs are pre-stretched by M*g/(2k))
+        // About equilibrium: M * x'' = -2 * k * x
+        // Effective spring constant = 2k
+
+        function computeAcceleration(xPos, vel) {
+            return -2 * k * xPos / M;
+        }
+
+        function rk4Step(dt) {
+            const k1a = computeAcceleration(x, v);
+            const k1v = v;
+
+            const k2a = computeAcceleration(x + k1v * dt / 2, v + k1a * dt / 2);
+            const k2v = v + k1a * dt / 2;
+
+            const k3a = computeAcceleration(x + k2v * dt / 2, v + k2a * dt / 2);
+            const k3v = v + k2a * dt / 2;
+
+            const k4a = computeAcceleration(x + k3v * dt, v + k3a * dt);
+            const k4v = v + k3a * dt;
+
+            x += (k1v + 2 * k2v + 2 * k3v + k4v) * dt / 6;
+            v += (k1a + 2 * k2a + 2 * k3a + k4a) * dt / 6;
+        }
+
+        function computeEnergies() {
+            const KE = 0.5 * M * v * v;
+            const PE = 0.5 * (2 * k) * x * x;  // Effective spring constant = 2k
+            const TE = KE + PE;
+            return { KE, PE, TE };
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const centerX = canvas.width / 2;
+            const topY = 60;
+            const eqY = 200;  // equilibrium position
+            const scale = 150;
+
+            // Mass position
+            const massY = eqY + x * scale;
+
+            // Draw ceiling/beam
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(50, topY - 20, canvas.width - 100, 20);
+            ctx.strokeStyle = '#5D3A1A';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 25; i++) {
+                ctx.beginPath();
+                ctx.moveTo(50 + i * 20, topY - 20);
+                ctx.lineTo(50 + i * 20 + 12, topY);
+                ctx.stroke();
+            }
+
+            // Pulley positions
+            const pulleyL1X = 120;
+            const pulleyL2X = 180;
+            const pulleyR1X = canvas.width - 120;
+            const pulleyR2X = canvas.width - 180;
+            const pulleyY = topY + 15;
+            const pulleyR = 12;
+
+            // Draw pulleys
+            [pulleyL1X, pulleyL2X, pulleyR1X, pulleyR2X].forEach(px => {
+                ctx.fillStyle = '#ddd';
+                ctx.beginPath();
+                ctx.arc(px, pulleyY, pulleyR, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+
+            // "stets gespannt" label
+            ctx.fillStyle = '#666';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('stets gespannt', pulleyR2X, topY - 5);
+
+            // Left side: rope from spring up to pulley, across to second pulley, down to mass
+            // Spring anchor
+            const springAnchorLY = 320;
+
+            // Draw left spring
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            const springBottomY = springAnchorLY - 20;
+            const springTopY = pulleyY + 50 + x * scale * 0.5;  // Spring stretches/compresses
+            drawSpring(ctx, pulleyL1X, springBottomY, pulleyL1X, springTopY, 6, 10);
+
+            // Small mass at spring end
+            ctx.fillStyle = '#999';
+            ctx.beginPath();
+            ctx.arc(pulleyL1X, springTopY, 6, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // k label left
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'right';
+            ctx.fillText('k', pulleyL1X - 15, (springBottomY + springTopY) / 2);
+
+            // Rope from spring mass up around pulleys to M
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(pulleyL1X, springTopY - 6);
+            ctx.lineTo(pulleyL1X, pulleyY + pulleyR);
+            ctx.stroke();
+
+            // Around pulley L1 to L2
+            ctx.beginPath();
+            ctx.arc(pulleyL1X, pulleyY, pulleyR, Math.PI / 2, -Math.PI / 2, true);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(pulleyL1X, pulleyY - pulleyR);
+            ctx.lineTo(pulleyL2X, pulleyY - pulleyR);
+            ctx.stroke();
+
+            // Around pulley L2 down to mass
+            ctx.beginPath();
+            ctx.arc(pulleyL2X, pulleyY, pulleyR, -Math.PI / 2, Math.PI / 2, false);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(pulleyL2X, pulleyY + pulleyR);
+            ctx.lineTo(pulleyL2X, massY - 20);
+            ctx.stroke();
+
+            // Right side: similar
+            const springAnchorRY = springAnchorLY;
+            const springTopRY = pulleyY + 50 + x * scale * 0.5;
+
+            // Draw right spring
+            drawSpring(ctx, pulleyR1X, springAnchorRY - 20, pulleyR1X, springTopRY, 6, 10);
+
+            // Small mass at spring end
+            ctx.fillStyle = '#999';
+            ctx.beginPath();
+            ctx.arc(pulleyR1X, springTopRY, 6, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // k label right
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('k', pulleyR1X + 15, (springAnchorRY - 20 + springTopRY) / 2);
+
+            // Rope from spring mass up around pulleys to M
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(pulleyR1X, springTopRY - 6);
+            ctx.lineTo(pulleyR1X, pulleyY + pulleyR);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(pulleyR1X, pulleyY, pulleyR, Math.PI / 2, 3 * Math.PI / 2, false);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(pulleyR1X, pulleyY - pulleyR);
+            ctx.lineTo(pulleyR2X, pulleyY - pulleyR);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(pulleyR2X, pulleyY, pulleyR, -Math.PI / 2, Math.PI / 2, true);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(pulleyR2X, pulleyY + pulleyR);
+            ctx.lineTo(pulleyR2X, massY - 20);
+            ctx.stroke();
+
+            // Ground for springs
+            ctx.fillStyle = '#ddd';
+            ctx.fillRect(pulleyL1X - 30, springAnchorLY - 15, 60, 15);
+            ctx.fillRect(pulleyR1X - 30, springAnchorRY - 15, 60, 15);
+
+            // Hatch
+            ctx.strokeStyle = '#aaa';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 4; i++) {
+                ctx.beginPath();
+                ctx.moveTo(pulleyL1X - 25 + i * 15, springAnchorLY - 15);
+                ctx.lineTo(pulleyL1X - 25 + i * 15 - 8, springAnchorLY);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(pulleyR1X - 25 + i * 15, springAnchorRY - 15);
+                ctx.lineTo(pulleyR1X - 25 + i * 15 - 8, springAnchorRY);
+                ctx.stroke();
+            }
+
+            // Draw mass M
+            ctx.fillStyle = '#667eea';
+            ctx.fillRect(centerX - 50, massY - 20, 100, 40);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(centerX - 50, massY - 20, 100, 40);
+
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('M', centerX, massY);
+
+            // x coordinate
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(centerX, eqY);
+            ctx.lineTo(centerX, massY);
+            ctx.stroke();
+            if (Math.abs(x) > 0.01) {
+                const dir = x > 0 ? 1 : -1;
+                ctx.beginPath();
+                ctx.moveTo(centerX, massY);
+                ctx.lineTo(centerX - 5, massY - dir * 8);
+                ctx.moveTo(centerX, massY);
+                ctx.lineTo(centerX + 5, massY - dir * 8);
+                ctx.stroke();
+            }
+            ctx.fillStyle = '#e74c3c';
+            ctx.font = '14px serif';
+            ctx.fillText('x', centerX + 15, (eqY + massY) / 2);
+
+            // Gravity arrow
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - 50, 100);
+            ctx.lineTo(canvas.width - 50, 140);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - 50, 140);
+            ctx.lineTo(canvas.width - 55, 130);
+            ctx.moveTo(canvas.width - 50, 140);
+            ctx.lineTo(canvas.width - 45, 130);
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.font = '14px serif';
+            ctx.fillText('g', canvas.width - 50, 155);
+
+            // Update info
+            const omega_n = Math.sqrt(2 * k / M);
+            const T = 2 * Math.PI / omega_n;
+            const energies = computeEnergies();
+
+            document.getElementById('infoDisplay').innerHTML =
+                `時間: ${time.toFixed(2)} s<br>` +
+                `変位 x: ${x.toFixed(4)} m<br>` +
+                `速度 ẋ: ${v.toFixed(4)} m/s<br>` +
+                `有効ばね定数: ${(2*k).toFixed(0)} N/m<br>` +
+                `固有振動数 ωn: ${omega_n.toFixed(2)} rad/s<br>` +
+                `周期 T: ${T.toFixed(3)} s<br>` +
+                `全E: ${energies.TE.toFixed(4)} J`;
+        }
+
+        function drawSpring(ctx, x1, y1, x2, y2, coils, amp) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            const segLen = len / (coils * 2 + 2);
+            ctx.lineTo(segLen, 0);
+
+            for (let i = 0; i < coils * 2; i++) {
+                const px = segLen * (i + 1.5);
+                const py = (i % 2 === 0 ? amp : -amp);
+                ctx.lineTo(px, py);
+            }
+            ctx.lineTo(len - segLen, 0);
+            ctx.lineTo(len, 0);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawGraphX() {
+            ctxX.clearRect(0, 0, graphX.width, graphX.height);
+
+            const margin = 40;
+            const w = graphX.width - 2 * margin;
+            const h = graphX.height - 2 * margin;
+
+            ctxX.fillStyle = '#f8f9fa';
+            ctxX.fillRect(margin, margin, w, h);
+
+            ctxX.strokeStyle = '#333';
+            ctxX.lineWidth = 2;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin);
+            ctxX.lineTo(margin, margin + h);
+            ctxX.lineTo(margin + w, margin + h);
+            ctxX.stroke();
+
+            // Zero line
+            ctxX.strokeStyle = '#ccc';
+            ctxX.lineWidth = 1;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin + h / 2);
+            ctxX.lineTo(margin + w, margin + h / 2);
+            ctxX.stroke();
+
+            const maxVal = 0.5;
+
+            if (historyX.length > 1) {
+                ctxX.strokeStyle = '#667eea';
+                ctxX.lineWidth = 2;
+                ctxX.beginPath();
+                for (let i = 0; i < historyX.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyX[i] / maxVal) * (h / 2);
+                    if (i === 0) ctxX.moveTo(px, py);
+                    else ctxX.lineTo(px, py);
+                }
+                ctxX.stroke();
+            }
+        }
+
+        function drawGraphEnergy() {
+            ctxEnergy.clearRect(0, 0, graphEnergy.width, graphEnergy.height);
+
+            const margin = 40;
+            const w = graphEnergy.width - 2 * margin;
+            const h = graphEnergy.height - 2 * margin;
+
+            let maxE = 1;
+            if (historyTE.length > 0) {
+                maxE = Math.max(...historyTE, ...historyKE, ...historyPE) * 1.1;
+                if (maxE < 0.01) maxE = 0.01;
+            }
+
+            ctxEnergy.fillStyle = '#f8f9fa';
+            ctxEnergy.fillRect(margin, margin, w, h);
+
+            ctxEnergy.strokeStyle = '#333';
+            ctxEnergy.lineWidth = 2;
+            ctxEnergy.beginPath();
+            ctxEnergy.moveTo(margin, margin);
+            ctxEnergy.lineTo(margin, margin + h);
+            ctxEnergy.lineTo(margin + w, margin + h);
+            ctxEnergy.stroke();
+
+            // Plot KE
+            if (historyKE.length > 1) {
+                ctxEnergy.strokeStyle = '#28a745';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyKE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyKE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot PE
+            if (historyPE.length > 1) {
+                ctxEnergy.strokeStyle = '#dc3545';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyPE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyPE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot TE
+            if (historyTE.length > 1) {
+                ctxEnergy.strokeStyle = '#333';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyTE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyTE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            ctxEnergy.font = '10px Arial';
+            ctxEnergy.textAlign = 'left';
+            ctxEnergy.fillStyle = '#28a745';
+            ctxEnergy.fillText('KE', margin + 5, margin + 12);
+            ctxEnergy.fillStyle = '#dc3545';
+            ctxEnergy.fillText('PE', margin + 35, margin + 12);
+            ctxEnergy.fillStyle = '#333';
+            ctxEnergy.fillText('TE', margin + 65, margin + 12);
+        }
+
+        function animate() {
+            const dt = 0.01;
+            const substeps = 5;
+
+            for (let i = 0; i < substeps; i++) {
+                rk4Step(dt / substeps);
+            }
+            time += dt;
+
+            historyX.push(x);
+            const energies = computeEnergies();
+            historyKE.push(energies.KE);
+            historyPE.push(energies.PE);
+            historyTE.push(energies.TE);
+
+            if (historyX.length > maxHistory) {
+                historyX.shift();
+                historyKE.shift();
+                historyPE.shift();
+                historyTE.shift();
+            }
+
+            draw();
+            drawGraphX();
+            drawGraphEnergy();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function start() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stop() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+
+        function reset() {
+            stop();
+            x = x0;
+            v = v0;
+            time = 0;
+            historyX = [];
+            historyKE = [];
+            historyPE = [];
+            historyTE = [];
+            draw();
+            drawGraphX();
+            drawGraphEnergy();
+        }
+
+        reset();
+    </script>
+</body>
+</html>

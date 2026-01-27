@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>箱の中の弾性衝突シミュレーション</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            color: #000;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #000;
+            margin-bottom: 10px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        canvas {
+            background: #fff;
+            border: 1px solid #000;
+        }
+        .controls {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #000;
+            min-width: 250px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #000;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .value {
+            text-align: right;
+            font-size: 0.9em;
+            color: #666;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            background: #fff;
+            color: #000;
+            border: 1px solid #000;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background: #eee;
+        }
+        .equation {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.9em;
+            text-align: center;
+        }
+        .stats {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 1em;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>箱の中の弾性衝突</h1>
+
+    <div class="container">
+        <canvas id="animCanvas" width="500" height="320"></canvas>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>質量 m (kg)</label>
+                <input type="range" id="mass" min="0.1" max="2" step="0.1" value="0.5">
+                <div class="value" id="massValue">0.5 kg</div>
+            </div>
+
+            <div class="control-group">
+                <label>初期速度 v₀ (m/s)</label>
+                <input type="range" id="velocity" min="1" max="10" step="0.5" value="5">
+                <div class="value" id="velocityValue">5.0 m/s</div>
+            </div>
+
+            <div class="control-group">
+                <label>発射角度 θ (°)</label>
+                <input type="range" id="angle" min="0" max="360" step="5" value="30">
+                <div class="value" id="angleValue">30°</div>
+            </div>
+
+            <div class="control-group">
+                <label>反発係数 e</label>
+                <input type="range" id="restitution" min="0.5" max="1" step="0.05" value="1">
+                <div class="value" id="restitutionValue">1.00</div>
+            </div>
+
+            <div class="control-group">
+                <label>ボール半径 (m)</label>
+                <input type="range" id="radius" min="0.05" max="0.2" step="0.01" value="0.1">
+                <div class="value" id="radiusValue">0.10 m</div>
+            </div>
+
+            <button id="resetBtn">リセット</button>
+            <button id="pauseBtn">一時停止</button>
+
+            <div class="stats" id="collisionCount">
+                # Collisions: 0
+            </div>
+
+            <div class="equation">
+                <strong>衝突則:</strong><br>
+                v'_n = -e · v_n<br>
+                v'_t = v_t<br>
+                <small>(n: 法線, t: 接線)</small>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // キャンバス設定
+        const canvas = document.getElementById('animCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // パラメータ
+        let m = 0.5;
+        let v0 = 5;
+        let angle = 30;
+        let e = 1;          // 反発係数
+        let ballRadius = 0.1;
+
+        // 箱のサイズ（メートル）
+        const boxWidth = 4;
+        const boxHeight = 2.5;
+
+        // スケール
+        const scale = 100;
+        const offsetX = 50;
+        const offsetY = 50;
+
+        // 状態変数
+        let x, y, vx, vy;
+        let collisionCount = 0;
+        let t = 0;
+        let paused = false;
+        let trail = [];
+        const maxTrail = 200;
+
+        // UI要素
+        document.getElementById('mass').addEventListener('input', (e) => {
+            m = parseFloat(e.target.value);
+            document.getElementById('massValue').textContent = m.toFixed(1) + ' kg';
+        });
+
+        document.getElementById('velocity').addEventListener('input', (ev) => {
+            v0 = parseFloat(ev.target.value);
+            document.getElementById('velocityValue').textContent = v0.toFixed(1) + ' m/s';
+        });
+
+        document.getElementById('angle').addEventListener('input', (ev) => {
+            angle = parseFloat(ev.target.value);
+            document.getElementById('angleValue').textContent = angle + '°';
+        });
+
+        document.getElementById('restitution').addEventListener('input', (ev) => {
+            e = parseFloat(ev.target.value);
+            document.getElementById('restitutionValue').textContent = e.toFixed(2);
+        });
+
+        document.getElementById('radius').addEventListener('input', (ev) => {
+            ballRadius = parseFloat(ev.target.value);
+            document.getElementById('radiusValue').textContent = ballRadius.toFixed(2) + ' m';
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', reset);
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            paused = !paused;
+            document.getElementById('pauseBtn').textContent = paused ? '再開' : '一時停止';
+        });
+
+        function reset() {
+            // 中央からスタート
+            x = boxWidth / 2;
+            y = boxHeight / 2;
+
+            const rad = angle * Math.PI / 180;
+            vx = v0 * Math.cos(rad);
+            vy = v0 * Math.sin(rad);
+
+            collisionCount = 0;
+            t = 0;
+            trail = [];
+            paused = false;
+            document.getElementById('pauseBtn').textContent = '一時停止';
+            updateCollisionDisplay();
+        }
+
+        function updateCollisionDisplay() {
+            document.getElementById('collisionCount').textContent = `# Collisions: ${collisionCount}`;
+        }
+
+        // 物理シミュレーション
+        function simulate(dt) {
+            // 位置を更新
+            x += vx * dt;
+            y += vy * dt;
+
+            // 壁との衝突判定
+            // 左壁
+            if (x - ballRadius < 0) {
+                x = ballRadius;
+                vx = -e * vx;
+                collisionCount++;
+                updateCollisionDisplay();
+            }
+            // 右壁
+            if (x + ballRadius > boxWidth) {
+                x = boxWidth - ballRadius;
+                vx = -e * vx;
+                collisionCount++;
+                updateCollisionDisplay();
+            }
+            // 下壁
+            if (y - ballRadius < 0) {
+                y = ballRadius;
+                vy = -e * vy;
+                collisionCount++;
+                updateCollisionDisplay();
+            }
+            // 上壁
+            if (y + ballRadius > boxHeight) {
+                y = boxHeight - ballRadius;
+                vy = -e * vy;
+                collisionCount++;
+                updateCollisionDisplay();
+            }
+
+            t += dt;
+
+            // 軌跡を記録
+            trail.push({ x: x, y: y });
+            if (trail.length > maxTrail) trail.shift();
+
+            // 速度が非常に小さくなったら停止
+            const speed = Math.sqrt(vx * vx + vy * vy);
+            if (speed < 0.01) {
+                vx = 0;
+                vy = 0;
+            }
+        }
+
+        // 描画
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 座標変換関数
+            function toScreen(px, py) {
+                return {
+                    sx: offsetX + px * scale,
+                    sy: canvas.height - offsetY - py * scale
+                };
+            }
+
+            // 箱の描画
+            const boxCorners = [
+                toScreen(0, 0),
+                toScreen(boxWidth, 0),
+                toScreen(boxWidth, boxHeight),
+                toScreen(0, boxHeight)
+            ];
+
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(boxCorners[0].sx, boxCorners[0].sy);
+            for (let i = 1; i < 4; i++) {
+                ctx.lineTo(boxCorners[i].sx, boxCorners[i].sy);
+            }
+            ctx.closePath();
+            ctx.stroke();
+
+            // ハッチング
+            ctx.lineWidth = 1;
+            // 左壁
+            for (let i = 0; i < 12; i++) {
+                const p1 = toScreen(0, i * boxHeight / 12);
+                ctx.beginPath();
+                ctx.moveTo(p1.sx, p1.sy);
+                ctx.lineTo(p1.sx - 10, p1.sy + 10);
+                ctx.stroke();
+            }
+            // 右壁
+            for (let i = 0; i < 12; i++) {
+                const p1 = toScreen(boxWidth, i * boxHeight / 12);
+                ctx.beginPath();
+                ctx.moveTo(p1.sx, p1.sy);
+                ctx.lineTo(p1.sx + 10, p1.sy + 10);
+                ctx.stroke();
+            }
+            // 上壁
+            for (let i = 0; i < 20; i++) {
+                const p1 = toScreen(i * boxWidth / 20, boxHeight);
+                ctx.beginPath();
+                ctx.moveTo(p1.sx, p1.sy);
+                ctx.lineTo(p1.sx + 10, p1.sy - 10);
+                ctx.stroke();
+            }
+            // 下壁
+            for (let i = 0; i < 20; i++) {
+                const p1 = toScreen(i * boxWidth / 20, 0);
+                ctx.beginPath();
+                ctx.moveTo(p1.sx, p1.sy);
+                ctx.lineTo(p1.sx + 10, p1.sy + 10);
+                ctx.stroke();
+            }
+
+            // 軌跡の描画
+            if (trail.length > 1) {
+                ctx.strokeStyle = '#ccc';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                const start = toScreen(trail[0].x, trail[0].y);
+                ctx.moveTo(start.sx, start.sy);
+                for (let i = 1; i < trail.length; i++) {
+                    const p = toScreen(trail[i].x, trail[i].y);
+                    ctx.lineTo(p.sx, p.sy);
+                }
+                ctx.stroke();
+            }
+
+            // ボールの描画
+            const ballPos = toScreen(x, y);
+            const ballR = ballRadius * scale;
+
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(ballPos.sx, ballPos.sy, ballR, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 質量ラベル
+            ctx.fillStyle = '#000';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText('m', ballPos.sx + ballR + 5, ballPos.sy);
+
+            // 速度ベクトル
+            const speed = Math.sqrt(vx * vx + vy * vy);
+            if (speed > 0.1) {
+                const arrowScale = 10;
+                const arrowEnd = toScreen(x + vx * 0.1, y + vy * 0.1);
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(ballPos.sx, ballPos.sy);
+                ctx.lineTo(arrowEnd.sx, arrowEnd.sy);
+                ctx.stroke();
+            }
+
+            // 座標軸
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            // x軸
+            ctx.beginPath();
+            ctx.moveTo(offsetX, canvas.height - offsetY + 20);
+            ctx.lineTo(offsetX + 40, canvas.height - offsetY + 20);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(offsetX + 35, canvas.height - offsetY + 15);
+            ctx.lineTo(offsetX + 40, canvas.height - offsetY + 20);
+            ctx.lineTo(offsetX + 35, canvas.height - offsetY + 25);
+            ctx.stroke();
+            ctx.fillText('x', offsetX + 45, canvas.height - offsetY + 25);
+
+            // y軸
+            ctx.beginPath();
+            ctx.moveTo(offsetX - 20, canvas.height - offsetY);
+            ctx.lineTo(offsetX - 20, canvas.height - offsetY - 40);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(offsetX - 25, canvas.height - offsetY - 35);
+            ctx.lineTo(offsetX - 20, canvas.height - offsetY - 40);
+            ctx.lineTo(offsetX - 15, canvas.height - offsetY - 35);
+            ctx.stroke();
+            ctx.fillText('y', offsetX - 25, canvas.height - offsetY - 45);
+
+            // 反発係数表示
+            ctx.font = '12px Arial';
+            ctx.fillText(`e = ${e.toFixed(2)}`, offsetX + 80, canvas.height - 15);
+
+            // 重力方向（紙面垂直）
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, canvas.height - 15, 10, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2 - 7, canvas.height - 22);
+            ctx.lineTo(canvas.width / 2 + 7, canvas.height - 8);
+            ctx.moveTo(canvas.width / 2 - 7, canvas.height - 8);
+            ctx.lineTo(canvas.width / 2 + 7, canvas.height - 22);
+            ctx.stroke();
+            ctx.fillText('g', canvas.width / 2 + 15, canvas.height - 10);
+
+            // 状態表示
+            ctx.fillStyle = '#000';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(`v = ${speed.toFixed(2)} m/s`, 10, 20);
+            ctx.fillText(`t = ${t.toFixed(2)} s`, 10, 38);
+        }
+
+        // メインループ
+        function animate() {
+            if (!paused) {
+                // 小さいステップで複数回シミュレート（精度向上）
+                for (let i = 0; i < 3; i++) {
+                    simulate(0.016 / 3);
+                }
+            }
+            draw();
+            requestAnimationFrame(animate);
+        }
+
+        // 初期化
+        reset();
+        animate();
+    </script>
+</body>
+</html>

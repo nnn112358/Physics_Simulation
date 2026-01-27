@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ヨーヨー（下降滑車）シミュレーション</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 1.8em;
+        }
+        .simulation-area {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 400px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #f8f9fa;
+            display: block;
+        }
+        .controls {
+            flex: 0 0 300px;
+        }
+        .control-group {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 1em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin: 10px 0;
+        }
+        .slider-container label {
+            display: flex;
+            justify-content: space-between;
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            font-size: 1em;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .start-btn { background: #4CAF50; color: white; }
+        .stop-btn { background: #f44336; color: white; }
+        .reset-btn { background: #2196F3; color: white; }
+        button:hover { transform: scale(1.05); opacity: 0.9; }
+        .info-display {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+        .info-display h3 {
+            color: #2e7d32;
+            margin-bottom: 10px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 0.85em;
+        }
+        .graphs {
+            width: 100%;
+            margin-top: 20px;
+        }
+        .graph-container {
+            margin-bottom: 15px;
+        }
+        .graph-container h3 {
+            color: #555;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ヨーヨー（下降滑車）シミュレーション</h1>
+
+        <div class="simulation-area">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="400" height="450"></canvas>
+                <div class="graphs">
+                    <div class="graph-container">
+                        <h3>変位・速度グラフ</h3>
+                        <canvas id="graphCanvas" width="400" height="130"></canvas>
+                    </div>
+                    <div class="graph-container">
+                        <h3>エネルギーグラフ</h3>
+                        <canvas id="energyCanvas" width="400" height="130"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <h3>滑車パラメータ</h3>
+                    <div class="slider-container">
+                        <label><span>質量 m</span><span id="mVal">1.0 kg</span></label>
+                        <input type="range" id="m" min="0.5" max="5" step="0.1" value="1.0">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>半径 r</span><span id="rVal">0.1 m</span></label>
+                        <input type="range" id="r" min="0.05" max="0.3" step="0.01" value="0.1">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>重力加速度 g</span><span id="gVal">9.8 m/s²</span></label>
+                        <input type="range" id="g" min="1" max="20" step="0.5" value="9.8">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>初期条件</h3>
+                    <div class="slider-container">
+                        <label><span>初期位置 x₀</span><span id="x0Val">0 m</span></label>
+                        <input type="range" id="x0" min="0" max="1" step="0.05" value="0">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>初期速度 v₀</span><span id="v0Val">0 m/s</span></label>
+                        <input type="range" id="v0" min="0" max="2" step="0.1" value="0">
+                    </div>
+                </div>
+
+                <div class="buttons">
+                    <button class="start-btn" onclick="startSim()">開始</button>
+                    <button class="stop-btn" onclick="stopSim()">停止</button>
+                    <button class="reset-btn" onclick="resetSim()">リセット</button>
+                </div>
+
+                <div class="info-display">
+                    <h3>状態表示</h3>
+                    <div class="info-row"><span>時間:</span><span id="timeDisplay">0.00 s</span></div>
+                    <div class="info-row"><span>下降距離 x:</span><span id="xDisplay">0.00 m</span></div>
+                    <div class="info-row"><span>下降速度 v:</span><span id="vDisplay">0.00 m/s</span></div>
+                    <div class="info-row"><span>回転角 φ:</span><span id="phiDisplay">0.00 rad</span></div>
+                    <div class="info-row"><span>角速度 ω:</span><span id="omegaDisplay">0.00 rad/s</span></div>
+                    <div class="info-row"><span>加速度:</span><span id="accDisplay">0.00 m/s²</span></div>
+                    <div class="info-row"><span>運動エネルギー:</span><span id="keDisplay">0.00 J</span></div>
+                    <div class="info-row"><span>位置エネルギー:</span><span id="peDisplay">0.00 J</span></div>
+                </div>
+
+                <div class="control-group" style="margin-top: 15px;">
+                    <h3>理論値</h3>
+                    <p style="font-size: 0.8em; color: #666; line-height: 1.5;">
+                        円盤の場合 (I = mr²/2):<br>
+                        加速度 a = (2/3)g<br>
+                        拘束条件: v = rω
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const simCanvas = document.getElementById('simCanvas');
+        const simCtx = simCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+        const energyCanvas = document.getElementById('energyCanvas');
+        const energyCtx = energyCanvas.getContext('2d');
+
+        let animationId = null;
+        let isRunning = false;
+        let time = 0;
+        const dt = 0.001;
+        const stepsPerFrame = 16;
+
+        // State: [x, v] (x = downward displacement, v = downward velocity)
+        let state = [0, 0];
+        let phi = 0; // Rotation angle
+
+        let history = [];
+        const maxHistory = 400;
+
+        function getParams() {
+            return {
+                m: parseFloat(document.getElementById('m').value),
+                r: parseFloat(document.getElementById('r').value),
+                g: parseFloat(document.getElementById('g').value),
+                x0: parseFloat(document.getElementById('x0').value),
+                v0: parseFloat(document.getElementById('v0').value)
+            };
+        }
+
+        // For a yo-yo (disk rolling down a string):
+        // Constraint: x = r * phi (rope unwinds as disk descends)
+        // Energy: T = (1/2)mv² + (1/2)Iω² where ω = v/r
+        // For a solid disk: I = (1/2)mr²
+        // T = (1/2)mv² + (1/2)(1/2)mr²(v/r)² = (1/2)mv² + (1/4)mv² = (3/4)mv²
+        // Lagrangian: L = (3/4)mv² - (-mgx) = (3/4)mv² + mgx
+        // Equation of motion: (3/2)m*a = mg => a = (2/3)g
+
+        function derivatives(state, p) {
+            const [x, v] = state;
+
+            // Effective inertia: m_eff = m + I/r² = m + (1/2)m = (3/2)m
+            // m_eff * a = m * g
+            // a = mg / m_eff = mg / (3m/2) = (2/3)g
+
+            const I = 0.5 * p.m * p.r * p.r; // Disk moment of inertia
+            const m_eff = p.m + I / (p.r * p.r);
+            const a = p.m * p.g / m_eff;
+
+            return [v, a];
+        }
+
+        function rk4Step(state, dt, p) {
+            const k1 = derivatives(state, p);
+            const s2 = [state[0] + k1[0] * dt / 2, state[1] + k1[1] * dt / 2];
+            const k2 = derivatives(s2, p);
+            const s3 = [state[0] + k2[0] * dt / 2, state[1] + k2[1] * dt / 2];
+            const k3 = derivatives(s3, p);
+            const s4 = [state[0] + k3[0] * dt, state[1] + k3[1] * dt];
+            const k4 = derivatives(s4, p);
+
+            return [
+                state[0] + (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]) * dt / 6,
+                state[1] + (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1]) * dt / 6
+            ];
+        }
+
+        function calcEnergies(p) {
+            const [x, v] = state;
+            const omega = v / p.r;
+            const I = 0.5 * p.m * p.r * p.r;
+
+            const KE_trans = 0.5 * p.m * v * v;
+            const KE_rot = 0.5 * I * omega * omega;
+            const KE = KE_trans + KE_rot;
+            const PE = -p.m * p.g * x; // PE decreases as x increases (downward)
+
+            return { KE, PE, total: KE + PE };
+        }
+
+        function drawSim() {
+            const p = getParams();
+            simCtx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+
+            const scale = 200; // pixels per meter
+            const ropeTopX = simCanvas.width / 2;
+            const ropeTopY = 50;
+
+            // Pulley position
+            const pulleyRadius = p.r * scale;
+            const pulleyY = ropeTopY + state[0] * scale + pulleyRadius;
+            const pulleyX = ropeTopX;
+
+            // Calculate rotation angle from constraint
+            phi = state[0] / p.r;
+
+            // Draw top support
+            simCtx.fillStyle = '#888';
+            simCtx.fillRect(ropeTopX - 60, 20, 120, 30);
+
+            // Hatch pattern
+            simCtx.strokeStyle = '#666';
+            simCtx.lineWidth = 1;
+            for (let i = -55; i < 60; i += 10) {
+                simCtx.beginPath();
+                simCtx.moveTo(ropeTopX + i, 20);
+                simCtx.lineTo(ropeTopX + i - 10, 10);
+                simCtx.stroke();
+            }
+
+            // Draw upper pulley (fixed)
+            simCtx.fillStyle = '#aaa';
+            simCtx.strokeStyle = '#666';
+            simCtx.lineWidth = 2;
+            simCtx.beginPath();
+            simCtx.arc(ropeTopX, ropeTopY, 15, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.stroke();
+
+            // Draw rope
+            simCtx.strokeStyle = '#8b4513';
+            simCtx.lineWidth = 3;
+
+            // Left rope segment (from top to pulley)
+            simCtx.beginPath();
+            simCtx.moveTo(ropeTopX - 10, ropeTopY);
+            simCtx.lineTo(ropeTopX - pulleyRadius, pulleyY);
+            simCtx.stroke();
+
+            // Right rope segment (from top to pulley)
+            simCtx.beginPath();
+            simCtx.moveTo(ropeTopX + 10, ropeTopY);
+            simCtx.lineTo(ropeTopX + pulleyRadius, pulleyY);
+            simCtx.stroke();
+
+            // Rope wrapping around pulley (simplified as arc)
+            simCtx.beginPath();
+            simCtx.arc(pulleyX, pulleyY, pulleyRadius, Math.PI, 0, true);
+            simCtx.stroke();
+
+            // Draw lower pulley (yo-yo)
+            simCtx.fillStyle = '#3498db';
+            simCtx.strokeStyle = '#2980b9';
+            simCtx.lineWidth = 3;
+            simCtx.beginPath();
+            simCtx.arc(pulleyX, pulleyY, pulleyRadius, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.stroke();
+
+            // Draw rotation marker on pulley
+            simCtx.strokeStyle = '#fff';
+            simCtx.lineWidth = 3;
+            for (let i = 0; i < 4; i++) {
+                const angle = phi + i * Math.PI / 2;
+                const innerR = pulleyRadius * 0.3;
+                const outerR = pulleyRadius * 0.8;
+                simCtx.beginPath();
+                simCtx.moveTo(pulleyX + innerR * Math.cos(angle), pulleyY + innerR * Math.sin(angle));
+                simCtx.lineTo(pulleyX + outerR * Math.cos(angle), pulleyY + outerR * Math.sin(angle));
+                simCtx.stroke();
+            }
+
+            // Center point
+            simCtx.fillStyle = '#fff';
+            simCtx.beginPath();
+            simCtx.arc(pulleyX, pulleyY, 5, 0, Math.PI * 2);
+            simCtx.fill();
+
+            // Mass label
+            simCtx.fillStyle = '#333';
+            simCtx.font = 'bold 14px Arial';
+            simCtx.textAlign = 'center';
+            simCtx.fillText('m', pulleyX, pulleyY + 5);
+
+            // Radius label
+            simCtx.font = '12px Arial';
+            simCtx.fillText('r₃', pulleyX + pulleyRadius + 15, pulleyY);
+
+            // Radius line
+            simCtx.strokeStyle = '#333';
+            simCtx.lineWidth = 1;
+            simCtx.setLineDash([3, 3]);
+            simCtx.beginPath();
+            simCtx.moveTo(pulleyX, pulleyY);
+            simCtx.lineTo(pulleyX + pulleyRadius, pulleyY);
+            simCtx.stroke();
+            simCtx.setLineDash([]);
+
+            // Draw displacement x dimension
+            const dimX = 80;
+            simCtx.strokeStyle = '#666';
+            simCtx.lineWidth = 1;
+            simCtx.beginPath();
+            simCtx.moveTo(dimX, ropeTopY);
+            simCtx.lineTo(dimX, pulleyY);
+            simCtx.stroke();
+
+            // Arrows
+            simCtx.fillStyle = '#666';
+            simCtx.beginPath();
+            simCtx.moveTo(dimX, ropeTopY);
+            simCtx.lineTo(dimX - 4, ropeTopY + 8);
+            simCtx.lineTo(dimX + 4, ropeTopY + 8);
+            simCtx.closePath();
+            simCtx.fill();
+
+            simCtx.beginPath();
+            simCtx.moveTo(dimX, pulleyY);
+            simCtx.lineTo(dimX - 4, pulleyY - 8);
+            simCtx.lineTo(dimX + 4, pulleyY - 8);
+            simCtx.closePath();
+            simCtx.fill();
+
+            simCtx.fillStyle = '#333';
+            simCtx.font = '14px Arial';
+            simCtx.textAlign = 'center';
+            simCtx.fillText('x', dimX - 15, (ropeTopY + pulleyY) / 2);
+
+            // Draw angle φ
+            const phiDisplay = (phi % (2 * Math.PI));
+            if (Math.abs(phiDisplay) > 0.1) {
+                simCtx.strokeStyle = '#e74c3c';
+                simCtx.lineWidth = 2;
+                const arcRadius = pulleyRadius * 0.5;
+                simCtx.beginPath();
+                simCtx.arc(pulleyX, pulleyY, arcRadius, 0, phiDisplay % (Math.PI / 2));
+                simCtx.stroke();
+            }
+
+            simCtx.fillStyle = '#e74c3c';
+            simCtx.font = '12px Arial';
+            simCtx.fillText('φ', pulleyX + pulleyRadius * 0.7, pulleyY + pulleyRadius * 0.7);
+
+            // Draw instantaneous center (Rastpolbahn)
+            // For a yo-yo, the instantaneous center is at the contact point with rope
+            const icX = pulleyX - pulleyRadius;
+            const icY = pulleyY;
+
+            simCtx.fillStyle = '#9b59b6';
+            simCtx.beginPath();
+            simCtx.arc(icX, icY, 6, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.font = '11px Arial';
+            simCtx.fillStyle = '#9b59b6';
+            simCtx.textAlign = 'left';
+            simCtx.fillText('Q₃ (瞬間中心)', icX - 70, icY - 10);
+
+            // Seil label
+            simCtx.fillStyle = '#8b4513';
+            simCtx.font = '12px Arial';
+            simCtx.textAlign = 'left';
+            simCtx.fillText('Seil (ロープ)', ropeTopX - 80, (ropeTopY + pulleyY) / 2);
+
+            // Gravity arrow
+            simCtx.fillStyle = '#333';
+            simCtx.strokeStyle = '#333';
+            simCtx.lineWidth = 2;
+            const gX = simCanvas.width - 50;
+            const gY = 80;
+            simCtx.beginPath();
+            simCtx.moveTo(gX, gY);
+            simCtx.lineTo(gX, gY + 30);
+            simCtx.stroke();
+            simCtx.beginPath();
+            simCtx.moveTo(gX, gY + 30);
+            simCtx.lineTo(gX - 5, gY + 22);
+            simCtx.lineTo(gX + 5, gY + 22);
+            simCtx.closePath();
+            simCtx.fill();
+            simCtx.font = '14px Arial';
+            simCtx.textAlign = 'left';
+            simCtx.fillText('g', gX + 8, gY + 25);
+        }
+
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+            graphCtx.fillStyle = '#f8f9fa';
+            graphCtx.fillRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            const midY = graphCanvas.height / 2;
+            graphCtx.strokeStyle = '#ddd';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(0, midY);
+            graphCtx.lineTo(graphCanvas.width, midY);
+            graphCtx.stroke();
+
+            if (history.length > 1) {
+                // Displacement
+                graphCtx.strokeStyle = '#3498db';
+                graphCtx.lineWidth = 2;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const hx = (i / maxHistory) * graphCanvas.width;
+                    const y = midY - history[i].x * 30;
+                    if (i === 0) graphCtx.moveTo(hx, y);
+                    else graphCtx.lineTo(hx, y);
+                }
+                graphCtx.stroke();
+
+                // Velocity
+                graphCtx.strokeStyle = '#e74c3c';
+                graphCtx.lineWidth = 1.5;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const hx = (i / maxHistory) * graphCanvas.width;
+                    const y = midY - history[i].v * 15;
+                    if (i === 0) graphCtx.moveTo(hx, y);
+                    else graphCtx.lineTo(hx, y);
+                }
+                graphCtx.stroke();
+            }
+
+            graphCtx.font = '11px Arial';
+            graphCtx.fillStyle = '#3498db';
+            graphCtx.fillText('x (m)', 10, 12);
+            graphCtx.fillStyle = '#e74c3c';
+            graphCtx.fillText('v (m/s)', 60, 12);
+        }
+
+        function drawEnergy() {
+            energyCtx.clearRect(0, 0, energyCanvas.width, energyCanvas.height);
+            energyCtx.fillStyle = '#f8f9fa';
+            energyCtx.fillRect(0, 0, energyCanvas.width, energyCanvas.height);
+
+            if (history.length < 2) return;
+
+            let maxE = 0.1;
+            for (const h of history) {
+                maxE = Math.max(maxE, Math.abs(h.KE), Math.abs(h.PE), Math.abs(h.total));
+            }
+            const scale = (energyCanvas.height - 20) / (2 * maxE);
+            const midY = energyCanvas.height / 2;
+
+            // KE
+            energyCtx.strokeStyle = '#e74c3c';
+            energyCtx.lineWidth = 2;
+            energyCtx.beginPath();
+            for (let i = 0; i < history.length; i++) {
+                const hx = (i / maxHistory) * energyCanvas.width;
+                const y = midY - history[i].KE * scale;
+                if (i === 0) energyCtx.moveTo(hx, y);
+                else energyCtx.lineTo(hx, y);
+            }
+            energyCtx.stroke();
+
+            // PE
+            energyCtx.strokeStyle = '#3498db';
+            energyCtx.beginPath();
+            for (let i = 0; i < history.length; i++) {
+                const hx = (i / maxHistory) * energyCanvas.width;
+                const y = midY - history[i].PE * scale;
+                if (i === 0) energyCtx.moveTo(hx, y);
+                else energyCtx.lineTo(hx, y);
+            }
+            energyCtx.stroke();
+
+            // Total
+            energyCtx.strokeStyle = '#27ae60';
+            energyCtx.lineWidth = 1.5;
+            energyCtx.beginPath();
+            for (let i = 0; i < history.length; i++) {
+                const hx = (i / maxHistory) * energyCanvas.width;
+                const y = midY - history[i].total * scale;
+                if (i === 0) energyCtx.moveTo(hx, y);
+                else energyCtx.lineTo(hx, y);
+            }
+            energyCtx.stroke();
+
+            energyCtx.font = '11px Arial';
+            energyCtx.fillStyle = '#e74c3c';
+            energyCtx.fillText('KE', 10, 12);
+            energyCtx.fillStyle = '#3498db';
+            energyCtx.fillText('PE', 40, 12);
+            energyCtx.fillStyle = '#27ae60';
+            energyCtx.fillText('Total', 70, 12);
+        }
+
+        function updateDisplay() {
+            const p = getParams();
+            const [x, v] = state;
+            const omega = v / p.r;
+            phi = x / p.r;
+
+            const I = 0.5 * p.m * p.r * p.r;
+            const m_eff = p.m + I / (p.r * p.r);
+            const acc = p.m * p.g / m_eff;
+
+            const energies = calcEnergies(p);
+
+            document.getElementById('timeDisplay').textContent = time.toFixed(2) + ' s';
+            document.getElementById('xDisplay').textContent = x.toFixed(3) + ' m';
+            document.getElementById('vDisplay').textContent = v.toFixed(3) + ' m/s';
+            document.getElementById('phiDisplay').textContent = phi.toFixed(2) + ' rad';
+            document.getElementById('omegaDisplay').textContent = omega.toFixed(2) + ' rad/s';
+            document.getElementById('accDisplay').textContent = acc.toFixed(3) + ' m/s²';
+            document.getElementById('keDisplay').textContent = energies.KE.toFixed(3) + ' J';
+            document.getElementById('peDisplay').textContent = energies.PE.toFixed(3) + ' J';
+
+            history.push({
+                x: x,
+                v: v,
+                KE: energies.KE,
+                PE: energies.PE,
+                total: energies.total
+            });
+            if (history.length > maxHistory) history.shift();
+        }
+
+        function updateSliderDisplays() {
+            document.getElementById('mVal').textContent = document.getElementById('m').value + ' kg';
+            document.getElementById('rVal').textContent = document.getElementById('r').value + ' m';
+            document.getElementById('gVal').textContent = document.getElementById('g').value + ' m/s²';
+            document.getElementById('x0Val').textContent = document.getElementById('x0').value + ' m';
+            document.getElementById('v0Val').textContent = document.getElementById('v0').value + ' m/s';
+        }
+
+        function animate() {
+            const p = getParams();
+
+            // Stop if pulley goes too far
+            if (state[0] > 1.8) {
+                stopSim();
+                return;
+            }
+
+            for (let i = 0; i < stepsPerFrame; i++) {
+                state = rk4Step(state, dt, p);
+                time += dt;
+            }
+
+            drawSim();
+            drawGraph();
+            drawEnergy();
+            updateDisplay();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function startSim() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stopSim() {
+            isRunning = false;
+            if (animationId) cancelAnimationFrame(animationId);
+        }
+
+        function resetSim() {
+            stopSim();
+            const p = getParams();
+            state = [p.x0, p.v0];
+            phi = 0;
+            time = 0;
+            history = [];
+            drawSim();
+            drawGraph();
+            drawEnergy();
+            updateDisplay();
+        }
+
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            slider.addEventListener('input', () => {
+                updateSliderDisplays();
+                if (!isRunning) {
+                    drawSim();
+                    updateDisplay();
+                }
+            });
+        });
+
+        updateSliderDisplays();
+        resetSim();
+    </script>
+</body>
+</html>

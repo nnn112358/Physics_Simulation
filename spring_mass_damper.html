@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>バネ・マス・ダンパ系シミュレーション</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            color: #000;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #000;
+            margin-bottom: 10px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        canvas {
+            background: #fff;
+            border: 1px solid #000;
+        }
+        .controls {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #000;
+            min-width: 250px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #000;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .value {
+            text-align: right;
+            font-size: 0.9em;
+            color: #666;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            background: #fff;
+            color: #000;
+            border: 1px solid #000;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background: #eee;
+        }
+        .equation {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.9em;
+            text-align: center;
+        }
+        .graph-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>バネ・マス・ダンパ系シミュレーション</h1>
+
+    <div class="container">
+        <div class="graph-container">
+            <canvas id="animCanvas" width="400" height="400"></canvas>
+            <canvas id="graphCanvas" width="400" height="200"></canvas>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>質量 m (kg)</label>
+                <input type="range" id="mass" min="0.5" max="5" step="0.1" value="1">
+                <div class="value" id="massValue">1.0 kg</div>
+            </div>
+
+            <div class="control-group">
+                <label>バネ定数 k (N/m)</label>
+                <input type="range" id="spring" min="1" max="50" step="1" value="20">
+                <div class="value" id="springValue">20 N/m</div>
+            </div>
+
+            <div class="control-group">
+                <label>減衰係数 c (Ns/m)</label>
+                <input type="range" id="damper" min="0" max="10" step="0.1" value="1">
+                <div class="value" id="damperValue">1.0 Ns/m</div>
+            </div>
+
+            <div class="control-group">
+                <label>初期変位 x₀ (m)</label>
+                <input type="range" id="initX" min="-2" max="2" step="0.1" value="1">
+                <div class="value" id="initXValue">1.0 m</div>
+            </div>
+
+            <button id="resetBtn">リセット</button>
+            <button id="pauseBtn">一時停止</button>
+
+            <div class="equation">
+                <strong>運動方程式:</strong><br>
+                m·ẍ + c·ẋ + k·x = 0
+            </div>
+
+            <div class="equation" id="dampingRatio">
+                減衰比 ζ = 0.11 (不足減衰)
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // キャンバス設定
+        const animCanvas = document.getElementById('animCanvas');
+        const animCtx = animCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+
+        // パラメータ
+        let m = 1.0;    // 質量
+        let k = 20;     // バネ定数
+        let c = 1.0;    // 減衰係数
+        let x0 = 1.0;   // 初期変位
+
+        // 状態変数
+        let x = x0;     // 変位
+        let v = 0;      // 速度
+        let t = 0;      // 時間
+        let paused = false;
+        let history = [];
+        const maxHistory = 400;
+
+        // UI要素
+        const massSlider = document.getElementById('mass');
+        const springSlider = document.getElementById('spring');
+        const damperSlider = document.getElementById('damper');
+        const initXSlider = document.getElementById('initX');
+
+        // スライダーイベント
+        massSlider.addEventListener('input', () => {
+            m = parseFloat(massSlider.value);
+            document.getElementById('massValue').textContent = m.toFixed(1) + ' kg';
+            updateDampingRatio();
+        });
+
+        springSlider.addEventListener('input', () => {
+            k = parseFloat(springSlider.value);
+            document.getElementById('springValue').textContent = k + ' N/m';
+            updateDampingRatio();
+        });
+
+        damperSlider.addEventListener('input', () => {
+            c = parseFloat(damperSlider.value);
+            document.getElementById('damperValue').textContent = c.toFixed(1) + ' Ns/m';
+            updateDampingRatio();
+        });
+
+        initXSlider.addEventListener('input', () => {
+            x0 = parseFloat(initXSlider.value);
+            document.getElementById('initXValue').textContent = x0.toFixed(1) + ' m';
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', reset);
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            paused = !paused;
+            document.getElementById('pauseBtn').textContent = paused ? '再開' : '一時停止';
+        });
+
+        function updateDampingRatio() {
+            const wn = Math.sqrt(k / m);  // 固有角振動数
+            const zeta = c / (2 * Math.sqrt(k * m));  // 減衰比
+            let status = '';
+            if (zeta < 1) status = '不足減衰';
+            else if (zeta === 1) status = '臨界減衰';
+            else status = '過減衰';
+            document.getElementById('dampingRatio').innerHTML =
+                `減衰比 ζ = ${zeta.toFixed(2)} (${status})<br>固有振動数 ωn = ${wn.toFixed(2)} rad/s`;
+        }
+
+        function reset() {
+            x = x0;
+            v = 0;
+            t = 0;
+            history = [];
+            paused = false;
+            document.getElementById('pauseBtn').textContent = '一時停止';
+        }
+
+        // 物理シミュレーション (Runge-Kutta 4次)
+        function simulate(dt) {
+            function f(x, v) {
+                return { dx: v, dv: (-c * v - k * x) / m };
+            }
+
+            const k1 = f(x, v);
+            const k2 = f(x + k1.dx * dt/2, v + k1.dv * dt/2);
+            const k3 = f(x + k2.dx * dt/2, v + k2.dv * dt/2);
+            const k4 = f(x + k3.dx * dt, v + k3.dv * dt);
+
+            x += (k1.dx + 2*k2.dx + 2*k3.dx + k4.dx) * dt / 6;
+            v += (k1.dv + 2*k2.dv + 2*k3.dv + k4.dv) * dt / 6;
+            t += dt;
+
+            history.push({ t: t, x: x });
+            if (history.length > maxHistory) history.shift();
+        }
+
+        // バネを描画
+        function drawSpring(ctx, x1, y1, x2, y2, coils) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+
+            const segLen = len / (coils * 2 + 2);
+            const amplitude = 15;
+
+            ctx.lineTo(segLen, 0);
+
+            for (let i = 0; i < coils * 2; i++) {
+                const xPos = segLen + (i + 1) * segLen;
+                const yPos = (i % 2 === 0) ? amplitude : -amplitude;
+                ctx.lineTo(xPos, yPos);
+            }
+
+            ctx.lineTo(len, 0);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // ダンパを描画
+        function drawDamper(ctx, x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            const cylHeight = 24;
+            const cylStart = 20;
+            const cylLen = 50;
+            const pistonWidth = 20;
+
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1.5;
+
+            // 壁からシリンダーへの線
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(cylStart, 0);
+            ctx.stroke();
+
+            // シリンダー（コの字型 - 右側が開いている）
+            ctx.beginPath();
+            ctx.moveTo(cylStart, -cylHeight/2);
+            ctx.lineTo(cylStart, cylHeight/2);  // 左壁
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(cylStart, -cylHeight/2);
+            ctx.lineTo(cylStart + cylLen, -cylHeight/2);  // 上壁
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(cylStart, cylHeight/2);
+            ctx.lineTo(cylStart + cylLen, cylHeight/2);  // 下壁
+            ctx.stroke();
+
+            // ピストンヘッド（シリンダー内で動く）
+            const pistonX = len - 30;
+            ctx.beginPath();
+            ctx.moveTo(pistonX, -cylHeight/2 + 3);
+            ctx.lineTo(pistonX, cylHeight/2 - 3);
+            ctx.stroke();
+
+            // ピストンロッド（ピストンから質量へ）
+            ctx.beginPath();
+            ctx.moveTo(pistonX, 0);
+            ctx.lineTo(len, 0);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // アニメーション描画
+        function drawAnimation() {
+            animCtx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+
+            const wallX = 50;
+            const centerY = animCanvas.height / 2;
+            const scale = 80;
+            const massX = 200 + x * scale;
+            const massSize = 50;
+
+            // 壁
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            animCtx.beginPath();
+            animCtx.moveTo(wallX, centerY - 100);
+            animCtx.lineTo(wallX, centerY + 100);
+            animCtx.stroke();
+
+            // ハッチング
+            animCtx.lineWidth = 1;
+            for (let i = 0; i < 10; i++) {
+                animCtx.beginPath();
+                animCtx.moveTo(wallX, centerY - 100 + i * 20);
+                animCtx.lineTo(wallX - 15, centerY - 80 + i * 20);
+                animCtx.stroke();
+            }
+
+            // バネ
+            drawSpring(animCtx, wallX, centerY - 30, massX - massSize/2, centerY - 30, 8);
+
+            // ダンパ
+            drawDamper(animCtx, wallX, centerY + 30, massX - massSize/2, centerY + 30);
+
+            // 質量
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            animCtx.strokeRect(massX - massSize/2, centerY - massSize/2, massSize, massSize);
+
+            // 質量ラベル
+            animCtx.fillStyle = '#000';
+            animCtx.font = '16px Arial';
+            animCtx.textAlign = 'center';
+            animCtx.fillText('m', massX, centerY + 5);
+
+            // 平衡位置線
+            animCtx.strokeStyle = '#000';
+            animCtx.setLineDash([5, 5]);
+            animCtx.beginPath();
+            animCtx.moveTo(200, centerY - 80);
+            animCtx.lineTo(200, centerY + 80);
+            animCtx.stroke();
+            animCtx.setLineDash([]);
+
+            // 変位表示
+            animCtx.fillStyle = '#000';
+            animCtx.font = '14px Arial';
+            animCtx.textAlign = 'left';
+            animCtx.fillText(`x = ${x.toFixed(3)} m`, 10, 30);
+            animCtx.fillText(`v = ${v.toFixed(3)} m/s`, 10, 50);
+            animCtx.fillText(`t = ${t.toFixed(2)} s`, 10, 70);
+        }
+
+        // グラフ描画
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            const padding = 40;
+            const width = graphCanvas.width - padding * 2;
+            const height = graphCanvas.height - padding * 2;
+
+            // 軸
+            graphCtx.strokeStyle = '#000';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(padding, padding);
+            graphCtx.lineTo(padding, graphCanvas.height - padding);
+            graphCtx.lineTo(graphCanvas.width - padding, graphCanvas.height - padding);
+            graphCtx.stroke();
+
+            // 中心線
+            graphCtx.setLineDash([3, 3]);
+            graphCtx.beginPath();
+            graphCtx.moveTo(padding, padding + height/2);
+            graphCtx.lineTo(graphCanvas.width - padding, padding + height/2);
+            graphCtx.stroke();
+            graphCtx.setLineDash([]);
+
+            // ラベル
+            graphCtx.fillStyle = '#000';
+            graphCtx.font = '12px Arial';
+            graphCtx.textAlign = 'center';
+            graphCtx.fillText('時間 t (s)', graphCanvas.width/2, graphCanvas.height - 5);
+
+            graphCtx.save();
+            graphCtx.translate(12, graphCanvas.height/2);
+            graphCtx.rotate(-Math.PI/2);
+            graphCtx.fillText('変位 x (m)', 0, 0);
+            graphCtx.restore();
+
+            // 履歴描画
+            if (history.length > 1) {
+                graphCtx.strokeStyle = '#000';
+                graphCtx.lineWidth = 1;
+                graphCtx.beginPath();
+
+                const tMax = Math.max(history[history.length-1].t, 5);
+                const xMax = 2;
+
+                for (let i = 0; i < history.length; i++) {
+                    const px = padding + (history[i].t / tMax) * width;
+                    const py = padding + height/2 - (history[i].x / xMax) * (height/2);
+
+                    if (i === 0) graphCtx.moveTo(px, py);
+                    else graphCtx.lineTo(px, py);
+                }
+                graphCtx.stroke();
+            }
+
+            // スケール
+            graphCtx.fillStyle = '#000';
+            graphCtx.textAlign = 'right';
+            graphCtx.fillText('2', padding - 5, padding + 5);
+            graphCtx.fillText('0', padding - 5, padding + height/2 + 5);
+            graphCtx.fillText('-2', padding - 5, graphCanvas.height - padding + 5);
+        }
+
+        // メインループ
+        function animate() {
+            if (!paused) {
+                simulate(0.016);
+            }
+            drawAnimation();
+            drawGraph();
+            requestAnimationFrame(animate);
+        }
+
+        // 初期化
+        updateDampingRatio();
+        animate();
+    </script>
+</body>
+</html>

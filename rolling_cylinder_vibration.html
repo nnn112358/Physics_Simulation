@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>転がり円筒の振動</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+        .main-content {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 500px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #fff;
+            display: block;
+        }
+        .control-section {
+            width: 280px;
+        }
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 0.95em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin-bottom: 12px;
+        }
+        .slider-container label {
+            display: block;
+            color: #555;
+            margin-bottom: 3px;
+            font-size: 0.85em;
+        }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            min-width: 70px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-reset { background: #6c757d; color: white; }
+        .info-display {
+            background: #e9ecef;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.8em;
+            line-height: 1.6;
+        }
+        .formula-box {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 0.8em;
+            line-height: 1.5;
+        }
+        .graphs-section {
+            width: 100%;
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .graph-container {
+            flex: 1;
+            min-width: 350px;
+        }
+        .graph-container h4 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>転がり円筒の振動</h1>
+        <p class="description">摩擦のある床上で転がる円筒（ばね・ダンパー付き）</p>
+
+        <div class="main-content">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="550" height="350"></canvas>
+            </div>
+
+            <div class="control-section">
+                <div class="control-group">
+                    <h3>パラメータ設定</h3>
+
+                    <div class="slider-container">
+                        <label>円筒質量 M: <span id="massVal">2.0</span> kg</label>
+                        <input type="range" id="massSlider" min="0.5" max="5.0" step="0.1" value="2.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>半径 R: <span id="radiusVal">0.3</span> m</label>
+                        <input type="range" id="radiusSlider" min="0.1" max="0.5" step="0.02" value="0.3">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>ばね定数 k: <span id="kVal">50</span> N/m</label>
+                        <input type="range" id="kSlider" min="10" max="200" step="5" value="50">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>減衰係数 d: <span id="dVal">2.0</span> Ns/m</label>
+                        <input type="range" id="dSlider" min="0" max="20" step="0.5" value="2.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期変位 x₀: <span id="x0Val">0.5</span> m</label>
+                        <input type="range" id="x0Slider" min="-1.0" max="1.0" step="0.05" value="0.5">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期速度 ẋ₀: <span id="v0Val">0.0</span> m/s</label>
+                        <input type="range" id="v0Slider" min="-3.0" max="3.0" step="0.1" value="0.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>シミュレーション制御</h3>
+                    <div class="button-group">
+                        <button class="btn-start" id="startBtn">開始</button>
+                        <button class="btn-stop" id="stopBtn">停止</button>
+                        <button class="btn-reset" id="resetBtn">リセット</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>状態表示</h3>
+                    <div class="info-display" id="infoDisplay">
+                        時間: 0.00 s<br>
+                        変位 x: 0.00 m<br>
+                        速度 ẋ: 0.00 m/s<br>
+                        角度 θ: 0.00 rad
+                    </div>
+                    <div class="formula-box">
+                        <strong>運動方程式 (転がり):</strong><br>
+                        (M + I/R²)ẍ = -kx - dẋ<br>
+                        固体円筒: I = ½MR²<br>
+                        ∴ (3/2)Mẍ = -kx - dẋ
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="graphs-section">
+            <div class="graph-container">
+                <h4>変位の時間変化 x(t)</h4>
+                <canvas id="graphX" width="380" height="180"></canvas>
+            </div>
+            <div class="graph-container">
+                <h4>エネルギー変化</h4>
+                <canvas id="graphEnergy" width="380" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const graphX = document.getElementById('graphX');
+        const ctxX = graphX.getContext('2d');
+        const graphEnergy = document.getElementById('graphEnergy');
+        const ctxEnergy = graphEnergy.getContext('2d');
+
+        // Parameters
+        let M = 2.0;      // cylinder mass
+        let R = 0.3;      // radius
+        let k = 50;       // spring constant
+        let d = 2.0;      // damping coefficient
+        let x0 = 0.5;     // initial displacement
+        let v0 = 0.0;     // initial velocity
+        const g = 9.8;
+
+        // State
+        let x = x0;
+        let v = v0;
+        let time = 0;
+        let isRunning = false;
+        let animationId = null;
+
+        // History
+        let historyX = [];
+        let historyKE = [];
+        let historyPE = [];
+        let historyTE = [];
+        const maxHistory = 500;
+
+        // Sliders
+        const massSlider = document.getElementById('massSlider');
+        const radiusSlider = document.getElementById('radiusSlider');
+        const kSlider = document.getElementById('kSlider');
+        const dSlider = document.getElementById('dSlider');
+        const x0Slider = document.getElementById('x0Slider');
+        const v0Slider = document.getElementById('v0Slider');
+
+        const massVal = document.getElementById('massVal');
+        const radiusVal = document.getElementById('radiusVal');
+        const kVal = document.getElementById('kVal');
+        const dVal = document.getElementById('dVal');
+        const x0Val = document.getElementById('x0Val');
+        const v0Val = document.getElementById('v0Val');
+
+        massSlider.addEventListener('input', () => {
+            M = parseFloat(massSlider.value);
+            massVal.textContent = M.toFixed(1);
+        });
+
+        radiusSlider.addEventListener('input', () => {
+            R = parseFloat(radiusSlider.value);
+            radiusVal.textContent = R.toFixed(2);
+            if (!isRunning) reset();
+        });
+
+        kSlider.addEventListener('input', () => {
+            k = parseFloat(kSlider.value);
+            kVal.textContent = k.toFixed(0);
+        });
+
+        dSlider.addEventListener('input', () => {
+            d = parseFloat(dSlider.value);
+            dVal.textContent = d.toFixed(1);
+        });
+
+        x0Slider.addEventListener('input', () => {
+            x0 = parseFloat(x0Slider.value);
+            x0Val.textContent = x0.toFixed(2);
+            if (!isRunning) reset();
+        });
+
+        v0Slider.addEventListener('input', () => {
+            v0 = parseFloat(v0Slider.value);
+            v0Val.textContent = v0.toFixed(1);
+            if (!isRunning) reset();
+        });
+
+        document.getElementById('startBtn').addEventListener('click', start);
+        document.getElementById('stopBtn').addEventListener('click', stop);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+
+        // Equation of motion for rolling cylinder
+        // (M + I/R^2) * x'' = -k*x - d*x'
+        // For solid cylinder: I = 0.5*M*R^2
+        // So: (M + 0.5*M) * x'' = -k*x - d*x'
+        // 1.5*M * x'' = -k*x - d*x'
+        function computeAcceleration(xPos, vel) {
+            const I = 0.5 * M * R * R;
+            const Meff = M + I / (R * R);  // = 1.5 * M
+            return (-k * xPos - d * vel) / Meff;
+        }
+
+        function rk4Step(dt) {
+            const k1a = computeAcceleration(x, v);
+            const k1v = v;
+
+            const k2a = computeAcceleration(x + k1v * dt / 2, v + k1a * dt / 2);
+            const k2v = v + k1a * dt / 2;
+
+            const k3a = computeAcceleration(x + k2v * dt / 2, v + k2a * dt / 2);
+            const k3v = v + k2a * dt / 2;
+
+            const k4a = computeAcceleration(x + k3v * dt, v + k3a * dt);
+            const k4v = v + k3a * dt;
+
+            x += (k1v + 2 * k2v + 2 * k3v + k4v) * dt / 6;
+            v += (k1a + 2 * k2a + 2 * k3a + k4a) * dt / 6;
+        }
+
+        function computeEnergies() {
+            const I = 0.5 * M * R * R;
+            const omega = v / R;  // angular velocity
+            const KE_trans = 0.5 * M * v * v;
+            const KE_rot = 0.5 * I * omega * omega;
+            const KE = KE_trans + KE_rot;
+            const PE = 0.5 * k * x * x;
+            const TE = KE + PE;
+            return { KE, PE, TE };
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const centerX = canvas.width / 2;
+            const groundY = 250;
+            const scale = 150;
+
+            // Ground
+            ctx.fillStyle = '#ddd';
+            ctx.fillRect(0, groundY, canvas.width, 100);
+
+            // Hatch pattern
+            ctx.strokeStyle = '#aaa';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 40; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * 20, groundY);
+                ctx.lineTo(i * 20 - 25, groundY + 25);
+                ctx.stroke();
+            }
+
+            // Friction label
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.fillText('μ ≠ 0', canvas.width - 70, groundY + 40);
+
+            // Cylinder position
+            const cylRadius = R * scale;
+            const cylX = centerX + x * scale;
+            const cylY = groundY - cylRadius;
+
+            // Left wall
+            ctx.fillStyle = '#666';
+            ctx.fillRect(40, groundY - 120, 15, 120);
+
+            // Spring from wall to cylinder
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            drawSpring(ctx, 55, cylY, cylX - cylRadius, cylY, 10, 15);
+
+            // Spring label
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.fillText('k', (55 + cylX - cylRadius) / 2, cylY - 25);
+
+            // Right wall
+            ctx.fillStyle = '#666';
+            ctx.fillRect(canvas.width - 55, groundY - 120, 15, 120);
+
+            // Damper from cylinder to wall
+            drawDamper(ctx, cylX + cylRadius, cylY, canvas.width - 55, cylY);
+
+            // Damper label
+            ctx.fillText('d', (cylX + cylRadius + canvas.width - 55) / 2, cylY - 25);
+
+            // Draw cylinder
+            ctx.fillStyle = '#999';
+            ctx.beginPath();
+            ctx.arc(cylX, cylY, cylRadius, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Rotation indicator
+            const theta = -x / R;  // negative because rolling right means clockwise
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(cylX, cylY);
+            ctx.lineTo(cylX + cylRadius * 0.7 * Math.cos(theta),
+                       cylY + cylRadius * 0.7 * Math.sin(theta));
+            ctx.stroke();
+
+            // Second indicator (perpendicular)
+            ctx.beginPath();
+            ctx.moveTo(cylX, cylY);
+            ctx.lineTo(cylX + cylRadius * 0.7 * Math.cos(theta + Math.PI/2),
+                       cylY + cylRadius * 0.7 * Math.sin(theta + Math.PI/2));
+            ctx.stroke();
+
+            // Center point
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(cylX, cylY, 5, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Labels
+            ctx.fillStyle = '#333';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('M', cylX, cylY + 5);
+            ctx.fillText('R', cylX + cylRadius + 15, cylY);
+
+            // Contact point marker
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath();
+            ctx.arc(cylX, groundY, 5, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.font = '12px serif';
+            ctx.fillText('Q', cylX + 10, groundY + 15);
+
+            // x(t) dimension
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(centerX, 50);
+            ctx.lineTo(cylX, 50);
+            ctx.stroke();
+
+            // Arrow heads
+            if (Math.abs(x) > 0.01) {
+                const dir = x > 0 ? 1 : -1;
+                ctx.beginPath();
+                ctx.moveTo(cylX, 50);
+                ctx.lineTo(cylX - dir * 10, 45);
+                ctx.moveTo(cylX, 50);
+                ctx.lineTo(cylX - dir * 10, 55);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = '#667eea';
+            ctx.font = '14px serif';
+            ctx.fillText('x(t)', (centerX + cylX) / 2, 40);
+
+            // Gravity arrow
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - 50, 60);
+            ctx.lineTo(canvas.width - 50, 100);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - 50, 100);
+            ctx.lineTo(canvas.width - 55, 90);
+            ctx.moveTo(canvas.width - 50, 100);
+            ctx.lineTo(canvas.width - 45, 90);
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.font = '14px serif';
+            ctx.fillText('g', canvas.width - 50, 115);
+
+            // Update info
+            const theta_disp = -x / R;
+            const energies = computeEnergies();
+            document.getElementById('infoDisplay').innerHTML =
+                `時間: ${time.toFixed(2)} s<br>` +
+                `変位 x: ${x.toFixed(3)} m<br>` +
+                `速度 ẋ: ${v.toFixed(3)} m/s<br>` +
+                `角度 θ: ${theta_disp.toFixed(3)} rad<br>` +
+                `運動E: ${energies.KE.toFixed(3)} J<br>` +
+                `位置E: ${energies.PE.toFixed(3)} J<br>` +
+                `全E: ${energies.TE.toFixed(3)} J`;
+        }
+
+        function drawSpring(ctx, x1, y1, x2, y2, coils, amp) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            const segLen = len / (coils * 2 + 2);
+            ctx.lineTo(segLen, 0);
+
+            for (let i = 0; i < coils * 2; i++) {
+                const px = segLen * (i + 1.5);
+                const py = (i % 2 === 0 ? amp : -amp);
+                ctx.lineTo(px, py);
+            }
+            ctx.lineTo(len - segLen, 0);
+            ctx.lineTo(len, 0);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawDamper(ctx, x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            const boxW = 15;
+            const boxH = 25;
+            const boxStart = len / 2 - boxH / 2;
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(boxStart, 0);
+            ctx.stroke();
+
+            ctx.strokeRect(boxStart, -boxW / 2, boxH, boxW);
+
+            ctx.beginPath();
+            ctx.moveTo(boxStart + boxH / 2, -boxW / 2 - 4);
+            ctx.lineTo(boxStart + boxH / 2, boxW / 2 + 4);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(boxStart + boxH, 0);
+            ctx.lineTo(len, 0);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawGraphX() {
+            ctxX.clearRect(0, 0, graphX.width, graphX.height);
+
+            const margin = 40;
+            const w = graphX.width - 2 * margin;
+            const h = graphX.height - 2 * margin;
+
+            ctxX.fillStyle = '#f8f9fa';
+            ctxX.fillRect(margin, margin, w, h);
+
+            // Grid
+            ctxX.strokeStyle = '#ddd';
+            ctxX.lineWidth = 1;
+            for (let i = 0; i <= 5; i++) {
+                ctxX.beginPath();
+                ctxX.moveTo(margin, margin + i * h / 5);
+                ctxX.lineTo(margin + w, margin + i * h / 5);
+                ctxX.stroke();
+            }
+
+            // Axes
+            ctxX.strokeStyle = '#333';
+            ctxX.lineWidth = 2;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin);
+            ctxX.lineTo(margin, margin + h);
+            ctxX.lineTo(margin + w, margin + h);
+            ctxX.stroke();
+
+            // Zero line
+            ctxX.strokeStyle = '#ccc';
+            ctxX.lineWidth = 1;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin + h / 2);
+            ctxX.lineTo(margin + w, margin + h / 2);
+            ctxX.stroke();
+
+            // Labels
+            ctxX.fillStyle = '#333';
+            ctxX.font = '11px Arial';
+            ctxX.textAlign = 'right';
+            ctxX.fillText('1.0', margin - 5, margin + 5);
+            ctxX.fillText('0', margin - 5, margin + h / 2 + 5);
+            ctxX.fillText('-1.0', margin - 5, margin + h);
+
+            // Plot
+            if (historyX.length > 1) {
+                ctxX.strokeStyle = '#667eea';
+                ctxX.lineWidth = 2;
+                ctxX.beginPath();
+                for (let i = 0; i < historyX.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyX[i] / 1.0) * (h / 2);
+                    if (i === 0) ctxX.moveTo(px, py);
+                    else ctxX.lineTo(px, py);
+                }
+                ctxX.stroke();
+            }
+        }
+
+        function drawGraphEnergy() {
+            ctxEnergy.clearRect(0, 0, graphEnergy.width, graphEnergy.height);
+
+            const margin = 40;
+            const w = graphEnergy.width - 2 * margin;
+            const h = graphEnergy.height - 2 * margin;
+
+            let maxE = 1;
+            if (historyTE.length > 0) {
+                maxE = Math.max(...historyTE, ...historyKE, ...historyPE) * 1.1;
+                if (maxE < 0.1) maxE = 0.1;
+            }
+
+            ctxEnergy.fillStyle = '#f8f9fa';
+            ctxEnergy.fillRect(margin, margin, w, h);
+
+            // Grid
+            ctxEnergy.strokeStyle = '#ddd';
+            ctxEnergy.lineWidth = 1;
+            for (let i = 0; i <= 5; i++) {
+                ctxEnergy.beginPath();
+                ctxEnergy.moveTo(margin, margin + i * h / 5);
+                ctxEnergy.lineTo(margin + w, margin + i * h / 5);
+                ctxEnergy.stroke();
+            }
+
+            // Axes
+            ctxEnergy.strokeStyle = '#333';
+            ctxEnergy.lineWidth = 2;
+            ctxEnergy.beginPath();
+            ctxEnergy.moveTo(margin, margin);
+            ctxEnergy.lineTo(margin, margin + h);
+            ctxEnergy.lineTo(margin + w, margin + h);
+            ctxEnergy.stroke();
+
+            // Labels
+            ctxEnergy.fillStyle = '#333';
+            ctxEnergy.font = '11px Arial';
+            ctxEnergy.textAlign = 'right';
+            ctxEnergy.fillText(maxE.toFixed(1), margin - 5, margin + 5);
+            ctxEnergy.fillText('0', margin - 5, margin + h);
+
+            // Plot KE
+            if (historyKE.length > 1) {
+                ctxEnergy.strokeStyle = '#28a745';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyKE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyKE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot PE
+            if (historyPE.length > 1) {
+                ctxEnergy.strokeStyle = '#dc3545';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyPE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyPE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot TE
+            if (historyTE.length > 1) {
+                ctxEnergy.strokeStyle = '#333';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyTE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyTE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Legend
+            ctxEnergy.font = '10px Arial';
+            ctxEnergy.textAlign = 'left';
+            ctxEnergy.fillStyle = '#28a745';
+            ctxEnergy.fillText('運動E', margin + 10, margin + 12);
+            ctxEnergy.fillStyle = '#dc3545';
+            ctxEnergy.fillText('位置E', margin + 60, margin + 12);
+            ctxEnergy.fillStyle = '#333';
+            ctxEnergy.fillText('全E', margin + 110, margin + 12);
+        }
+
+        function animate() {
+            const dt = 0.01;
+            const substeps = 5;
+
+            for (let i = 0; i < substeps; i++) {
+                rk4Step(dt / substeps);
+            }
+            time += dt;
+
+            historyX.push(x);
+            const energies = computeEnergies();
+            historyKE.push(energies.KE);
+            historyPE.push(energies.PE);
+            historyTE.push(energies.TE);
+
+            if (historyX.length > maxHistory) {
+                historyX.shift();
+                historyKE.shift();
+                historyPE.shift();
+                historyTE.shift();
+            }
+
+            draw();
+            drawGraphX();
+            drawGraphEnergy();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function start() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stop() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+
+        function reset() {
+            stop();
+            x = x0;
+            v = v0;
+            time = 0;
+            historyX = [];
+            historyKE = [];
+            historyPE = [];
+            historyTE = [];
+            draw();
+            drawGraphX();
+            drawGraphEnergy();
+        }
+
+        reset();
+    </script>
+</body>
+</html>

@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4節リンク機構シミュレーション</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+        .simulation-area {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 500px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #f8f9fa;
+            display: block;
+        }
+        .controls {
+            flex: 0 0 280px;
+        }
+        .control-group {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 1em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin: 10px 0;
+        }
+        .slider-container label {
+            display: flex;
+            justify-content: space-between;
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            font-size: 1em;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .start-btn { background: #4CAF50; color: white; }
+        .stop-btn { background: #f44336; color: white; }
+        .reset-btn { background: #2196F3; color: white; }
+        button:hover { transform: scale(1.05); opacity: 0.9; }
+        .info-display {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+        .info-display h3 {
+            color: #2e7d32;
+            margin-bottom: 10px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 0.85em;
+        }
+        .graph-container {
+            margin-top: 20px;
+        }
+        .graph-container h3 {
+            color: #555;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>4節リンク機構シミュレーション</h1>
+
+        <div class="simulation-area">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="550" height="400"></canvas>
+                <div class="graph-container">
+                    <h3>角度・角速度グラフ</h3>
+                    <canvas id="graphCanvas" width="550" height="150"></canvas>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <h3>リンク長さ</h3>
+                    <div class="slider-container">
+                        <label><span>固定リンク L₁</span><span id="L1Val">200 px</span></label>
+                        <input type="range" id="L1" min="100" max="300" step="5" value="200">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>駆動リンク L₂</span><span id="L2Val">60 px</span></label>
+                        <input type="range" id="L2" min="30" max="150" step="5" value="60">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>連接棒 L₃</span><span id="L3Val">180 px</span></label>
+                        <input type="range" id="L3" min="80" max="250" step="5" value="180">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>従動リンク L₄</span><span id="L4Val">150 px</span></label>
+                        <input type="range" id="L4" min="50" max="200" step="5" value="150">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>駆動条件</h3>
+                    <div class="slider-container">
+                        <label><span>角速度 ω₂</span><span id="omega2Val">2.0 rad/s</span></label>
+                        <input type="range" id="omega2" min="0.5" max="5" step="0.1" value="2.0">
+                    </div>
+                </div>
+
+                <div class="buttons">
+                    <button class="start-btn" onclick="startSim()">開始</button>
+                    <button class="stop-btn" onclick="stopSim()">停止</button>
+                    <button class="reset-btn" onclick="resetSim()">リセット</button>
+                </div>
+
+                <div class="info-display">
+                    <h3>状態表示</h3>
+                    <div class="info-row"><span>時間:</span><span id="timeDisplay">0.00 s</span></div>
+                    <div class="info-row"><span>θ₂ (駆動):</span><span id="theta2Display">0.00°</span></div>
+                    <div class="info-row"><span>θ₃ (連接棒):</span><span id="theta3Display">0.00°</span></div>
+                    <div class="info-row"><span>θ₄ (従動):</span><span id="theta4Display">0.00°</span></div>
+                    <div class="info-row"><span>ω₄:</span><span id="omega4Display">0.00 rad/s</span></div>
+                    <div class="info-row"><span>機構タイプ:</span><span id="typeDisplay">-</span></div>
+                </div>
+
+                <div class="control-group" style="margin-top: 15px;">
+                    <h3>リンク配置</h3>
+                    <p style="font-size: 0.8em; color: #666; line-height: 1.4;">
+                        L₁: 固定リンク（グラウンド）<br>
+                        L₂: 駆動リンク（入力）<br>
+                        L₃: 連接棒（カプラー）<br>
+                        L₄: 従動リンク（出力）
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const simCanvas = document.getElementById('simCanvas');
+        const simCtx = simCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+
+        let animationId = null;
+        let isRunning = false;
+        let time = 0;
+        const dt = 0.016;
+
+        let theta2 = 0.5; // Input angle (rad)
+        let theta3 = 0;   // Coupler angle
+        let theta4 = 0;   // Output angle
+
+        let history = [];
+        const maxHistory = 300;
+
+        // Trace path for coupler point
+        let couplerPath = [];
+        const maxCouplerPath = 500;
+
+        function getParams() {
+            return {
+                L1: parseFloat(document.getElementById('L1').value),
+                L2: parseFloat(document.getElementById('L2').value),
+                L3: parseFloat(document.getElementById('L3').value),
+                L4: parseFloat(document.getElementById('L4').value),
+                omega2: parseFloat(document.getElementById('omega2').value)
+            };
+        }
+
+        // Determine mechanism type using Grashof criterion
+        function getMechanismType(p) {
+            const links = [p.L1, p.L2, p.L3, p.L4].sort((a, b) => a - b);
+            const S = links[0]; // Shortest
+            const L = links[3]; // Longest
+            const P = links[1];
+            const Q = links[2];
+
+            if (S + L <= P + Q) {
+                // Grashof mechanism
+                if (p.L2 === S) return 'クランク・ロッカー';
+                if (p.L1 === S) return '両クランク';
+                return '両ロッカー';
+            } else {
+                return '非グラショフ（両ロッカー）';
+            }
+        }
+
+        // Solve four-bar linkage kinematics
+        // Given theta2, find theta3 and theta4
+        function solveKinematics(p, theta2) {
+            const { L1, L2, L3, L4 } = p;
+
+            // Position of point B (end of crank L2)
+            const Bx = L2 * Math.cos(theta2);
+            const By = L2 * Math.sin(theta2);
+
+            // Position of point D (fixed pivot of L4) at (L1, 0)
+            const Dx = L1;
+            const Dy = 0;
+
+            // Distance from B to D
+            const BDx = Dx - Bx;
+            const BDy = Dy - By;
+            const BD = Math.sqrt(BDx * BDx + BDy * BDy);
+
+            // Check if linkage can close
+            if (BD > L3 + L4 || BD < Math.abs(L3 - L4)) {
+                return null; // No valid configuration
+            }
+
+            // Using law of cosines to find angle at B in triangle BCD
+            // BD² = L3² + L4² - 2*L3*L4*cos(angle_BCD)
+            // But we need different approach: find C position
+
+            // Angle of BD from horizontal
+            const phi = Math.atan2(BDy, BDx);
+
+            // Using law of cosines: L4² = BD² + L3² - 2*BD*L3*cos(alpha)
+            // where alpha is angle DBС
+            const cosAlpha = (BD * BD + L3 * L3 - L4 * L4) / (2 * BD * L3);
+
+            if (Math.abs(cosAlpha) > 1) return null;
+
+            const alpha = Math.acos(cosAlpha);
+
+            // Two possible configurations (open/crossed)
+            // Using open configuration
+            const theta3_result = phi + alpha;
+
+            // Point C position
+            const Cx = Bx + L3 * Math.cos(theta3_result);
+            const Cy = By + L3 * Math.sin(theta3_result);
+
+            // theta4 from D to C
+            const theta4_result = Math.atan2(Cy - Dy, Cx - Dx);
+
+            return {
+                theta3: theta3_result,
+                theta4: theta4_result,
+                Bx, By, Cx, Cy
+            };
+        }
+
+        // Calculate angular velocities
+        function calcAngularVelocities(p, theta2, theta3, theta4, omega2) {
+            const { L2, L3, L4 } = p;
+
+            // Velocity analysis using vector loop equation differentiated
+            // L2*omega2*(-sin(theta2)) + L3*omega3*(-sin(theta3)) = L4*omega4*(-sin(theta4))
+            // L2*omega2*(cos(theta2)) + L3*omega3*(cos(theta3)) = L4*omega4*(cos(theta4))
+
+            const A = L3 * Math.sin(theta3);
+            const B = L4 * Math.sin(theta4);
+            const C = L3 * Math.cos(theta3);
+            const D = L4 * Math.cos(theta4);
+
+            const E = L2 * omega2 * Math.sin(theta2);
+            const F = L2 * omega2 * Math.cos(theta2);
+
+            // Solve: -A*omega3 + B*omega4 = E
+            //         C*omega3 - D*omega4 = F
+            const det = A * D - B * C;
+            if (Math.abs(det) < 1e-10) return { omega3: 0, omega4: 0 };
+
+            const omega3 = (E * D + F * B) / det;
+            const omega4 = (E * C + F * A) / det;
+
+            return { omega3, omega4 };
+        }
+
+        function drawSim() {
+            const p = getParams();
+            simCtx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+
+            // Fixed pivot positions
+            const Ax = 150;  // Fixed pivot A (origin of L2)
+            const Ay = 250;
+            const Dx = Ax + p.L1;  // Fixed pivot D (origin of L4)
+            const Dy = Ay;
+
+            // Solve kinematics
+            const result = solveKinematics(p, theta2);
+
+            if (!result) {
+                simCtx.fillStyle = '#e74c3c';
+                simCtx.font = '20px Arial';
+                simCtx.textAlign = 'center';
+                simCtx.fillText('リンク組立不可', simCanvas.width / 2, simCanvas.height / 2);
+                return;
+            }
+
+            const { Bx, By, Cx, Cy } = result;
+            const Bx_screen = Ax + Bx;
+            const By_screen = Ay - By;
+            const Cx_screen = Ax + Cx;
+            const Cy_screen = Ay - Cy;
+
+            // Store coupler midpoint for trace
+            const couplerMidX = (Bx_screen + Cx_screen) / 2;
+            const couplerMidY = (By_screen + Cy_screen) / 2;
+            couplerPath.push({ x: couplerMidX, y: couplerMidY });
+            if (couplerPath.length > maxCouplerPath) couplerPath.shift();
+
+            // Draw coupler curve trace
+            if (couplerPath.length > 1) {
+                simCtx.strokeStyle = 'rgba(155, 89, 182, 0.5)';
+                simCtx.lineWidth = 2;
+                simCtx.beginPath();
+                for (let i = 0; i < couplerPath.length; i++) {
+                    if (i === 0) simCtx.moveTo(couplerPath[i].x, couplerPath[i].y);
+                    else simCtx.lineTo(couplerPath[i].x, couplerPath[i].y);
+                }
+                simCtx.stroke();
+            }
+
+            // Draw ground (hatched line)
+            simCtx.strokeStyle = '#666';
+            simCtx.lineWidth = 2;
+            simCtx.beginPath();
+            simCtx.moveTo(Ax - 40, Ay + 20);
+            simCtx.lineTo(Dx + 40, Ay + 20);
+            simCtx.stroke();
+
+            // Hatch marks
+            for (let x = Ax - 40; x < Dx + 40; x += 15) {
+                simCtx.beginPath();
+                simCtx.moveTo(x, Ay + 20);
+                simCtx.lineTo(x - 8, Ay + 30);
+                simCtx.stroke();
+            }
+
+            // Draw fixed link (ground) L1
+            simCtx.strokeStyle = '#aaa';
+            simCtx.lineWidth = 4;
+            simCtx.setLineDash([5, 5]);
+            simCtx.beginPath();
+            simCtx.moveTo(Ax, Ay);
+            simCtx.lineTo(Dx, Dy);
+            simCtx.stroke();
+            simCtx.setLineDash([]);
+
+            // Draw crank (L2) - input link
+            simCtx.strokeStyle = '#e74c3c';
+            simCtx.lineWidth = 8;
+            simCtx.lineCap = 'round';
+            simCtx.beginPath();
+            simCtx.moveTo(Ax, Ay);
+            simCtx.lineTo(Bx_screen, By_screen);
+            simCtx.stroke();
+
+            // Draw coupler (L3)
+            simCtx.strokeStyle = '#3498db';
+            simCtx.lineWidth = 8;
+            simCtx.beginPath();
+            simCtx.moveTo(Bx_screen, By_screen);
+            simCtx.lineTo(Cx_screen, Cy_screen);
+            simCtx.stroke();
+
+            // Draw follower (L4) - output link
+            simCtx.strokeStyle = '#27ae60';
+            simCtx.lineWidth = 8;
+            simCtx.beginPath();
+            simCtx.moveTo(Dx, Dy);
+            simCtx.lineTo(Cx_screen, Cy_screen);
+            simCtx.stroke();
+
+            // Draw joints
+            const joints = [
+                { x: Ax, y: Ay, label: 'A', fixed: true },
+                { x: Bx_screen, y: By_screen, label: 'B', fixed: false },
+                { x: Cx_screen, y: Cy_screen, label: 'C', fixed: false },
+                { x: Dx, y: Dy, label: 'D', fixed: true }
+            ];
+
+            joints.forEach(joint => {
+                if (joint.fixed) {
+                    // Fixed pivot - triangle support
+                    simCtx.fillStyle = '#555';
+                    simCtx.beginPath();
+                    simCtx.moveTo(joint.x, joint.y);
+                    simCtx.lineTo(joint.x - 12, joint.y + 20);
+                    simCtx.lineTo(joint.x + 12, joint.y + 20);
+                    simCtx.closePath();
+                    simCtx.fill();
+                }
+
+                // Pin joint
+                simCtx.fillStyle = 'white';
+                simCtx.strokeStyle = '#333';
+                simCtx.lineWidth = 2;
+                simCtx.beginPath();
+                simCtx.arc(joint.x, joint.y, 8, 0, Math.PI * 2);
+                simCtx.fill();
+                simCtx.stroke();
+
+                // Inner circle for fixed joints
+                if (joint.fixed) {
+                    simCtx.fillStyle = '#333';
+                    simCtx.beginPath();
+                    simCtx.arc(joint.x, joint.y, 4, 0, Math.PI * 2);
+                    simCtx.fill();
+                }
+
+                // Label
+                simCtx.fillStyle = '#333';
+                simCtx.font = 'bold 14px Arial';
+                simCtx.textAlign = 'center';
+                simCtx.fillText(joint.label, joint.x, joint.y - 15);
+            });
+
+            // Draw coupler midpoint
+            simCtx.fillStyle = '#9b59b6';
+            simCtx.beginPath();
+            simCtx.arc(couplerMidX, couplerMidY, 5, 0, Math.PI * 2);
+            simCtx.fill();
+
+            // Draw angle arcs
+            // theta2 arc at A
+            simCtx.strokeStyle = '#e74c3c';
+            simCtx.lineWidth = 2;
+            simCtx.beginPath();
+            simCtx.arc(Ax, Ay, 25, -theta2, 0);
+            simCtx.stroke();
+
+            // theta4 arc at D
+            simCtx.strokeStyle = '#27ae60';
+            simCtx.beginPath();
+            simCtx.arc(Dx, Dy, 25, -result.theta4, 0);
+            simCtx.stroke();
+
+            // Link labels
+            simCtx.font = '12px Arial';
+            simCtx.fillStyle = '#e74c3c';
+            simCtx.textAlign = 'center';
+            simCtx.fillText('L₂', (Ax + Bx_screen) / 2 - 15, (Ay + By_screen) / 2 - 5);
+
+            simCtx.fillStyle = '#3498db';
+            simCtx.fillText('L₃', (Bx_screen + Cx_screen) / 2, (By_screen + Cy_screen) / 2 - 10);
+
+            simCtx.fillStyle = '#27ae60';
+            simCtx.fillText('L₄', (Dx + Cx_screen) / 2 + 15, (Dy + Cy_screen) / 2 - 5);
+
+            simCtx.fillStyle = '#888';
+            simCtx.fillText('L₁', (Ax + Dx) / 2, Ay + 12);
+
+            // Legend
+            simCtx.font = '11px Arial';
+            simCtx.textAlign = 'left';
+            simCtx.fillStyle = '#9b59b6';
+            simCtx.fillText('カプラー曲線', 10, 20);
+        }
+
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+            graphCtx.fillStyle = '#f8f9fa';
+            graphCtx.fillRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            const midY = graphCanvas.height / 2;
+            graphCtx.strokeStyle = '#ddd';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(0, midY);
+            graphCtx.lineTo(graphCanvas.width, midY);
+            graphCtx.stroke();
+
+            if (history.length > 1) {
+                // theta4 (output angle)
+                graphCtx.strokeStyle = '#27ae60';
+                graphCtx.lineWidth = 2;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const x = (i / maxHistory) * graphCanvas.width;
+                    const y = midY - history[i].theta4 * 30;
+                    if (i === 0) graphCtx.moveTo(x, y);
+                    else graphCtx.lineTo(x, y);
+                }
+                graphCtx.stroke();
+
+                // omega4 (output angular velocity)
+                graphCtx.strokeStyle = '#e74c3c';
+                graphCtx.lineWidth = 1.5;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const x = (i / maxHistory) * graphCanvas.width;
+                    const y = midY - history[i].omega4 * 15;
+                    if (i === 0) graphCtx.moveTo(x, y);
+                    else graphCtx.lineTo(x, y);
+                }
+                graphCtx.stroke();
+            }
+
+            graphCtx.font = '11px Arial';
+            graphCtx.fillStyle = '#27ae60';
+            graphCtx.fillText('θ₄ (rad)', 10, 12);
+            graphCtx.fillStyle = '#e74c3c';
+            graphCtx.fillText('ω₄ (rad/s)', 80, 12);
+        }
+
+        function updateDisplay() {
+            const p = getParams();
+            const result = solveKinematics(p, theta2);
+
+            if (result) {
+                theta3 = result.theta3;
+                theta4 = result.theta4;
+
+                const velocities = calcAngularVelocities(p, theta2, theta3, theta4, p.omega2);
+
+                document.getElementById('theta3Display').textContent = (theta3 * 180 / Math.PI).toFixed(1) + '°';
+                document.getElementById('theta4Display').textContent = (theta4 * 180 / Math.PI).toFixed(1) + '°';
+                document.getElementById('omega4Display').textContent = velocities.omega4.toFixed(3) + ' rad/s';
+
+                history.push({
+                    theta4: theta4,
+                    omega4: velocities.omega4
+                });
+                if (history.length > maxHistory) history.shift();
+            }
+
+            document.getElementById('timeDisplay').textContent = time.toFixed(2) + ' s';
+            document.getElementById('theta2Display').textContent = (theta2 * 180 / Math.PI).toFixed(1) + '°';
+            document.getElementById('typeDisplay').textContent = getMechanismType(p);
+        }
+
+        function updateSliderDisplays() {
+            document.getElementById('L1Val').textContent = document.getElementById('L1').value + ' px';
+            document.getElementById('L2Val').textContent = document.getElementById('L2').value + ' px';
+            document.getElementById('L3Val').textContent = document.getElementById('L3').value + ' px';
+            document.getElementById('L4Val').textContent = document.getElementById('L4').value + ' px';
+            document.getElementById('omega2Val').textContent = document.getElementById('omega2').value + ' rad/s';
+        }
+
+        function animate() {
+            const p = getParams();
+
+            theta2 += p.omega2 * dt;
+            if (theta2 > Math.PI * 2) theta2 -= Math.PI * 2;
+            if (theta2 < 0) theta2 += Math.PI * 2;
+
+            time += dt;
+
+            drawSim();
+            drawGraph();
+            updateDisplay();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function startSim() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stopSim() {
+            isRunning = false;
+            if (animationId) cancelAnimationFrame(animationId);
+        }
+
+        function resetSim() {
+            stopSim();
+            theta2 = 0.5;
+            time = 0;
+            history = [];
+            couplerPath = [];
+            drawSim();
+            drawGraph();
+            updateDisplay();
+        }
+
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            slider.addEventListener('input', () => {
+                updateSliderDisplays();
+                couplerPath = []; // Reset trace when parameters change
+                if (!isRunning) {
+                    drawSim();
+                    drawGraph();
+                    updateDisplay();
+                }
+            });
+        });
+
+        updateSliderDisplays();
+        resetSim();
+    </script>
+</body>
+</html>

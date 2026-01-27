@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>クランク揺動スライダ機構シミュレーション</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 1.8em;
+        }
+        .simulation-area {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 500px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #f8f9fa;
+            display: block;
+        }
+        .controls {
+            flex: 0 0 280px;
+        }
+        .control-group {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 1em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin: 10px 0;
+        }
+        .slider-container label {
+            display: flex;
+            justify-content: space-between;
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            font-size: 1em;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .start-btn { background: #4CAF50; color: white; }
+        .stop-btn { background: #f44336; color: white; }
+        .reset-btn { background: #2196F3; color: white; }
+        button:hover { transform: scale(1.05); opacity: 0.9; }
+        .info-display {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+        .info-display h3 {
+            color: #2e7d32;
+            margin-bottom: 10px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 0.85em;
+        }
+        .graph-container {
+            margin-top: 20px;
+        }
+        .graph-container h3 {
+            color: #555;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>クランク揺動スライダ機構シミュレーション</h1>
+
+        <div class="simulation-area">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="550" height="350"></canvas>
+                <div class="graph-container">
+                    <h3>出力角度・角速度グラフ</h3>
+                    <canvas id="graphCanvas" width="550" height="150"></canvas>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <h3>機構パラメータ</h3>
+                    <div class="slider-container">
+                        <label><span>クランク半径 R</span><span id="RVal">60 px</span></label>
+                        <input type="range" id="R" min="30" max="120" step="5" value="60">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>オフセット距離 a</span><span id="aVal">150 px</span></label>
+                        <input type="range" id="a" min="80" max="250" step="5" value="150">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>スロット長さ</span><span id="slotLenVal">200 px</span></label>
+                        <input type="range" id="slotLen" min="100" max="300" step="10" value="200">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>駆動条件</h3>
+                    <div class="slider-container">
+                        <label><span>角速度 ω₀</span><span id="omega0Val">2.0 rad/s</span></label>
+                        <input type="range" id="omega0" min="0.5" max="6" step="0.1" value="2.0">
+                    </div>
+                </div>
+
+                <div class="buttons">
+                    <button class="start-btn" onclick="startSim()">開始</button>
+                    <button class="stop-btn" onclick="stopSim()">停止</button>
+                    <button class="reset-btn" onclick="resetSim()">リセット</button>
+                </div>
+
+                <div class="info-display">
+                    <h3>状態表示</h3>
+                    <div class="info-row"><span>時間:</span><span id="timeDisplay">0.00 s</span></div>
+                    <div class="info-row"><span>クランク角 θ:</span><span id="thetaDisplay">0.00°</span></div>
+                    <div class="info-row"><span>出力角 ψ:</span><span id="psiDisplay">0.00°</span></div>
+                    <div class="info-row"><span>出力角速度 ψ̇:</span><span id="psiDotDisplay">0.00 rad/s</span></div>
+                    <div class="info-row"><span>スライダ位置:</span><span id="sliderDisplay">0.00 px</span></div>
+                    <div class="info-row"><span>揺動範囲:</span><span id="rangeDisplay">-</span></div>
+                </div>
+
+                <div class="control-group" style="margin-top: 15px;">
+                    <h3>説明</h3>
+                    <p style="font-size: 0.8em; color: #666; line-height: 1.4;">
+                        クランクの回転運動を<br>
+                        揺動スライダの往復揺動<br>
+                        運動に変換する機構
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const simCanvas = document.getElementById('simCanvas');
+        const simCtx = simCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+
+        let animationId = null;
+        let isRunning = false;
+        let time = 0;
+        const dt = 0.016;
+
+        let theta = 0;  // Crank angle
+        let psi = 0;    // Output oscillating angle
+        let psiDot = 0; // Output angular velocity
+
+        let history = [];
+        const maxHistory = 300;
+
+        let minPsi = Infinity;
+        let maxPsi = -Infinity;
+
+        function getParams() {
+            return {
+                R: parseFloat(document.getElementById('R').value),
+                a: parseFloat(document.getElementById('a').value),
+                slotLen: parseFloat(document.getElementById('slotLen').value),
+                omega0: parseFloat(document.getElementById('omega0').value)
+            };
+        }
+
+        // Solve for oscillating arm angle psi given crank angle theta
+        // Crank pin position: (R*cos(theta), R*sin(theta)) relative to crank center
+        // Pivot of oscillating arm is at (a, 0) relative to crank center
+        // The pin must lie on the line from pivot at angle psi
+        function solveKinematics(p, theta) {
+            const { R, a } = p;
+
+            // Crank pin position relative to crank center (O)
+            const Px = R * Math.cos(theta);
+            const Py = R * Math.sin(theta);
+
+            // Oscillating arm pivot (Q) at (a, 0)
+            const Qx = a;
+            const Qy = 0;
+
+            // Vector from Q to P
+            const QPx = Px - Qx;
+            const QPy = Py - Qy;
+
+            // Angle of arm (from Q towards P)
+            const psi = Math.atan2(QPy, QPx);
+
+            // Distance from Q to P (slider position on arm)
+            const sliderDist = Math.sqrt(QPx * QPx + QPy * QPy);
+
+            return { psi, sliderDist };
+        }
+
+        // Calculate angular velocity of oscillating arm
+        function calcAngularVelocity(p, theta, omega0) {
+            const { R, a } = p;
+
+            // Crank pin position
+            const Px = R * Math.cos(theta);
+            const Py = R * Math.sin(theta);
+
+            // Vector from pivot Q to crank pin P
+            const QPx = Px - a;
+            const QPy = Py;
+            const QP2 = QPx * QPx + QPy * QPy;
+
+            // Velocity of crank pin
+            const Vx = -R * omega0 * Math.sin(theta);
+            const Vy = R * omega0 * Math.cos(theta);
+
+            // Angular velocity of arm: psi_dot = (QP × V) / |QP|^2
+            // Cross product in 2D: QPx * Vy - QPy * Vx
+            const psiDot = (QPx * Vy - QPy * Vx) / QP2;
+
+            return psiDot;
+        }
+
+        function drawSim() {
+            const p = getParams();
+            simCtx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+
+            // Origin positions on canvas
+            const crankCenterX = 150;
+            const crankCenterY = 180;
+            const pivotX = crankCenterX + p.a;
+            const pivotY = crankCenterY;
+
+            // Solve kinematics
+            const result = solveKinematics(p, theta);
+            psi = result.psi;
+            const sliderDist = result.sliderDist;
+            psiDot = calcAngularVelocity(p, theta, p.omega0);
+
+            // Track min/max psi
+            if (psi < minPsi) minPsi = psi;
+            if (psi > maxPsi) maxPsi = psi;
+
+            // Crank pin position on canvas
+            const pinX = crankCenterX + p.R * Math.cos(theta);
+            const pinY = crankCenterY - p.R * Math.sin(theta);
+
+            // Draw crank circle (dashed)
+            simCtx.strokeStyle = '#ccc';
+            simCtx.lineWidth = 1;
+            simCtx.setLineDash([5, 5]);
+            simCtx.beginPath();
+            simCtx.arc(crankCenterX, crankCenterY, p.R, 0, Math.PI * 2);
+            simCtx.stroke();
+            simCtx.setLineDash([]);
+
+            // Draw ground line
+            simCtx.strokeStyle = '#666';
+            simCtx.lineWidth = 2;
+            simCtx.beginPath();
+            simCtx.moveTo(crankCenterX - 50, crankCenterY + 60);
+            simCtx.lineTo(pivotX + 50, pivotY + 60);
+            simCtx.stroke();
+
+            // Hatch marks
+            for (let x = crankCenterX - 50; x < pivotX + 50; x += 15) {
+                simCtx.beginPath();
+                simCtx.moveTo(x, crankCenterY + 60);
+                simCtx.lineTo(x - 8, crankCenterY + 70);
+                simCtx.stroke();
+            }
+
+            // Draw fixed supports
+            // Crank support
+            simCtx.fillStyle = '#888';
+            simCtx.beginPath();
+            simCtx.moveTo(crankCenterX, crankCenterY);
+            simCtx.lineTo(crankCenterX - 15, crankCenterY + 60);
+            simCtx.lineTo(crankCenterX + 15, crankCenterY + 60);
+            simCtx.closePath();
+            simCtx.fill();
+
+            // Pivot support
+            simCtx.beginPath();
+            simCtx.moveTo(pivotX, pivotY);
+            simCtx.lineTo(pivotX - 15, pivotY + 60);
+            simCtx.lineTo(pivotX + 15, pivotY + 60);
+            simCtx.closePath();
+            simCtx.fill();
+
+            // Draw crank arm
+            simCtx.strokeStyle = '#e74c3c';
+            simCtx.lineWidth = 8;
+            simCtx.lineCap = 'round';
+            simCtx.beginPath();
+            simCtx.moveTo(crankCenterX, crankCenterY);
+            simCtx.lineTo(pinX, pinY);
+            simCtx.stroke();
+
+            // Draw oscillating slotted arm
+            const armEndX = pivotX + p.slotLen * Math.cos(psi);
+            const armEndY = pivotY - p.slotLen * Math.sin(psi);
+
+            // Draw slot (as a rectangle)
+            simCtx.save();
+            simCtx.translate(pivotX, pivotY);
+            simCtx.rotate(-psi);
+
+            // Slot body
+            simCtx.fillStyle = '#ddd';
+            simCtx.strokeStyle = '#333';
+            simCtx.lineWidth = 2;
+            simCtx.beginPath();
+            simCtx.roundRect(0, -10, p.slotLen, 20, 5);
+            simCtx.fill();
+            simCtx.stroke();
+
+            // Slot groove
+            simCtx.strokeStyle = '#666';
+            simCtx.lineWidth = 1;
+            simCtx.beginPath();
+            simCtx.moveTo(20, -4);
+            simCtx.lineTo(p.slotLen - 20, -4);
+            simCtx.moveTo(20, 4);
+            simCtx.lineTo(p.slotLen - 20, 4);
+            simCtx.stroke();
+
+            // Slider block in slot
+            const sliderLocalX = sliderDist;
+            simCtx.fillStyle = '#3498db';
+            simCtx.beginPath();
+            simCtx.arc(sliderLocalX, 0, 8, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.strokeStyle = '#2980b9';
+            simCtx.lineWidth = 2;
+            simCtx.stroke();
+
+            simCtx.restore();
+
+            // Draw connecting line (crank pin to slider)
+            simCtx.strokeStyle = '#999';
+            simCtx.lineWidth = 2;
+            simCtx.setLineDash([3, 3]);
+            const sliderWorldX = pivotX + sliderDist * Math.cos(psi);
+            const sliderWorldY = pivotY - sliderDist * Math.sin(psi);
+            simCtx.beginPath();
+            simCtx.moveTo(pinX, pinY);
+            simCtx.lineTo(sliderWorldX, sliderWorldY);
+            simCtx.stroke();
+            simCtx.setLineDash([]);
+
+            // Draw fixed pivots
+            simCtx.fillStyle = 'white';
+            simCtx.strokeStyle = '#333';
+            simCtx.lineWidth = 2;
+
+            // Crank center
+            simCtx.beginPath();
+            simCtx.arc(crankCenterX, crankCenterY, 10, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.stroke();
+            simCtx.fillStyle = '#333';
+            simCtx.beginPath();
+            simCtx.arc(crankCenterX, crankCenterY, 4, 0, Math.PI * 2);
+            simCtx.fill();
+
+            // Arm pivot
+            simCtx.fillStyle = 'white';
+            simCtx.beginPath();
+            simCtx.arc(pivotX, pivotY, 10, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.strokeStyle = '#333';
+            simCtx.stroke();
+            simCtx.fillStyle = '#333';
+            simCtx.beginPath();
+            simCtx.arc(pivotX, pivotY, 4, 0, Math.PI * 2);
+            simCtx.fill();
+
+            // Crank pin
+            simCtx.fillStyle = '#c0392b';
+            simCtx.beginPath();
+            simCtx.arc(pinX, pinY, 6, 0, Math.PI * 2);
+            simCtx.fill();
+
+            // Draw angle arcs
+            // Crank angle
+            simCtx.strokeStyle = '#e74c3c';
+            simCtx.lineWidth = 2;
+            simCtx.beginPath();
+            if (theta >= 0) {
+                simCtx.arc(crankCenterX, crankCenterY, 30, 0, -theta, true);
+            } else {
+                simCtx.arc(crankCenterX, crankCenterY, 30, -theta, 0);
+            }
+            simCtx.stroke();
+
+            // Output angle psi
+            simCtx.strokeStyle = '#27ae60';
+            simCtx.beginPath();
+            if (psi >= 0) {
+                simCtx.arc(pivotX, pivotY, 40, 0, -psi, true);
+            } else {
+                simCtx.arc(pivotX, pivotY, 40, -psi, 0);
+            }
+            simCtx.stroke();
+
+            // Labels
+            simCtx.fillStyle = '#333';
+            simCtx.font = '14px Arial';
+            simCtx.textAlign = 'center';
+
+            // R label
+            simCtx.fillStyle = '#e74c3c';
+            simCtx.fillText('R', (crankCenterX + pinX) / 2 - 10, (crankCenterY + pinY) / 2 - 10);
+
+            // a label
+            simCtx.fillStyle = '#666';
+            simCtx.fillText('a', (crankCenterX + pivotX) / 2, crankCenterY + 85);
+
+            // Draw dimension arrow for a
+            simCtx.strokeStyle = '#666';
+            simCtx.lineWidth = 1;
+            simCtx.beginPath();
+            simCtx.moveTo(crankCenterX, crankCenterY + 75);
+            simCtx.lineTo(pivotX, pivotY + 75);
+            simCtx.stroke();
+            // Arrow heads
+            simCtx.beginPath();
+            simCtx.moveTo(crankCenterX, crankCenterY + 75);
+            simCtx.lineTo(crankCenterX + 8, crankCenterY + 72);
+            simCtx.lineTo(crankCenterX + 8, crankCenterY + 78);
+            simCtx.closePath();
+            simCtx.fill();
+            simCtx.beginPath();
+            simCtx.moveTo(pivotX, pivotY + 75);
+            simCtx.lineTo(pivotX - 8, pivotY + 72);
+            simCtx.lineTo(pivotX - 8, pivotY + 78);
+            simCtx.closePath();
+            simCtx.fill();
+
+            // ω₀ arrow
+            simCtx.strokeStyle = '#e74c3c';
+            simCtx.lineWidth = 2;
+            const arrowRadius = 45;
+            simCtx.beginPath();
+            simCtx.arc(crankCenterX, crankCenterY, arrowRadius, Math.PI * 0.7, Math.PI * 1.3);
+            simCtx.stroke();
+            // Arrow head
+            const arrowAngle = Math.PI * 1.3;
+            const ax = crankCenterX + arrowRadius * Math.cos(arrowAngle);
+            const ay = crankCenterY + arrowRadius * Math.sin(arrowAngle);
+            simCtx.fillStyle = '#e74c3c';
+            simCtx.beginPath();
+            simCtx.moveTo(ax, ay);
+            simCtx.lineTo(ax + 8, ay - 5);
+            simCtx.lineTo(ax + 3, ay + 7);
+            simCtx.closePath();
+            simCtx.fill();
+            simCtx.fillText('ω₀', crankCenterX - 55, crankCenterY + 10);
+
+            // ψ label
+            simCtx.fillStyle = '#27ae60';
+            simCtx.fillText('ψ', pivotX + 55, pivotY - 15);
+
+            // Coordinate system
+            simCtx.strokeStyle = '#333';
+            simCtx.fillStyle = '#333';
+            simCtx.lineWidth = 1.5;
+            const axisX = pivotX;
+            const axisY = pivotY - 100;
+
+            // y-axis
+            simCtx.beginPath();
+            simCtx.moveTo(axisX, axisY + 30);
+            simCtx.lineTo(axisX, axisY - 30);
+            simCtx.stroke();
+            simCtx.beginPath();
+            simCtx.moveTo(axisX, axisY - 30);
+            simCtx.lineTo(axisX - 4, axisY - 22);
+            simCtx.lineTo(axisX + 4, axisY - 22);
+            simCtx.closePath();
+            simCtx.fill();
+            simCtx.font = '12px Arial';
+            simCtx.fillText('y', axisX + 10, axisY - 25);
+
+            // x-axis (implied by the base)
+
+            // Gravity symbol
+            simCtx.font = '14px Arial';
+            simCtx.fillText('⊗ g', 50, 30);
+        }
+
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+            graphCtx.fillStyle = '#f8f9fa';
+            graphCtx.fillRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            const midY = graphCanvas.height / 2;
+            graphCtx.strokeStyle = '#ddd';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(0, midY);
+            graphCtx.lineTo(graphCanvas.width, midY);
+            graphCtx.stroke();
+
+            if (history.length > 1) {
+                // psi (output angle)
+                graphCtx.strokeStyle = '#27ae60';
+                graphCtx.lineWidth = 2;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const x = (i / maxHistory) * graphCanvas.width;
+                    const y = midY - history[i].psi * 80;
+                    if (i === 0) graphCtx.moveTo(x, y);
+                    else graphCtx.lineTo(x, y);
+                }
+                graphCtx.stroke();
+
+                // psiDot (angular velocity)
+                graphCtx.strokeStyle = '#e74c3c';
+                graphCtx.lineWidth = 1.5;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const x = (i / maxHistory) * graphCanvas.width;
+                    const y = midY - history[i].psiDot * 20;
+                    if (i === 0) graphCtx.moveTo(x, y);
+                    else graphCtx.lineTo(x, y);
+                }
+                graphCtx.stroke();
+            }
+
+            graphCtx.font = '11px Arial';
+            graphCtx.fillStyle = '#27ae60';
+            graphCtx.fillText('ψ (rad)', 10, 12);
+            graphCtx.fillStyle = '#e74c3c';
+            graphCtx.fillText('ψ̇ (rad/s)', 80, 12);
+        }
+
+        function updateDisplay() {
+            const p = getParams();
+
+            document.getElementById('timeDisplay').textContent = time.toFixed(2) + ' s';
+            document.getElementById('thetaDisplay').textContent = ((theta * 180 / Math.PI) % 360).toFixed(1) + '°';
+            document.getElementById('psiDisplay').textContent = (psi * 180 / Math.PI).toFixed(2) + '°';
+            document.getElementById('psiDotDisplay').textContent = psiDot.toFixed(3) + ' rad/s';
+
+            const result = solveKinematics(p, theta);
+            document.getElementById('sliderDisplay').textContent = result.sliderDist.toFixed(1) + ' px';
+
+            if (minPsi < Infinity && maxPsi > -Infinity) {
+                const range = (maxPsi - minPsi) * 180 / Math.PI;
+                document.getElementById('rangeDisplay').textContent = range.toFixed(1) + '°';
+            }
+
+            history.push({ psi, psiDot });
+            if (history.length > maxHistory) history.shift();
+        }
+
+        function updateSliderDisplays() {
+            document.getElementById('RVal').textContent = document.getElementById('R').value + ' px';
+            document.getElementById('aVal').textContent = document.getElementById('a').value + ' px';
+            document.getElementById('slotLenVal').textContent = document.getElementById('slotLen').value + ' px';
+            document.getElementById('omega0Val').textContent = document.getElementById('omega0').value + ' rad/s';
+        }
+
+        function animate() {
+            const p = getParams();
+
+            theta += p.omega0 * dt;
+            if (theta > Math.PI * 2) theta -= Math.PI * 2;
+
+            time += dt;
+
+            drawSim();
+            drawGraph();
+            updateDisplay();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function startSim() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stopSim() {
+            isRunning = false;
+            if (animationId) cancelAnimationFrame(animationId);
+        }
+
+        function resetSim() {
+            stopSim();
+            theta = 0;
+            time = 0;
+            history = [];
+            minPsi = Infinity;
+            maxPsi = -Infinity;
+            drawSim();
+            drawGraph();
+            updateDisplay();
+        }
+
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            slider.addEventListener('input', () => {
+                updateSliderDisplays();
+                minPsi = Infinity;
+                maxPsi = -Infinity;
+                if (!isRunning) {
+                    drawSim();
+                    updateDisplay();
+                }
+            });
+        });
+
+        updateSliderDisplays();
+        resetSim();
+    </script>
+</body>
+</html>

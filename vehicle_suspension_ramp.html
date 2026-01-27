@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>車両サスペンション（傾斜路面）シミュレーション</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 1.8em;
+        }
+        .simulation-area {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 500px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #e8f4f8;
+            display: block;
+        }
+        .controls {
+            flex: 0 0 300px;
+        }
+        .control-group {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 1em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin: 10px 0;
+        }
+        .slider-container label {
+            display: flex;
+            justify-content: space-between;
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            font-size: 1em;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .start-btn { background: #4CAF50; color: white; }
+        .stop-btn { background: #f44336; color: white; }
+        .reset-btn { background: #2196F3; color: white; }
+        button:hover { transform: scale(1.05); opacity: 0.9; }
+        .info-display {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+        .info-display h3 {
+            color: #2e7d32;
+            margin-bottom: 10px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+        .graphs {
+            width: 100%;
+            margin-top: 20px;
+        }
+        .graph-container {
+            margin-bottom: 15px;
+        }
+        .graph-container h3 {
+            color: #555;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>車両サスペンション（傾斜路面）シミュレーション</h1>
+
+        <div class="simulation-area">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="550" height="280"></canvas>
+                <div class="graphs">
+                    <div class="graph-container">
+                        <h3>変位グラフ</h3>
+                        <canvas id="graphCanvas" width="550" height="130"></canvas>
+                    </div>
+                    <div class="graph-container">
+                        <h3>路面入力と応答</h3>
+                        <canvas id="inputCanvas" width="550" height="130"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <h3>車両パラメータ</h3>
+                    <div class="slider-container">
+                        <label><span>質量 m</span><span id="mVal">500 kg</span></label>
+                        <input type="range" id="m" min="100" max="1500" step="50" value="500">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>ばね定数 c</span><span id="cVal">20000 N/m</span></label>
+                        <input type="range" id="c" min="5000" max="100000" step="1000" value="20000">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>減衰係数 d</span><span id="dVal">2000 Ns/m</span></label>
+                        <input type="range" id="d" min="0" max="10000" step="100" value="2000">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>走行条件</h3>
+                    <div class="slider-container">
+                        <label><span>走行速度 v</span><span id="vVal">5 m/s</span></label>
+                        <input type="range" id="v" min="1" max="15" step="0.5" value="5">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>傾斜路面</h3>
+                    <div class="slider-container">
+                        <label><span>傾斜高さ h</span><span id="hVal">0.1 m</span></label>
+                        <input type="range" id="h" min="0.02" max="0.3" step="0.01" value="0.1">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>傾斜長さ</span><span id="rampLenVal">1.0 m</span></label>
+                        <input type="range" id="rampLen" min="0.3" max="3" step="0.1" value="1.0">
+                    </div>
+                </div>
+
+                <div class="buttons">
+                    <button class="start-btn" onclick="startSim()">開始</button>
+                    <button class="stop-btn" onclick="stopSim()">停止</button>
+                    <button class="reset-btn" onclick="resetSim()">リセット</button>
+                </div>
+
+                <div class="info-display">
+                    <h3>状態表示</h3>
+                    <div class="info-row"><span>時間:</span><span id="timeDisplay">0.00 s</span></div>
+                    <div class="info-row"><span>車両位置 x:</span><span id="xDisplay">0.00 m</span></div>
+                    <div class="info-row"><span>路面高さ:</span><span id="roadDisplay">0.00 m</span></div>
+                    <div class="info-row"><span>車体変位 y:</span><span id="yDisplay">0.00 m</span></div>
+                    <div class="info-row"><span>車体速度:</span><span id="vyDisplay">0.00 m/s</span></div>
+                    <div class="info-row"><span>減衰比 ζ:</span><span id="zetaDisplay">0.00</span></div>
+                    <div class="info-row"><span>固有振動数:</span><span id="fnDisplay">0.00 Hz</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const simCanvas = document.getElementById('simCanvas');
+        const simCtx = simCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+        const inputCanvas = document.getElementById('inputCanvas');
+        const inputCtx = inputCanvas.getContext('2d');
+
+        let animationId = null;
+        let isRunning = false;
+        let time = 0;
+        const dt = 0.0005;
+        const stepsPerFrame = 32;
+
+        // State: [y_rel, vy_rel] - relative displacement and velocity of mass from equilibrium
+        let state = [0, 0];
+        let xPos = 0; // Horizontal position of vehicle
+
+        // History
+        let history = [];
+        const maxHistory = 500;
+
+        function getParams() {
+            return {
+                m: parseFloat(document.getElementById('m').value),
+                c: parseFloat(document.getElementById('c').value),
+                d: parseFloat(document.getElementById('d').value),
+                v: parseFloat(document.getElementById('v').value),
+                h: parseFloat(document.getElementById('h').value),
+                rampLen: parseFloat(document.getElementById('rampLen').value)
+            };
+        }
+
+        // Road profile function
+        function roadHeight(x, p) {
+            const rampStart = 2.0; // Ramp starts at x = 2m
+            const rampEnd = rampStart + p.rampLen;
+
+            if (x < rampStart) {
+                return 0;
+            } else if (x < rampEnd) {
+                return p.h * (x - rampStart) / p.rampLen;
+            } else {
+                return p.h;
+            }
+        }
+
+        // Road velocity (derivative of height with respect to time)
+        function roadVelocity(x, p) {
+            const rampStart = 2.0;
+            const rampEnd = rampStart + p.rampLen;
+
+            if (x >= rampStart && x < rampEnd) {
+                return p.h * p.v / p.rampLen;
+            }
+            return 0;
+        }
+
+        // Derivatives: quarter-car model
+        // m * y'' = -c * (y - y_road) - d * (y' - y_road')
+        // Let z = y - y_road (relative displacement)
+        // m * (z'' + y_road'') = -c * z - d * z'
+        // For constant velocity on ramp: y_road'' = 0
+        function derivatives(state, x, p) {
+            const [z, vz] = state;
+            const y_road_dot = roadVelocity(x, p);
+
+            // m * vz' = -c * z - d * (vz)
+            // But vz = y' - y_road', so we need: m * y'' = -c * z - d * (y' - y_road')
+            // y'' = -c/m * z - d/m * (y' - y_road')
+            // Since y = z + y_road:
+            // y' = vz + y_road'
+            // y'' = vz' + y_road''
+            // For simplicity, model as base excitation:
+            // m * z'' = -c * z - d * z' (relative motion equation for constant y_road'')
+
+            const az = (-p.c * z - p.d * vz) / p.m;
+            return [vz, az];
+        }
+
+        function rk4Step(state, x, dt, p) {
+            const k1 = derivatives(state, x, p);
+            const s2 = [state[0] + k1[0] * dt / 2, state[1] + k1[1] * dt / 2];
+            const k2 = derivatives(s2, x + p.v * dt / 2, p);
+            const s3 = [state[0] + k2[0] * dt / 2, state[1] + k2[1] * dt / 2];
+            const k3 = derivatives(s3, x + p.v * dt / 2, p);
+            const s4 = [state[0] + k3[0] * dt, state[1] + k3[1] * dt];
+            const k4 = derivatives(s4, x + p.v * dt, p);
+
+            return [
+                state[0] + (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]) * dt / 6,
+                state[1] + (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1]) * dt / 6
+            ];
+        }
+
+        // Draw spring
+        function drawSpring(ctx, x1, y1, x2, y2, coils = 6) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            const amplitude = 6;
+            const segLen = len / (coils * 2 + 2);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(segLen, 0);
+
+            for (let i = 0; i < coils * 2; i++) {
+                const xPos = segLen + (i + 1) * segLen;
+                const yPos = (i % 2 === 0 ? amplitude : -amplitude);
+                ctx.lineTo(xPos, yPos);
+            }
+            ctx.lineTo(len, 0);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Draw damper
+        function drawDamper(ctx, x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            const boxH = 8;
+
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            ctx.moveTo(0, 0);
+            ctx.lineTo(len * 0.35, 0);
+
+            ctx.moveTo(len * 0.35, -boxH);
+            ctx.lineTo(len * 0.35, boxH);
+            ctx.moveTo(len * 0.35, -boxH);
+            ctx.lineTo(len * 0.55, -boxH);
+            ctx.moveTo(len * 0.35, boxH);
+            ctx.lineTo(len * 0.55, boxH);
+
+            const pistonX = len * 0.5;
+            ctx.moveTo(pistonX, -boxH + 2);
+            ctx.lineTo(pistonX, boxH - 2);
+            ctx.moveTo(pistonX, 0);
+            ctx.lineTo(len, 0);
+
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawSim() {
+            const p = getParams();
+            simCtx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+
+            const scale = 150; // pixels per meter
+            const groundY = 220;
+
+            // Viewport follows the vehicle
+            const viewOffset = Math.max(0, xPos - 1.5) * scale;
+
+            // Draw sky gradient
+            const gradient = simCtx.createLinearGradient(0, 0, 0, groundY);
+            gradient.addColorStop(0, '#87ceeb');
+            gradient.addColorStop(1, '#e0f0ff');
+            simCtx.fillStyle = gradient;
+            simCtx.fillRect(0, 0, simCanvas.width, groundY);
+
+            // Draw road
+            simCtx.fillStyle = '#8b7355';
+            simCtx.beginPath();
+            simCtx.moveTo(0, groundY);
+
+            for (let px = 0; px <= simCanvas.width; px += 5) {
+                const worldX = px / scale + viewOffset / scale;
+                const h = roadHeight(worldX, p);
+                simCtx.lineTo(px, groundY - h * scale);
+            }
+            simCtx.lineTo(simCanvas.width, simCanvas.height);
+            simCtx.lineTo(0, simCanvas.height);
+            simCtx.closePath();
+            simCtx.fill();
+
+            // Hatch marks on ramp
+            simCtx.strokeStyle = '#6b5344';
+            simCtx.lineWidth = 1;
+            const rampStart = 2.0;
+            const rampEnd = rampStart + p.rampLen;
+            for (let wx = rampStart; wx < rampEnd + 0.5; wx += 0.15) {
+                const px = (wx * scale) - viewOffset;
+                if (px > 0 && px < simCanvas.width) {
+                    const h = roadHeight(wx, p);
+                    simCtx.beginPath();
+                    simCtx.moveTo(px, groundY - h * scale);
+                    simCtx.lineTo(px - 8, groundY - h * scale + 10);
+                    simCtx.stroke();
+                }
+            }
+
+            // Vehicle position on screen
+            const vehicleScreenX = (xPos * scale) - viewOffset;
+            const wheelRadius = 15;
+            const roadH = roadHeight(xPos, p);
+            const wheelY = groundY - roadH * scale - wheelRadius;
+
+            // Body dimensions
+            const bodyWidth = 50;
+            const bodyHeight = 30;
+            const suspensionHeight = 50;
+
+            // Suspension displacement (z = y - y_road)
+            const z = state[0];
+            const massY = wheelY - suspensionHeight - z * scale * 3; // Amplify for visibility
+
+            // Draw wheel
+            simCtx.fillStyle = '#333';
+            simCtx.beginPath();
+            simCtx.arc(vehicleScreenX, wheelY, wheelRadius, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.fillStyle = '#666';
+            simCtx.beginPath();
+            simCtx.arc(vehicleScreenX, wheelY, wheelRadius - 4, 0, Math.PI * 2);
+            simCtx.fill();
+
+            // Axle
+            simCtx.fillStyle = '#444';
+            simCtx.beginPath();
+            simCtx.arc(vehicleScreenX, wheelY, 5, 0, Math.PI * 2);
+            simCtx.fill();
+
+            // Draw suspension frame
+            simCtx.strokeStyle = '#555';
+            simCtx.lineWidth = 3;
+            simCtx.beginPath();
+            simCtx.moveTo(vehicleScreenX, wheelY - wheelRadius);
+            simCtx.lineTo(vehicleScreenX, wheelY - wheelRadius - 10);
+            simCtx.stroke();
+
+            // Spring (left side)
+            drawSpring(simCtx, vehicleScreenX - 12, wheelY - wheelRadius - 10,
+                       vehicleScreenX - 12, massY + bodyHeight / 2, 5);
+
+            // Damper (right side)
+            drawDamper(simCtx, vehicleScreenX + 12, wheelY - wheelRadius - 10,
+                       vehicleScreenX + 12, massY + bodyHeight / 2);
+
+            // Labels
+            simCtx.fillStyle = '#333';
+            simCtx.font = '12px Arial';
+            simCtx.textAlign = 'center';
+            simCtx.fillText('c', vehicleScreenX - 25, (wheelY - wheelRadius - 10 + massY) / 2);
+            simCtx.fillText('d', vehicleScreenX + 28, (wheelY - wheelRadius - 10 + massY) / 2);
+
+            // Draw mass body
+            simCtx.fillStyle = '#3498db';
+            simCtx.fillRect(vehicleScreenX - bodyWidth / 2, massY - bodyHeight / 2,
+                           bodyWidth, bodyHeight);
+            simCtx.strokeStyle = '#2980b9';
+            simCtx.lineWidth = 2;
+            simCtx.strokeRect(vehicleScreenX - bodyWidth / 2, massY - bodyHeight / 2,
+                             bodyWidth, bodyHeight);
+
+            // Mass label
+            simCtx.fillStyle = 'white';
+            simCtx.font = 'bold 14px Arial';
+            simCtx.fillText('m', vehicleScreenX, massY + 5);
+
+            // Velocity arrow
+            simCtx.strokeStyle = '#e74c3c';
+            simCtx.fillStyle = '#e74c3c';
+            simCtx.lineWidth = 2;
+            const arrowLen = 40;
+            simCtx.beginPath();
+            simCtx.moveTo(vehicleScreenX + bodyWidth / 2 + 10, massY);
+            simCtx.lineTo(vehicleScreenX + bodyWidth / 2 + 10 + arrowLen, massY);
+            simCtx.stroke();
+            simCtx.beginPath();
+            simCtx.moveTo(vehicleScreenX + bodyWidth / 2 + 10 + arrowLen, massY);
+            simCtx.lineTo(vehicleScreenX + bodyWidth / 2 + arrowLen, massY - 6);
+            simCtx.lineTo(vehicleScreenX + bodyWidth / 2 + arrowLen, massY + 6);
+            simCtx.closePath();
+            simCtx.fill();
+            simCtx.font = '12px Arial';
+            simCtx.fillText('v(t)', vehicleScreenX + bodyWidth / 2 + 30, massY - 12);
+
+            // Coordinate axes
+            simCtx.strokeStyle = '#333';
+            simCtx.lineWidth = 1.5;
+            const axisX = 50;
+            const axisY = 50;
+
+            // x-axis
+            simCtx.beginPath();
+            simCtx.moveTo(axisX, axisY);
+            simCtx.lineTo(axisX + 40, axisY);
+            simCtx.stroke();
+            simCtx.beginPath();
+            simCtx.moveTo(axisX + 40, axisY);
+            simCtx.lineTo(axisX + 32, axisY - 4);
+            simCtx.lineTo(axisX + 32, axisY + 4);
+            simCtx.closePath();
+            simCtx.fill();
+            simCtx.fillStyle = '#333';
+            simCtx.fillText('x', axisX + 45, axisY + 4);
+
+            // y-axis
+            simCtx.beginPath();
+            simCtx.moveTo(axisX, axisY);
+            simCtx.lineTo(axisX, axisY - 40);
+            simCtx.stroke();
+            simCtx.beginPath();
+            simCtx.moveTo(axisX, axisY - 40);
+            simCtx.lineTo(axisX - 4, axisY - 32);
+            simCtx.lineTo(axisX + 4, axisY - 32);
+            simCtx.closePath();
+            simCtx.fill();
+            simCtx.fillText('y', axisX - 5, axisY - 45);
+
+            // Gravity arrow
+            simCtx.fillStyle = '#333';
+            simCtx.font = '14px Arial';
+            const gX = simCanvas.width - 40;
+            const gY = 30;
+            simCtx.beginPath();
+            simCtx.moveTo(gX, gY);
+            simCtx.lineTo(gX, gY + 25);
+            simCtx.strokeStyle = '#333';
+            simCtx.lineWidth = 2;
+            simCtx.stroke();
+            simCtx.beginPath();
+            simCtx.moveTo(gX, gY + 25);
+            simCtx.lineTo(gX - 5, gY + 17);
+            simCtx.lineTo(gX + 5, gY + 17);
+            simCtx.closePath();
+            simCtx.fill();
+            simCtx.fillText('g', gX + 10, gY + 20);
+        }
+
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+            graphCtx.fillStyle = '#f8f9fa';
+            graphCtx.fillRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            const midY = graphCanvas.height / 2;
+            graphCtx.strokeStyle = '#ddd';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(0, midY);
+            graphCtx.lineTo(graphCanvas.width, midY);
+            graphCtx.stroke();
+
+            if (history.length > 1) {
+                // Mass displacement (relative)
+                graphCtx.strokeStyle = '#3498db';
+                graphCtx.lineWidth = 2;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const x = (i / maxHistory) * graphCanvas.width;
+                    const y = midY - history[i].z * 500;
+                    if (i === 0) graphCtx.moveTo(x, y);
+                    else graphCtx.lineTo(x, y);
+                }
+                graphCtx.stroke();
+
+                // Mass velocity
+                graphCtx.strokeStyle = '#e74c3c';
+                graphCtx.lineWidth = 1.5;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const x = (i / maxHistory) * graphCanvas.width;
+                    const y = midY - history[i].vz * 100;
+                    if (i === 0) graphCtx.moveTo(x, y);
+                    else graphCtx.lineTo(x, y);
+                }
+                graphCtx.stroke();
+            }
+
+            graphCtx.font = '11px Arial';
+            graphCtx.fillStyle = '#3498db';
+            graphCtx.fillText('変位 z (×500)', 10, 12);
+            graphCtx.fillStyle = '#e74c3c';
+            graphCtx.fillText('速度 (×100)', 100, 12);
+        }
+
+        function drawInput() {
+            inputCtx.clearRect(0, 0, inputCanvas.width, inputCanvas.height);
+            inputCtx.fillStyle = '#f8f9fa';
+            inputCtx.fillRect(0, 0, inputCanvas.width, inputCanvas.height);
+
+            const midY = inputCanvas.height / 2;
+            inputCtx.strokeStyle = '#ddd';
+            inputCtx.lineWidth = 1;
+            inputCtx.beginPath();
+            inputCtx.moveTo(0, midY);
+            inputCtx.lineTo(inputCanvas.width, midY);
+            inputCtx.stroke();
+
+            if (history.length > 1) {
+                // Road height
+                inputCtx.strokeStyle = '#8b7355';
+                inputCtx.lineWidth = 2;
+                inputCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const x = (i / maxHistory) * inputCanvas.width;
+                    const y = midY - history[i].roadH * 300;
+                    if (i === 0) inputCtx.moveTo(x, y);
+                    else inputCtx.lineTo(x, y);
+                }
+                inputCtx.stroke();
+
+                // Absolute mass position
+                inputCtx.strokeStyle = '#27ae60';
+                inputCtx.lineWidth = 2;
+                inputCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const x = (i / maxHistory) * inputCanvas.width;
+                    const y = midY - (history[i].roadH + history[i].z) * 300;
+                    if (i === 0) inputCtx.moveTo(x, y);
+                    else inputCtx.lineTo(x, y);
+                }
+                inputCtx.stroke();
+            }
+
+            inputCtx.font = '11px Arial';
+            inputCtx.fillStyle = '#8b7355';
+            inputCtx.fillText('路面高さ (×300)', 10, 12);
+            inputCtx.fillStyle = '#27ae60';
+            inputCtx.fillText('車体位置 (×300)', 130, 12);
+        }
+
+        function updateDisplay() {
+            const p = getParams();
+            const roadH = roadHeight(xPos, p);
+
+            // Calculate damping ratio and natural frequency
+            const omega_n = Math.sqrt(p.c / p.m);
+            const zeta = p.d / (2 * Math.sqrt(p.c * p.m));
+            const f_n = omega_n / (2 * Math.PI);
+
+            document.getElementById('timeDisplay').textContent = time.toFixed(2) + ' s';
+            document.getElementById('xDisplay').textContent = xPos.toFixed(2) + ' m';
+            document.getElementById('roadDisplay').textContent = (roadH * 100).toFixed(1) + ' cm';
+            document.getElementById('yDisplay').textContent = (state[0] * 100).toFixed(2) + ' cm';
+            document.getElementById('vyDisplay').textContent = state[1].toFixed(3) + ' m/s';
+            document.getElementById('zetaDisplay').textContent = zeta.toFixed(3);
+            document.getElementById('fnDisplay').textContent = f_n.toFixed(2) + ' Hz';
+        }
+
+        function updateSliderDisplays() {
+            document.getElementById('mVal').textContent = document.getElementById('m').value + ' kg';
+            document.getElementById('cVal').textContent = document.getElementById('c').value + ' N/m';
+            document.getElementById('dVal').textContent = document.getElementById('d').value + ' Ns/m';
+            document.getElementById('vVal').textContent = document.getElementById('v').value + ' m/s';
+            document.getElementById('hVal').textContent = document.getElementById('h').value + ' m';
+            document.getElementById('rampLenVal').textContent = document.getElementById('rampLen').value + ' m';
+        }
+
+        function animate() {
+            const p = getParams();
+
+            for (let i = 0; i < stepsPerFrame; i++) {
+                // Move vehicle forward
+                const oldX = xPos;
+                xPos += p.v * dt;
+
+                // Road input change acts as base excitation
+                const oldRoadH = roadHeight(oldX, p);
+                const newRoadH = roadHeight(xPos, p);
+                const roadDelta = newRoadH - oldRoadH;
+
+                // Add road change as impulse to relative velocity
+                // When road rises, it's like base moves up, so z decreases
+                state[0] -= roadDelta;
+
+                state = rk4Step(state, xPos, dt, p);
+                time += dt;
+            }
+
+            const roadH = roadHeight(xPos, p);
+            history.push({
+                z: state[0],
+                vz: state[1],
+                roadH: roadH
+            });
+            if (history.length > maxHistory) history.shift();
+
+            drawSim();
+            drawGraph();
+            drawInput();
+            updateDisplay();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function startSim() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stopSim() {
+            isRunning = false;
+            if (animationId) cancelAnimationFrame(animationId);
+        }
+
+        function resetSim() {
+            stopSim();
+            state = [0, 0];
+            xPos = 0;
+            time = 0;
+            history = [];
+            drawSim();
+            drawGraph();
+            drawInput();
+            updateDisplay();
+        }
+
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            slider.addEventListener('input', () => {
+                updateSliderDisplays();
+                if (!isRunning) {
+                    drawSim();
+                    updateDisplay();
+                }
+            });
+        });
+
+        updateSliderDisplays();
+        resetSim();
+    </script>
+</body>
+</html>

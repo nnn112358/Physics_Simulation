@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>片持ち梁の曲げ振動シミュレーション</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            color: #000;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #000;
+            margin-bottom: 10px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        canvas {
+            background: #fff;
+            border: 1px solid #000;
+        }
+        .controls {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #000;
+            min-width: 250px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #000;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .value {
+            text-align: right;
+            font-size: 0.9em;
+            color: #666;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            background: #fff;
+            color: #000;
+            border: 1px solid #000;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background: #eee;
+        }
+        .graph-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .equation {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.85em;
+        }
+        .stats {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <h1>片持ち梁の曲げ振動</h1>
+
+    <div class="container">
+        <canvas id="animCanvas" width="350" height="450"></canvas>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>梁の長さ ℓ (m)</label>
+                <input type="range" id="length" min="0.5" max="2" step="0.1" value="1">
+                <div class="value" id="lengthValue">1.0 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>断面幅 a (mm)</label>
+                <input type="range" id="widthA" min="20" max="100" step="5" value="50">
+                <div class="value" id="widthAValue">50 mm</div>
+            </div>
+
+            <div class="control-group">
+                <label>断面高さ b (mm)</label>
+                <input type="range" id="heightB" min="5" max="30" step="1" value="10">
+                <div class="value" id="heightBValue">10 mm</div>
+            </div>
+
+            <div class="control-group">
+                <label>ヤング率 E (GPa)</label>
+                <input type="range" id="youngMod" min="50" max="250" step="10" value="200">
+                <div class="value" id="youngModValue">200 GPa</div>
+            </div>
+
+            <div class="control-group">
+                <label>密度 ρ (kg/m³)</label>
+                <input type="range" id="density" min="2000" max="10000" step="500" value="7800">
+                <div class="value" id="densityValue">7800 kg/m³</div>
+            </div>
+
+            <div class="control-group">
+                <label>初期変位 w₀ (mm)</label>
+                <input type="range" id="initDisp" min="5" max="50" step="5" value="20">
+                <div class="value" id="initDispValue">20 mm</div>
+            </div>
+
+            <div class="control-group">
+                <label>減衰比 ζ</label>
+                <input type="range" id="damping" min="0" max="0.2" step="0.01" value="0.02">
+                <div class="value" id="dampingValue">0.02</div>
+            </div>
+
+            <button id="resetBtn">リセット</button>
+            <button id="pauseBtn">一時停止</button>
+
+            <div class="stats" id="stats">
+                固有振動数: 0 Hz<br>
+                先端変位: 0 mm
+            </div>
+
+            <div class="equation">
+                <strong>運動方程式（1次モード）:</strong><br>
+                m_eff·ẅ + c·ẇ + k·w = 0<br>
+                k = 3EI_yy/ℓ³<br>
+                I_yy = ab³/12<br>
+                ω₁ = 1.875²√(EI/ρAℓ⁴)
+            </div>
+        </div>
+
+        <div class="graph-container">
+            <canvas id="graphCanvas" width="400" height="200"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // キャンバス設定
+        const animCanvas = document.getElementById('animCanvas');
+        const animCtx = animCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+
+        // パラメータ
+        let L = 1.0;           // 梁の長さ [m]
+        let a = 0.05;          // 断面幅 [m]
+        let b = 0.01;          // 断面高さ [m]
+        let E = 200e9;         // ヤング率 [Pa]
+        let rho = 7800;        // 密度 [kg/m³]
+        let w0 = 0.02;         // 初期変位 [m]
+        let zeta = 0.02;       // 減衰比
+
+        // 状態変数
+        let w = 0;             // 先端変位
+        let dw = 0;            // 先端速度
+        let t = 0;
+        let paused = false;
+
+        // グラフデータ
+        let history = [];
+        const maxHistory = 400;
+
+        // 計算パラメータ
+        let omega_n, k_eff, m_eff, c_eff;
+
+        // UI要素
+        document.getElementById('length').addEventListener('input', (e) => {
+            L = parseFloat(e.target.value);
+            document.getElementById('lengthValue').textContent = L.toFixed(1) + ' m';
+            reset();
+        });
+
+        document.getElementById('widthA').addEventListener('input', (e) => {
+            a = parseFloat(e.target.value) / 1000;
+            document.getElementById('widthAValue').textContent = (a * 1000).toFixed(0) + ' mm';
+            reset();
+        });
+
+        document.getElementById('heightB').addEventListener('input', (e) => {
+            b = parseFloat(e.target.value) / 1000;
+            document.getElementById('heightBValue').textContent = (b * 1000).toFixed(0) + ' mm';
+            reset();
+        });
+
+        document.getElementById('youngMod').addEventListener('input', (e) => {
+            E = parseFloat(e.target.value) * 1e9;
+            document.getElementById('youngModValue').textContent = (E / 1e9).toFixed(0) + ' GPa';
+            reset();
+        });
+
+        document.getElementById('density').addEventListener('input', (e) => {
+            rho = parseFloat(e.target.value);
+            document.getElementById('densityValue').textContent = rho.toFixed(0) + ' kg/m³';
+            reset();
+        });
+
+        document.getElementById('initDisp').addEventListener('input', (e) => {
+            w0 = parseFloat(e.target.value) / 1000;
+            document.getElementById('initDispValue').textContent = (w0 * 1000).toFixed(0) + ' mm';
+        });
+
+        document.getElementById('damping').addEventListener('input', (e) => {
+            zeta = parseFloat(e.target.value);
+            document.getElementById('dampingValue').textContent = zeta.toFixed(2);
+            reset();
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', reset);
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            paused = !paused;
+            document.getElementById('pauseBtn').textContent = paused ? '再開' : '一時停止';
+        });
+
+        function calculateParameters() {
+            // 断面2次モーメント
+            const I_yy = a * b * b * b / 12;
+
+            // 断面積
+            const A = a * b;
+
+            // 等価剛性（カンチレバー先端の静的剛性）
+            k_eff = 3 * E * I_yy / (L * L * L);
+
+            // 1次モードの固有振動数
+            const beta1L = 1.8751;
+            omega_n = beta1L * beta1L * Math.sqrt(E * I_yy / (rho * A * L * L * L * L));
+
+            // 等価質量
+            m_eff = k_eff / (omega_n * omega_n);
+
+            // 等価減衰
+            c_eff = 2 * zeta * Math.sqrt(k_eff * m_eff);
+        }
+
+        function reset() {
+            calculateParameters();
+            w = w0;
+            dw = 0;
+            t = 0;
+            history = [];
+            paused = false;
+            document.getElementById('pauseBtn').textContent = '一時停止';
+        }
+
+        // ルンゲクッタ法
+        function derivatives(state) {
+            const [w, dw] = state;
+            const ddw = (-c_eff * dw - k_eff * w) / m_eff;
+            return [dw, ddw];
+        }
+
+        function rk4Step(state, dt) {
+            const k1 = derivatives(state);
+            const k2 = derivatives([
+                state[0] + k1[0] * dt / 2,
+                state[1] + k1[1] * dt / 2
+            ]);
+            const k3 = derivatives([
+                state[0] + k2[0] * dt / 2,
+                state[1] + k2[1] * dt / 2
+            ]);
+            const k4 = derivatives([
+                state[0] + k3[0] * dt,
+                state[1] + k3[1] * dt
+            ]);
+
+            return [
+                state[0] + (k1[0] + 2*k2[0] + 2*k3[0] + k4[0]) * dt / 6,
+                state[1] + (k1[1] + 2*k2[1] + 2*k3[1] + k4[1]) * dt / 6
+            ];
+        }
+
+        function simulate(dt) {
+            const state = rk4Step([w, dw], dt);
+            w = state[0];
+            dw = state[1];
+            t += dt;
+
+            // 履歴保存
+            history.push({ t: t, w: w });
+            if (history.length > maxHistory) history.shift();
+        }
+
+        // 1次モードの形状関数
+        function modeShape(x) {
+            const beta = 1.8751 / L;
+            const betaX = beta * x;
+            const betaL = beta * L;
+
+            const coshBL = Math.cosh(betaL);
+            const cosBL = Math.cos(betaL);
+            const sinhBL = Math.sinh(betaL);
+            const sinBL = Math.sin(betaL);
+
+            const sigma = (sinhBL - sinBL) / (coshBL + cosBL);
+
+            const phi = (Math.cosh(betaX) - Math.cos(betaX)) -
+                        sigma * (Math.sinh(betaX) - Math.sin(betaX));
+
+            // 先端での値で正規化
+            const phiL = (Math.cosh(betaL) - Math.cos(betaL)) -
+                         sigma * (Math.sinh(betaL) - Math.sin(betaL));
+
+            return phi / phiL;
+        }
+
+        function draw() {
+            animCtx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+
+            const scale = 200;  // ピクセル/m
+            const baseX = 150;
+            const baseY = animCanvas.height - 50;
+
+            // 固定端の描画
+            animCtx.fillStyle = '#333';
+            animCtx.fillRect(baseX - 40, baseY, 80, 20);
+
+            // ハッチング
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+            for (let i = 0; i < 8; i++) {
+                animCtx.beginPath();
+                animCtx.moveTo(baseX - 35 + i * 10, baseY + 20);
+                animCtx.lineTo(baseX - 45 + i * 10, baseY + 30);
+                animCtx.stroke();
+            }
+
+            // 梁の描画（モード形状を使用）
+            const beamWidth = b * scale * 10;  // 視覚的に拡大
+            const nPoints = 50;
+
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = beamWidth;
+            animCtx.lineCap = 'round';
+            animCtx.beginPath();
+
+            for (let i = 0; i <= nPoints; i++) {
+                const xi = i / nPoints;
+                const x = xi * L;
+                const deflection = w * modeShape(x);
+
+                const screenX = baseX + deflection * scale * 5;  // 変位を視覚的に拡大
+                const screenY = baseY - x * scale;
+
+                if (i === 0) {
+                    animCtx.moveTo(screenX, screenY);
+                } else {
+                    animCtx.lineTo(screenX, screenY);
+                }
+            }
+            animCtx.stroke();
+
+            // 先端位置
+            const tipX = baseX + w * scale * 5;
+            const tipY = baseY - L * scale;
+
+            // 点A（固定端）
+            animCtx.fillStyle = '#000';
+            animCtx.beginPath();
+            animCtx.arc(baseX, baseY, 6, 0, Math.PI * 2);
+            animCtx.fill();
+            animCtx.font = '14px Arial';
+            animCtx.fillText('A', baseX + 15, baseY + 5);
+
+            // 点B（自由端）
+            animCtx.beginPath();
+            animCtx.arc(tipX, tipY, 6, 0, Math.PI * 2);
+            animCtx.fill();
+            animCtx.fillText('B', tipX + 10, tipY - 10);
+
+            // 変位 w_B(t) の表示
+            if (Math.abs(w) > 0.001) {
+                animCtx.strokeStyle = '#666';
+                animCtx.lineWidth = 1;
+                animCtx.setLineDash([5, 3]);
+                animCtx.beginPath();
+                animCtx.moveTo(baseX, tipY);
+                animCtx.lineTo(tipX, tipY);
+                animCtx.stroke();
+                animCtx.setLineDash([]);
+
+                // 矢印
+                animCtx.beginPath();
+                const arrowDir = w > 0 ? 1 : -1;
+                animCtx.moveTo(tipX - arrowDir * 10, tipY - 5);
+                animCtx.lineTo(tipX, tipY);
+                animCtx.lineTo(tipX - arrowDir * 10, tipY + 5);
+                animCtx.stroke();
+
+                animCtx.fillText('w_B(t)', (baseX + tipX) / 2 - 20, tipY - 10);
+            }
+
+            // 長さ表示
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+            animCtx.beginPath();
+            animCtx.moveTo(baseX + 60, baseY);
+            animCtx.lineTo(baseX + 60, tipY);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(baseX + 55, baseY);
+            animCtx.lineTo(baseX + 65, baseY);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(baseX + 55, tipY);
+            animCtx.lineTo(baseX + 65, tipY);
+            animCtx.stroke();
+            animCtx.fillText('ℓ', baseX + 70, (baseY + tipY) / 2);
+
+            // 座標軸
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+            // x軸（上向き）
+            animCtx.beginPath();
+            animCtx.moveTo(40, baseY);
+            animCtx.lineTo(40, baseY - 50);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(35, baseY - 45);
+            animCtx.lineTo(40, baseY - 50);
+            animCtx.lineTo(45, baseY - 45);
+            animCtx.stroke();
+            animCtx.fillText('x', 50, baseY - 45);
+
+            // z軸（右向き）
+            animCtx.beginPath();
+            animCtx.moveTo(40, baseY);
+            animCtx.lineTo(90, baseY);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(85, baseY - 5);
+            animCtx.lineTo(90, baseY);
+            animCtx.lineTo(85, baseY + 5);
+            animCtx.stroke();
+            animCtx.fillText('z, w', 95, baseY + 5);
+
+            // 重力（紙面垂直）
+            animCtx.beginPath();
+            animCtx.arc(30, 30, 10, 0, Math.PI * 2);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(23, 23);
+            animCtx.lineTo(37, 37);
+            animCtx.moveTo(23, 37);
+            animCtx.lineTo(37, 23);
+            animCtx.stroke();
+            animCtx.fillText('g', 45, 35);
+
+            // 断面図
+            const crossX = 260;
+            const crossY = 80;
+            const crossScale = 800;
+
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+            animCtx.strokeRect(crossX, crossY, a * crossScale, b * crossScale);
+
+            // 断面寸法
+            animCtx.fillText('a', crossX + a * crossScale / 2 - 5, crossY + b * crossScale + 20);
+            animCtx.fillText('b', crossX + a * crossScale + 10, crossY + b * crossScale / 2 + 5);
+            animCtx.fillText('Querschnitt:', crossX, crossY - 10);
+
+            // 材料特性
+            animCtx.font = '12px Arial';
+            animCtx.fillText('ρ, EA, EI_yy', baseX - 80, baseY - L * scale / 2);
+
+            // 統計更新
+            const freq = omega_n / (2 * Math.PI);
+            document.getElementById('stats').innerHTML =
+                `固有振動数: ${freq.toFixed(2)} Hz<br>` +
+                `先端変位: ${(w * 1000).toFixed(2)} mm`;
+        }
+
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            // 背景
+            graphCtx.fillStyle = '#f9f9f9';
+            graphCtx.fillRect(50, 10, 340, 160);
+
+            // グリッド
+            graphCtx.strokeStyle = '#ddd';
+            graphCtx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = 10 + i * 40;
+                graphCtx.beginPath();
+                graphCtx.moveTo(50, y);
+                graphCtx.lineTo(390, y);
+                graphCtx.stroke();
+            }
+
+            // 軸
+            graphCtx.strokeStyle = '#000';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(50, 90);
+            graphCtx.lineTo(390, 90);
+            graphCtx.stroke();
+            graphCtx.beginPath();
+            graphCtx.moveTo(50, 10);
+            graphCtx.lineTo(50, 170);
+            graphCtx.stroke();
+
+            // ラベル
+            graphCtx.fillStyle = '#000';
+            graphCtx.font = '12px Arial';
+            graphCtx.fillText('w_B (mm)', 5, 20);
+            graphCtx.fillText('t (s)', 370, 185);
+
+            // データプロット
+            if (history.length > 1) {
+                const tMax = Math.max(history[history.length - 1].t, 2);
+                const wMax = w0 * 1.2;
+
+                graphCtx.strokeStyle = '#000';
+                graphCtx.lineWidth = 1.5;
+                graphCtx.beginPath();
+
+                for (let i = 0; i < history.length; i++) {
+                    const px = 50 + (history[i].t / tMax) * 340;
+                    const py = 90 - (history[i].w / wMax) * 70;
+
+                    if (i === 0) {
+                        graphCtx.moveTo(px, py);
+                    } else {
+                        graphCtx.lineTo(px, py);
+                    }
+                }
+                graphCtx.stroke();
+
+                // スケール表示
+                graphCtx.font = '10px Arial';
+                graphCtx.fillText(`${(wMax * 1000).toFixed(0)}`, 25, 25);
+                graphCtx.fillText(`-${(wMax * 1000).toFixed(0)}`, 20, 165);
+                graphCtx.fillText('0', 35, 93);
+                graphCtx.fillText(tMax.toFixed(1), 375, 105);
+            }
+        }
+
+        // メインループ
+        function animate() {
+            if (!paused) {
+                for (let i = 0; i < 5; i++) {
+                    simulate(0.016 / 5);
+                }
+            }
+            draw();
+            drawGraph();
+            requestAnimationFrame(animate);
+        }
+
+        // 初期化
+        reset();
+        animate();
+    </script>
+</body>
+</html>

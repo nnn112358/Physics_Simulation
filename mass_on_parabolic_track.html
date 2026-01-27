@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>放物線軌道上の質点運動</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+        .main-content {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 500px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #fff;
+            display: block;
+        }
+        .control-section {
+            width: 280px;
+        }
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 0.95em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin-bottom: 12px;
+        }
+        .slider-container label {
+            display: block;
+            color: #555;
+            margin-bottom: 3px;
+            font-size: 0.85em;
+        }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .value-display {
+            text-align: right;
+            color: #667eea;
+            font-weight: bold;
+            font-size: 0.85em;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            min-width: 70px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+        .btn-start {
+            background: #28a745;
+            color: white;
+        }
+        .btn-start:hover {
+            background: #218838;
+        }
+        .btn-stop {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-stop:hover {
+            background: #c82333;
+        }
+        .btn-reset {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-reset:hover {
+            background: #5a6268;
+        }
+        .info-display {
+            background: #e9ecef;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.8em;
+            line-height: 1.6;
+        }
+        .graphs-section {
+            width: 100%;
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .graph-container {
+            flex: 1;
+            min-width: 350px;
+        }
+        .graph-container h4 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>放物線軌道上の質点運動</h1>
+        <p class="description">滑らかな放物線 y = ax² 上を滑る質点 (摩擦なし μ=0)</p>
+
+        <div class="main-content">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="550" height="400"></canvas>
+            </div>
+
+            <div class="control-section">
+                <div class="control-group">
+                    <h3>パラメータ設定</h3>
+
+                    <div class="slider-container">
+                        <label>質量 m: <span id="massVal">1.0</span> kg</label>
+                        <input type="range" id="massSlider" min="0.5" max="5.0" step="0.1" value="1.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>放物線係数 a: <span id="aVal">0.50</span></label>
+                        <input type="range" id="aSlider" min="0.1" max="2.0" step="0.05" value="0.5">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>重力加速度 g: <span id="gravVal">9.8</span> m/s²</label>
+                        <input type="range" id="gravSlider" min="1.0" max="20.0" step="0.1" value="9.8">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期位置 x₀: <span id="x0Val">1.5</span> m</label>
+                        <input type="range" id="x0Slider" min="-2.0" max="2.0" step="0.1" value="1.5">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期速度 ẋ₀: <span id="v0Val">0.0</span> m/s</label>
+                        <input type="range" id="v0Slider" min="-5.0" max="5.0" step="0.1" value="0.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>シミュレーション制御</h3>
+                    <div class="button-group">
+                        <button class="btn-start" id="startBtn">開始</button>
+                        <button class="btn-stop" id="stopBtn">停止</button>
+                        <button class="btn-reset" id="resetBtn">リセット</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>状態表示</h3>
+                    <div class="info-display" id="infoDisplay">
+                        時間: 0.00 s<br>
+                        位置 x: 0.00 m<br>
+                        高さ y: 0.00 m<br>
+                        速度 ẋ: 0.00 m/s<br>
+                        運動E: 0.00 J<br>
+                        位置E: 0.00 J<br>
+                        全E: 0.00 J
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="graphs-section">
+            <div class="graph-container">
+                <h4>位置の時間変化 x(t)</h4>
+                <canvas id="graphX" width="380" height="180"></canvas>
+            </div>
+            <div class="graph-container">
+                <h4>エネルギー変化</h4>
+                <canvas id="graphEnergy" width="380" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const graphX = document.getElementById('graphX');
+        const ctxX = graphX.getContext('2d');
+        const graphEnergy = document.getElementById('graphEnergy');
+        const ctxEnergy = graphEnergy.getContext('2d');
+
+        // Simulation parameters
+        let mass = 1.0;
+        let a = 0.5;  // parabola coefficient y = a*x^2
+        let g = 9.8;
+        let x0 = 1.5;
+        let v0 = 0.0;
+
+        // State variables
+        let x = x0;
+        let vx = v0;
+        let time = 0;
+        let isRunning = false;
+        let animationId = null;
+
+        // Data history
+        let historyX = [];
+        let historyKE = [];
+        let historyPE = [];
+        let historyTE = [];
+        const maxHistory = 500;
+
+        // Slider elements
+        const massSlider = document.getElementById('massSlider');
+        const aSlider = document.getElementById('aSlider');
+        const gravSlider = document.getElementById('gravSlider');
+        const x0Slider = document.getElementById('x0Slider');
+        const v0Slider = document.getElementById('v0Slider');
+
+        // Value display elements
+        const massVal = document.getElementById('massVal');
+        const aVal = document.getElementById('aVal');
+        const gravVal = document.getElementById('gravVal');
+        const x0Val = document.getElementById('x0Val');
+        const v0Val = document.getElementById('v0Val');
+
+        // Slider event listeners
+        massSlider.addEventListener('input', () => {
+            mass = parseFloat(massSlider.value);
+            massVal.textContent = mass.toFixed(1);
+        });
+
+        aSlider.addEventListener('input', () => {
+            a = parseFloat(aSlider.value);
+            aVal.textContent = a.toFixed(2);
+            if (!isRunning) reset();
+        });
+
+        gravSlider.addEventListener('input', () => {
+            g = parseFloat(gravSlider.value);
+            gravVal.textContent = g.toFixed(1);
+        });
+
+        x0Slider.addEventListener('input', () => {
+            x0 = parseFloat(x0Slider.value);
+            x0Val.textContent = x0.toFixed(1);
+            if (!isRunning) reset();
+        });
+
+        v0Slider.addEventListener('input', () => {
+            v0 = parseFloat(v0Slider.value);
+            v0Val.textContent = v0.toFixed(1);
+            if (!isRunning) reset();
+        });
+
+        // Button event listeners
+        document.getElementById('startBtn').addEventListener('click', start);
+        document.getElementById('stopBtn').addEventListener('click', stop);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+
+        // Parabola function
+        function parabola(xVal) {
+            return a * xVal * xVal;
+        }
+
+        // Derivative of parabola
+        function parabolaDeriv(xVal) {
+            return 2 * a * xVal;
+        }
+
+        // Equation of motion for mass on parabola
+        // Using Lagrangian mechanics:
+        // L = (1/2)m*vx^2*(1 + 4*a^2*x^2) - m*g*a*x^2
+        // Equation: d/dt(∂L/∂vx) - ∂L/∂x = 0
+        // Results in: x'' = -2ax(2a*vx^2 + g) / (1 + 4a^2*x^2)
+        function computeAcceleration(xPos, vxVal) {
+            const denom = 1 + 4 * a * a * xPos * xPos;
+            const numer = 2 * a * xPos * (2 * a * vxVal * vxVal + g);
+            return -numer / denom;
+        }
+
+        // RK4 integration
+        function rk4Step(dt) {
+            const k1v = computeAcceleration(x, vx);
+            const k1x = vx;
+
+            const k2v = computeAcceleration(x + k1x * dt / 2, vx + k1v * dt / 2);
+            const k2x = vx + k1v * dt / 2;
+
+            const k3v = computeAcceleration(x + k2x * dt / 2, vx + k2v * dt / 2);
+            const k3x = vx + k2v * dt / 2;
+
+            const k4v = computeAcceleration(x + k3x * dt, vx + k3v * dt);
+            const k4x = vx + k3v * dt;
+
+            x += (k1x + 2 * k2x + 2 * k3x + k4x) * dt / 6;
+            vx += (k1v + 2 * k2v + 2 * k3v + k4v) * dt / 6;
+        }
+
+        // Calculate energies
+        function computeEnergies() {
+            const y = parabola(x);
+            const dydx = parabolaDeriv(x);
+            const vy = dydx * vx;
+            const speed2 = vx * vx + vy * vy;
+            const KE = 0.5 * mass * speed2;
+            const PE = mass * g * y;
+            const TE = KE + PE;
+            return { KE, PE, TE };
+        }
+
+        // Draw the simulation
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height - 60;
+            const scale = 100;
+
+            // Draw coordinate system
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, centerY);
+            ctx.lineTo(canvas.width, centerY);
+            ctx.moveTo(centerX, 0);
+            ctx.lineTo(centerX, canvas.height);
+            ctx.stroke();
+
+            // Draw parabola
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            let first = true;
+            for (let px = -3; px <= 3; px += 0.02) {
+                const py = parabola(px);
+                const screenX = centerX + px * scale;
+                const screenY = centerY - py * scale;
+                if (screenY > 10 && screenY < canvas.height - 10) {
+                    if (first) {
+                        ctx.moveTo(screenX, screenY);
+                        first = false;
+                    } else {
+                        ctx.lineTo(screenX, screenY);
+                    }
+                }
+            }
+            ctx.stroke();
+
+            // Draw formula
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.fillText('y = ax²', centerX + 160, 30);
+            ctx.fillText('a = ' + a.toFixed(2), centerX + 160, 50);
+
+            // Draw mass position
+            const massX = centerX + x * scale;
+            const massY = centerY - parabola(x) * scale;
+
+            // Draw velocity vector
+            const dydx = parabolaDeriv(x);
+            const vy = dydx * vx;
+            const velScale = 15;
+            ctx.strokeStyle = '#28a745';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(massX, massY);
+            ctx.lineTo(massX + vx * velScale, massY - vy * velScale);
+            ctx.stroke();
+            // Arrow head
+            const vAngle = Math.atan2(-vy, vx);
+            ctx.beginPath();
+            ctx.moveTo(massX + vx * velScale, massY - vy * velScale);
+            ctx.lineTo(massX + vx * velScale - 8 * Math.cos(vAngle - 0.3),
+                       massY - vy * velScale + 8 * Math.sin(vAngle - 0.3));
+            ctx.moveTo(massX + vx * velScale, massY - vy * velScale);
+            ctx.lineTo(massX + vx * velScale - 8 * Math.cos(vAngle + 0.3),
+                       massY - vy * velScale + 8 * Math.sin(vAngle + 0.3));
+            ctx.stroke();
+
+            // Draw normal force direction
+            const normalAngle = Math.atan2(1, dydx) + Math.PI / 2;
+            ctx.strokeStyle = '#dc3545';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(massX, massY);
+            ctx.lineTo(massX + 30 * Math.cos(normalAngle), massY - 30 * Math.sin(normalAngle));
+            ctx.stroke();
+
+            // Draw mass
+            ctx.fillStyle = '#667eea';
+            ctx.beginPath();
+            ctx.arc(massX, massY, 18, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('m', massX, massY);
+
+            // Draw height indicator
+            const h = parabola(x);
+            if (h > 0.05) {
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(massX, massY);
+                ctx.lineTo(massX, centerY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = '#666';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText('h = ' + h.toFixed(2) + ' m', massX + 10, (massY + centerY) / 2);
+            }
+
+            // Draw gravity arrow
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(50, 50);
+            ctx.lineTo(50, 90);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(50, 90);
+            ctx.lineTo(45, 80);
+            ctx.moveTo(50, 90);
+            ctx.lineTo(55, 80);
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('g', 50, 105);
+
+            // Legend
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#28a745';
+            ctx.fillText('速度ベクトル', 20, canvas.height - 35);
+            ctx.fillStyle = '#dc3545';
+            ctx.fillText('法線方向', 20, canvas.height - 18);
+
+            // Update info display
+            const energies = computeEnergies();
+            const y = parabola(x);
+            document.getElementById('infoDisplay').innerHTML =
+                `時間: ${time.toFixed(2)} s<br>` +
+                `位置 x: ${x.toFixed(3)} m<br>` +
+                `高さ y: ${y.toFixed(3)} m<br>` +
+                `速度 ẋ: ${vx.toFixed(3)} m/s<br>` +
+                `運動E: ${energies.KE.toFixed(3)} J<br>` +
+                `位置E: ${energies.PE.toFixed(3)} J<br>` +
+                `全E: ${energies.TE.toFixed(3)} J`;
+        }
+
+        // Draw position graph
+        function drawGraphX() {
+            ctxX.clearRect(0, 0, graphX.width, graphX.height);
+
+            const margin = 40;
+            const w = graphX.width - 2 * margin;
+            const h = graphX.height - 2 * margin;
+
+            // Background
+            ctxX.fillStyle = '#f8f9fa';
+            ctxX.fillRect(margin, margin, w, h);
+
+            // Grid
+            ctxX.strokeStyle = '#ddd';
+            ctxX.lineWidth = 1;
+            for (let i = 0; i <= 5; i++) {
+                ctxX.beginPath();
+                ctxX.moveTo(margin, margin + i * h / 5);
+                ctxX.lineTo(margin + w, margin + i * h / 5);
+                ctxX.stroke();
+            }
+
+            // Axes
+            ctxX.strokeStyle = '#333';
+            ctxX.lineWidth = 2;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin);
+            ctxX.lineTo(margin, margin + h);
+            ctxX.lineTo(margin + w, margin + h);
+            ctxX.stroke();
+
+            // Labels
+            ctxX.fillStyle = '#333';
+            ctxX.font = '11px Arial';
+            ctxX.textAlign = 'right';
+            ctxX.fillText('3', margin - 5, margin + 5);
+            ctxX.fillText('0', margin - 5, margin + h / 2 + 5);
+            ctxX.fillText('-3', margin - 5, margin + h);
+
+            // Plot data
+            if (historyX.length > 1) {
+                ctxX.strokeStyle = '#667eea';
+                ctxX.lineWidth = 2;
+                ctxX.beginPath();
+                for (let i = 0; i < historyX.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyX[i] / 3) * (h / 2);
+                    if (i === 0) ctxX.moveTo(px, py);
+                    else ctxX.lineTo(px, py);
+                }
+                ctxX.stroke();
+            }
+        }
+
+        // Draw energy graph
+        function drawGraphEnergy() {
+            ctxEnergy.clearRect(0, 0, graphEnergy.width, graphEnergy.height);
+
+            const margin = 40;
+            const w = graphEnergy.width - 2 * margin;
+            const h = graphEnergy.height - 2 * margin;
+
+            // Find max energy for scaling
+            let maxE = 1;
+            if (historyTE.length > 0) {
+                maxE = Math.max(...historyTE, ...historyKE, ...historyPE) * 1.1;
+                if (maxE < 0.1) maxE = 0.1;
+            }
+
+            // Background
+            ctxEnergy.fillStyle = '#f8f9fa';
+            ctxEnergy.fillRect(margin, margin, w, h);
+
+            // Grid
+            ctxEnergy.strokeStyle = '#ddd';
+            ctxEnergy.lineWidth = 1;
+            for (let i = 0; i <= 5; i++) {
+                ctxEnergy.beginPath();
+                ctxEnergy.moveTo(margin, margin + i * h / 5);
+                ctxEnergy.lineTo(margin + w, margin + i * h / 5);
+                ctxEnergy.stroke();
+            }
+
+            // Axes
+            ctxEnergy.strokeStyle = '#333';
+            ctxEnergy.lineWidth = 2;
+            ctxEnergy.beginPath();
+            ctxEnergy.moveTo(margin, margin);
+            ctxEnergy.lineTo(margin, margin + h);
+            ctxEnergy.lineTo(margin + w, margin + h);
+            ctxEnergy.stroke();
+
+            // Labels
+            ctxEnergy.fillStyle = '#333';
+            ctxEnergy.font = '11px Arial';
+            ctxEnergy.textAlign = 'right';
+            ctxEnergy.fillText(maxE.toFixed(1), margin - 5, margin + 5);
+            ctxEnergy.fillText('0', margin - 5, margin + h);
+
+            // Plot KE
+            if (historyKE.length > 1) {
+                ctxEnergy.strokeStyle = '#28a745';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyKE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyKE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot PE
+            if (historyPE.length > 1) {
+                ctxEnergy.strokeStyle = '#dc3545';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyPE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyPE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot TE
+            if (historyTE.length > 1) {
+                ctxEnergy.strokeStyle = '#333';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyTE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyTE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Legend
+            ctxEnergy.font = '10px Arial';
+            ctxEnergy.textAlign = 'left';
+            ctxEnergy.fillStyle = '#28a745';
+            ctxEnergy.fillText('運動E', margin + 10, margin + 12);
+            ctxEnergy.fillStyle = '#dc3545';
+            ctxEnergy.fillText('位置E', margin + 60, margin + 12);
+            ctxEnergy.fillStyle = '#333';
+            ctxEnergy.fillText('全E', margin + 110, margin + 12);
+        }
+
+        // Animation loop
+        function animate() {
+            const dt = 0.01;
+            const substeps = 5;
+
+            for (let i = 0; i < substeps; i++) {
+                rk4Step(dt / substeps);
+            }
+            time += dt;
+
+            // Record history
+            historyX.push(x);
+            const energies = computeEnergies();
+            historyKE.push(energies.KE);
+            historyPE.push(energies.PE);
+            historyTE.push(energies.TE);
+
+            if (historyX.length > maxHistory) {
+                historyX.shift();
+                historyKE.shift();
+                historyPE.shift();
+                historyTE.shift();
+            }
+
+            draw();
+            drawGraphX();
+            drawGraphEnergy();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function start() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stop() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+
+        function reset() {
+            stop();
+            x = x0;
+            vx = v0;
+            time = 0;
+            historyX = [];
+            historyKE = [];
+            historyPE = [];
+            historyTE = [];
+            draw();
+            drawGraphX();
+            drawGraphEnergy();
+        }
+
+        // Initialize
+        reset();
+    </script>
+</body>
+</html>

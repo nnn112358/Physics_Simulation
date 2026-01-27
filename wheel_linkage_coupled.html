@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>車輪-リンク結合系シミュレーション</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 1.7em;
+        }
+        .simulation-area {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 550px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #f8f9fa;
+            display: block;
+        }
+        .controls {
+            flex: 0 0 280px;
+        }
+        .control-group {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 1em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin: 10px 0;
+        }
+        .slider-container label {
+            display: flex;
+            justify-content: space-between;
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            font-size: 1em;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .start-btn { background: #4CAF50; color: white; }
+        .stop-btn { background: #f44336; color: white; }
+        .reset-btn { background: #2196F3; color: white; }
+        button:hover { transform: scale(1.05); opacity: 0.9; }
+        .info-display {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+        .info-display h3 {
+            color: #2e7d32;
+            margin-bottom: 10px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 0.85em;
+        }
+        .graphs {
+            width: 100%;
+            margin-top: 20px;
+        }
+        .graph-container {
+            margin-bottom: 15px;
+        }
+        .graph-container h3 {
+            color: #555;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>車輪-リンク結合系シミュレーション</h1>
+
+        <div class="simulation-area">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="600" height="350"></canvas>
+                <div class="graphs">
+                    <div class="graph-container">
+                        <h3>角度・変位グラフ</h3>
+                        <canvas id="graphCanvas" width="600" height="130"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <h3>車輪パラメータ</h3>
+                    <div class="slider-container">
+                        <label><span>車輪質量 M</span><span id="MVal">2.0 kg</span></label>
+                        <input type="range" id="M" min="0.5" max="5" step="0.1" value="2.0">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>車輪半径 R</span><span id="RVal">0.15 m</span></label>
+                        <input type="range" id="R" min="0.05" max="0.3" step="0.01" value="0.15">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>リンク・ばねパラメータ</h3>
+                    <div class="slider-container">
+                        <label><span>リンク長 ℓ</span><span id="ellVal">0.3 m</span></label>
+                        <input type="range" id="ell" min="0.15" max="0.5" step="0.01" value="0.3">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>ばね定数 k₁</span><span id="k1Val">50 N/m</span></label>
+                        <input type="range" id="k1" min="10" max="200" step="5" value="50">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>ばね定数 k₂</span><span id="k2Val">30 N/m</span></label>
+                        <input type="range" id="k2" min="10" max="200" step="5" value="30">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>初期条件</h3>
+                    <div class="slider-container">
+                        <label><span>車輪初期角 φ₀</span><span id="phi0Val">15°</span></label>
+                        <input type="range" id="phi0" min="-30" max="30" step="1" value="15">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>リンク初期角 θ₀</span><span id="theta0Val">10°</span></label>
+                        <input type="range" id="theta0" min="-30" max="30" step="1" value="10">
+                    </div>
+                </div>
+
+                <div class="buttons">
+                    <button class="start-btn" onclick="startSim()">開始</button>
+                    <button class="stop-btn" onclick="stopSim()">停止</button>
+                    <button class="reset-btn" onclick="resetSim()">リセット</button>
+                </div>
+
+                <div class="info-display">
+                    <h3>状態表示</h3>
+                    <div class="info-row"><span>時間:</span><span id="timeDisplay">0.00 s</span></div>
+                    <div class="info-row"><span>車輪角 φ:</span><span id="phiDisplay">0.00°</span></div>
+                    <div class="info-row"><span>リンク角 θ:</span><span id="thetaDisplay">0.00°</span></div>
+                    <div class="info-row"><span>車輪角速度:</span><span id="phiDotDisplay">0.00 rad/s</span></div>
+                    <div class="info-row"><span>リンク角速度:</span><span id="thetaDotDisplay">0.00 rad/s</span></div>
+                    <div class="info-row"><span>全エネルギー:</span><span id="energyDisplay">0.00 J</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const simCanvas = document.getElementById('simCanvas');
+        const simCtx = simCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+
+        let animationId = null;
+        let isRunning = false;
+        let time = 0;
+        const dt = 0.0005;
+        const stepsPerFrame = 32;
+        const g = 9.8;
+
+        // State: [phi, phi_dot, theta, theta_dot]
+        // phi: wheel rotation angle
+        // theta: link angle from vertical
+        let state = [0, 0, 0, 0];
+
+        let history = [];
+        const maxHistory = 400;
+
+        function getParams() {
+            return {
+                M: parseFloat(document.getElementById('M').value),
+                R: parseFloat(document.getElementById('R').value),
+                ell: parseFloat(document.getElementById('ell').value),
+                k1: parseFloat(document.getElementById('k1').value),
+                k2: parseFloat(document.getElementById('k2').value),
+                phi0: parseFloat(document.getElementById('phi0').value) * Math.PI / 180,
+                theta0: parseFloat(document.getElementById('theta0').value) * Math.PI / 180
+            };
+        }
+
+        // Simplified coupled system dynamics
+        // The wheel and link are coupled through their connection point
+        // This creates a 2-DOF vibration system
+        function derivatives(state, p) {
+            const [phi, phi_dot, theta, theta_dot] = state;
+
+            // Wheel: disk rolling/rotating with spring k1 attached
+            // I_wheel = (1/2) M R^2
+            const I_wheel = 0.5 * p.M * p.R * p.R;
+
+            // Link: treated as rod pivoting at top
+            // Effective mass m_link = M/4 (quarter of wheel mass)
+            const m_link = p.M / 4;
+            const I_link = (1 / 3) * m_link * p.ell * p.ell;
+
+            // Spring k1 provides torque on wheel based on angle
+            const tau_k1 = -p.k1 * p.R * p.R * phi;
+
+            // Coupling: wheel and link share some motion
+            // Spring k2 on the left link
+            const tau_k2 = -p.k2 * p.ell * p.ell * theta;
+
+            // Gravitational torque on link
+            const tau_g = -m_link * g * (p.ell / 2) * Math.sin(theta);
+
+            // Coupling term: when wheel rotates, it affects link through connection
+            const coupling = 0.3; // Coupling coefficient
+            const tau_coupling_wheel = -coupling * p.k1 * p.R * p.ell * (phi - theta);
+            const tau_coupling_link = coupling * p.k1 * p.R * p.ell * (phi - theta);
+
+            // Light damping
+            const c = 0.1;
+
+            // Equations of motion
+            const phi_ddot = (tau_k1 + tau_coupling_wheel - c * phi_dot) / I_wheel;
+            const theta_ddot = (tau_k2 + tau_g + tau_coupling_link - c * theta_dot) / I_link;
+
+            return [phi_dot, phi_ddot, theta_dot, theta_ddot];
+        }
+
+        function rk4Step(state, dt, p) {
+            const k1 = derivatives(state, p);
+            const s2 = state.map((s, i) => s + k1[i] * dt / 2);
+            const k2 = derivatives(s2, p);
+            const s3 = state.map((s, i) => s + k2[i] * dt / 2);
+            const k3 = derivatives(s3, p);
+            const s4 = state.map((s, i) => s + k3[i] * dt);
+            const k4 = derivatives(s4, p);
+
+            return state.map((s, i) => s + (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]) * dt / 6);
+        }
+
+        function calcEnergy(p) {
+            const [phi, phi_dot, theta, theta_dot] = state;
+
+            const I_wheel = 0.5 * p.M * p.R * p.R;
+            const m_link = p.M / 4;
+            const I_link = (1 / 3) * m_link * p.ell * p.ell;
+
+            const KE_wheel = 0.5 * I_wheel * phi_dot * phi_dot;
+            const KE_link = 0.5 * I_link * theta_dot * theta_dot;
+
+            const PE_spring1 = 0.5 * p.k1 * p.R * p.R * phi * phi;
+            const PE_spring2 = 0.5 * p.k2 * p.ell * p.ell * theta * theta;
+            const PE_grav = m_link * g * (p.ell / 2) * (1 - Math.cos(theta));
+
+            return KE_wheel + KE_link + PE_spring1 + PE_spring2 + PE_grav;
+        }
+
+        function drawSpring(ctx, x1, y1, x2, y2, coils = 6) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            const amplitude = 6;
+            const segLen = len / (coils * 2 + 2);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(segLen, 0);
+
+            for (let i = 0; i < coils * 2; i++) {
+                const xPos = segLen + (i + 1) * segLen;
+                const yPos = (i % 2 === 0 ? amplitude : -amplitude);
+                ctx.lineTo(xPos, yPos);
+            }
+            ctx.lineTo(len, 0);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawSim() {
+            const p = getParams();
+            simCtx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+
+            const scale = 400; // pixels per meter
+            const [phi, phi_dot, theta, theta_dot] = state;
+
+            // Base positions
+            const baseY = 280;
+            const wheelCenterX = 300;
+            const wheelCenterY = baseY - p.R * scale;
+            const wheelRadius = p.R * scale;
+
+            // Link pivot positions
+            const leftPivotX = 100;
+            const leftPivotY = 60;
+            const rightPivotX = 500;
+            const rightPivotY = 60;
+
+            // Draw top ground
+            simCtx.fillStyle = '#888';
+            simCtx.fillRect(0, 40, simCanvas.width, 20);
+            for (let x = 10; x < simCanvas.width; x += 15) {
+                simCtx.strokeStyle = '#666';
+                simCtx.lineWidth = 1;
+                simCtx.beginPath();
+                simCtx.moveTo(x, 40);
+                simCtx.lineTo(x - 8, 30);
+                simCtx.stroke();
+            }
+
+            // Draw bottom ground
+            simCtx.fillStyle = '#888';
+            simCtx.fillRect(0, baseY, simCanvas.width, 20);
+            for (let x = 10; x < simCanvas.width; x += 15) {
+                simCtx.beginPath();
+                simCtx.moveTo(x, baseY);
+                simCtx.lineTo(x - 8, baseY + 10);
+                simCtx.stroke();
+            }
+
+            // Calculate link endpoints
+            const linkLen = p.ell * scale;
+
+            // Left link (link 4) - from top left down at angle
+            const leftLink4EndX = leftPivotX + linkLen * Math.sin(theta);
+            const leftLink4EndY = leftPivotY + linkLen * Math.cos(theta);
+
+            // Right link (link 5) - from top right down
+            const rightLink5EndX = rightPivotX - linkLen * Math.sin(theta * 0.7);
+            const rightLink5EndY = rightPivotY + linkLen * Math.cos(theta * 0.7);
+
+            // Draw wheel
+            simCtx.strokeStyle = '#333';
+            simCtx.lineWidth = 3;
+            simCtx.fillStyle = '#ecf0f1';
+            simCtx.beginPath();
+            simCtx.arc(wheelCenterX, wheelCenterY, wheelRadius, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.stroke();
+
+            // Wheel rotation markers
+            simCtx.strokeStyle = '#3498db';
+            simCtx.lineWidth = 3;
+            for (let i = 0; i < 4; i++) {
+                const angle = phi + i * Math.PI / 2;
+                simCtx.beginPath();
+                simCtx.moveTo(wheelCenterX + wheelRadius * 0.3 * Math.cos(angle),
+                             wheelCenterY + wheelRadius * 0.3 * Math.sin(angle));
+                simCtx.lineTo(wheelCenterX + wheelRadius * 0.85 * Math.cos(angle),
+                             wheelCenterY + wheelRadius * 0.85 * Math.sin(angle));
+                simCtx.stroke();
+            }
+
+            // Wheel center
+            simCtx.fillStyle = '#333';
+            simCtx.beginPath();
+            simCtx.arc(wheelCenterX, wheelCenterY, 5, 0, Math.PI * 2);
+            simCtx.fill();
+
+            // Draw spring k1 (from wheel to top)
+            const springTopY = 60;
+            drawSpring(simCtx, wheelCenterX, wheelCenterY - wheelRadius * 0.5,
+                      wheelCenterX + phi * 30, springTopY, 8);
+
+            // Draw spring k2 (on left side)
+            drawSpring(simCtx, leftPivotX + 20, leftPivotY,
+                      leftLink4EndX + 20, leftLink4EndY - 30, 5);
+
+            // Draw link 4 (left inclined link)
+            simCtx.strokeStyle = '#e74c3c';
+            simCtx.lineWidth = 6;
+            simCtx.lineCap = 'round';
+            simCtx.beginPath();
+            simCtx.moveTo(leftPivotX, leftPivotY);
+            simCtx.lineTo(leftLink4EndX, leftLink4EndY);
+            simCtx.stroke();
+
+            // Draw horizontal bar (link 1) at bottom
+            simCtx.strokeStyle = '#333';
+            simCtx.lineWidth = 4;
+            simCtx.beginPath();
+            simCtx.moveTo(leftLink4EndX, baseY - 5);
+            simCtx.lineTo(rightLink5EndX, baseY - 5);
+            simCtx.stroke();
+
+            // Draw link 5 (right inclined link)
+            simCtx.strokeStyle = '#27ae60';
+            simCtx.lineWidth = 6;
+            simCtx.beginPath();
+            simCtx.moveTo(rightPivotX, rightPivotY);
+            simCtx.lineTo(rightLink5EndX, rightLink5EndY);
+            simCtx.stroke();
+
+            // Draw horizontal bar (link 2) at top
+            simCtx.strokeStyle = '#666';
+            simCtx.lineWidth = 3;
+            simCtx.setLineDash([5, 5]);
+            simCtx.beginPath();
+            simCtx.moveTo(leftPivotX + 30, 80);
+            simCtx.lineTo(rightPivotX - 30, 80);
+            simCtx.stroke();
+            simCtx.setLineDash([]);
+
+            // Draw pivot points
+            const pivots = [
+                { x: leftPivotX, y: leftPivotY, fixed: true },
+                { x: rightPivotX, y: rightPivotY, fixed: true, label: 'O' },
+                { x: leftLink4EndX, y: leftLink4EndY, fixed: false },
+                { x: rightLink5EndX, y: rightLink5EndY, fixed: false },
+                { x: wheelCenterX, y: wheelCenterY, fixed: false }
+            ];
+
+            pivots.forEach((pv, idx) => {
+                simCtx.fillStyle = pv.fixed ? '#888' : 'white';
+                simCtx.strokeStyle = '#333';
+                simCtx.lineWidth = 2;
+                simCtx.beginPath();
+                simCtx.arc(pv.x, pv.y, 6, 0, Math.PI * 2);
+                simCtx.fill();
+                simCtx.stroke();
+
+                if (pv.label) {
+                    simCtx.fillStyle = '#333';
+                    simCtx.font = 'bold 14px Arial';
+                    simCtx.textAlign = 'center';
+                    simCtx.fillText(pv.label, pv.x + 15, pv.y - 10);
+                }
+            });
+
+            // Labels
+            simCtx.fillStyle = '#e74c3c';
+            simCtx.font = '14px Arial';
+            simCtx.textAlign = 'center';
+            simCtx.fillText('④', (leftPivotX + leftLink4EndX) / 2 - 15, (leftPivotY + leftLink4EndY) / 2);
+
+            simCtx.fillStyle = '#27ae60';
+            simCtx.fillText('⑤', (rightPivotX + rightLink5EndX) / 2 + 15, (rightPivotY + rightLink5EndY) / 2);
+
+            simCtx.fillStyle = '#333';
+            simCtx.fillText('①', (leftLink4EndX + rightLink5EndX) / 2, baseY - 15);
+            simCtx.fillText('②', wheelCenterX, 90);
+
+            // Wheel labels
+            simCtx.fillStyle = '#333';
+            simCtx.font = '12px Arial';
+            simCtx.fillText('M', wheelCenterX, wheelCenterY + 5);
+            simCtx.fillText('R', wheelCenterX + wheelRadius + 12, wheelCenterY);
+
+            // Spring labels
+            simCtx.fillStyle = '#666';
+            simCtx.font = '11px Arial';
+            simCtx.fillText('k₁', wheelCenterX + 30, (wheelCenterY + springTopY) / 2);
+            simCtx.fillText('k₂', leftPivotX + 40, (leftPivotY + leftLink4EndY) / 2 - 15);
+
+            // Dimension labels
+            simCtx.fillStyle = '#666';
+            simCtx.font = '11px Arial';
+            simCtx.fillText('ℓ', leftPivotX - 20, (leftPivotY + leftLink4EndY) / 2);
+            simCtx.fillText('ℓ', rightPivotX + 20, (rightPivotY + rightLink5EndY) / 2);
+
+            // Gravity arrow
+            simCtx.fillStyle = '#333';
+            simCtx.strokeStyle = '#333';
+            simCtx.lineWidth = 2;
+            simCtx.beginPath();
+            simCtx.moveTo(30, 80);
+            simCtx.lineTo(30, 120);
+            simCtx.stroke();
+            simCtx.beginPath();
+            simCtx.moveTo(30, 120);
+            simCtx.lineTo(26, 112);
+            simCtx.lineTo(34, 112);
+            simCtx.closePath();
+            simCtx.fill();
+            simCtx.font = '14px Arial';
+            simCtx.fillText('g', 45, 105);
+
+            // Angle indicator φ
+            if (Math.abs(phi) > 0.05) {
+                simCtx.strokeStyle = '#3498db';
+                simCtx.lineWidth = 2;
+                simCtx.beginPath();
+                simCtx.arc(wheelCenterX, wheelCenterY, 25, -Math.PI / 2, -Math.PI / 2 + phi);
+                simCtx.stroke();
+                simCtx.fillStyle = '#3498db';
+                simCtx.font = '12px Arial';
+                simCtx.fillText('φ', wheelCenterX + 30, wheelCenterY - 30);
+            }
+        }
+
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+            graphCtx.fillStyle = '#f8f9fa';
+            graphCtx.fillRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            const midY = graphCanvas.height / 2;
+            graphCtx.strokeStyle = '#ddd';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(0, midY);
+            graphCtx.lineTo(graphCanvas.width, midY);
+            graphCtx.stroke();
+
+            if (history.length > 1) {
+                // Wheel angle phi
+                graphCtx.strokeStyle = '#3498db';
+                graphCtx.lineWidth = 2;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const x = (i / maxHistory) * graphCanvas.width;
+                    const y = midY - history[i].phi * 80;
+                    if (i === 0) graphCtx.moveTo(x, y);
+                    else graphCtx.lineTo(x, y);
+                }
+                graphCtx.stroke();
+
+                // Link angle theta
+                graphCtx.strokeStyle = '#e74c3c';
+                graphCtx.lineWidth = 2;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const x = (i / maxHistory) * graphCanvas.width;
+                    const y = midY - history[i].theta * 80;
+                    if (i === 0) graphCtx.moveTo(x, y);
+                    else graphCtx.lineTo(x, y);
+                }
+                graphCtx.stroke();
+            }
+
+            graphCtx.font = '11px Arial';
+            graphCtx.fillStyle = '#3498db';
+            graphCtx.fillText('φ (車輪)', 10, 12);
+            graphCtx.fillStyle = '#e74c3c';
+            graphCtx.fillText('θ (リンク)', 80, 12);
+        }
+
+        function updateDisplay() {
+            const p = getParams();
+            const [phi, phi_dot, theta, theta_dot] = state;
+            const energy = calcEnergy(p);
+
+            document.getElementById('timeDisplay').textContent = time.toFixed(2) + ' s';
+            document.getElementById('phiDisplay').textContent = (phi * 180 / Math.PI).toFixed(2) + '°';
+            document.getElementById('thetaDisplay').textContent = (theta * 180 / Math.PI).toFixed(2) + '°';
+            document.getElementById('phiDotDisplay').textContent = phi_dot.toFixed(3) + ' rad/s';
+            document.getElementById('thetaDotDisplay').textContent = theta_dot.toFixed(3) + ' rad/s';
+            document.getElementById('energyDisplay').textContent = energy.toFixed(4) + ' J';
+
+            history.push({ phi, theta });
+            if (history.length > maxHistory) history.shift();
+        }
+
+        function updateSliderDisplays() {
+            document.getElementById('MVal').textContent = document.getElementById('M').value + ' kg';
+            document.getElementById('RVal').textContent = document.getElementById('R').value + ' m';
+            document.getElementById('ellVal').textContent = document.getElementById('ell').value + ' m';
+            document.getElementById('k1Val').textContent = document.getElementById('k1').value + ' N/m';
+            document.getElementById('k2Val').textContent = document.getElementById('k2').value + ' N/m';
+            document.getElementById('phi0Val').textContent = document.getElementById('phi0').value + '°';
+            document.getElementById('theta0Val').textContent = document.getElementById('theta0').value + '°';
+        }
+
+        function animate() {
+            const p = getParams();
+
+            for (let i = 0; i < stepsPerFrame; i++) {
+                state = rk4Step(state, dt, p);
+                time += dt;
+            }
+
+            drawSim();
+            drawGraph();
+            updateDisplay();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function startSim() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stopSim() {
+            isRunning = false;
+            if (animationId) cancelAnimationFrame(animationId);
+        }
+
+        function resetSim() {
+            stopSim();
+            const p = getParams();
+            state = [p.phi0, 0, p.theta0, 0];
+            time = 0;
+            history = [];
+            drawSim();
+            drawGraph();
+            updateDisplay();
+        }
+
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            slider.addEventListener('input', () => {
+                updateSliderDisplays();
+                if (!isRunning) {
+                    drawSim();
+                    updateDisplay();
+                }
+            });
+        });
+
+        updateSliderDisplays();
+        resetSim();
+    </script>
+</body>
+</html>

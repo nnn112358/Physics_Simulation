@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>直方体のロッキング運動</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+        .main-content {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 450px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #fff;
+            display: block;
+        }
+        .control-section {
+            width: 280px;
+        }
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 0.95em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin-bottom: 12px;
+        }
+        .slider-container label {
+            display: block;
+            color: #555;
+            margin-bottom: 3px;
+            font-size: 0.85em;
+        }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            min-width: 70px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-reset { background: #6c757d; color: white; }
+        .info-display {
+            background: #e9ecef;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.8em;
+            line-height: 1.6;
+        }
+        .formula-box {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 0.8em;
+            line-height: 1.5;
+        }
+        .graphs-section {
+            width: 100%;
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .graph-container {
+            flex: 1;
+            min-width: 350px;
+        }
+        .graph-container h4 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>直方体のロッキング運動</h1>
+        <p class="description">床の上で揺れる直方体（ロッキング振動）</p>
+
+        <div class="main-content">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="500" height="450"></canvas>
+            </div>
+
+            <div class="control-section">
+                <div class="control-group">
+                    <h3>パラメータ設定</h3>
+
+                    <div class="slider-container">
+                        <label>質量 m: <span id="massVal">10.0</span> kg</label>
+                        <input type="range" id="massSlider" min="1.0" max="50.0" step="1.0" value="10.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>半幅 a: <span id="aVal">0.3</span> m</label>
+                        <input type="range" id="aSlider" min="0.1" max="1.0" step="0.05" value="0.3">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>半高さ b: <span id="bVal">0.6</span> m</label>
+                        <input type="range" id="bSlider" min="0.2" max="1.5" step="0.05" value="0.6">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>重力 g: <span id="gravVal">9.8</span> m/s²</label>
+                        <input type="range" id="gravSlider" min="1.0" max="20.0" step="0.1" value="9.8">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期角度 φ₀: <span id="phi0Val">10</span>°</label>
+                        <input type="range" id="phi0Slider" min="-25" max="25" step="1" value="10">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期角速度 φ̇₀: <span id="omega0Val">0.0</span> rad/s</label>
+                        <input type="range" id="omega0Slider" min="-3.0" max="3.0" step="0.1" value="0.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>シミュレーション制御</h3>
+                    <div class="button-group">
+                        <button class="btn-start" id="startBtn">開始</button>
+                        <button class="btn-stop" id="stopBtn">停止</button>
+                        <button class="btn-reset" id="resetBtn">リセット</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>状態表示</h3>
+                    <div class="info-display" id="infoDisplay">
+                        時間: 0.00 s<br>
+                        角度 φ: 0.00°<br>
+                        角速度 φ̇: 0.00 rad/s<br>
+                        α: 0.00°
+                    </div>
+                    <div class="formula-box">
+                        <strong>運動方程式:</strong><br>
+                        φ̈ + (mgℓ/J<sup>(O)</sup>)sin(α - sgn(φ)·φ) = 0<br>
+                        tan(α) = a/b<br>
+                        ℓ = √(a² + b²)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="graphs-section">
+            <div class="graph-container">
+                <h4>角度の時間変化 φ(t)</h4>
+                <canvas id="graphPhi" width="380" height="180"></canvas>
+            </div>
+            <div class="graph-container">
+                <h4>エネルギー変化</h4>
+                <canvas id="graphEnergy" width="380" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const graphPhi = document.getElementById('graphPhi');
+        const ctxPhi = graphPhi.getContext('2d');
+        const graphEnergy = document.getElementById('graphEnergy');
+        const ctxEnergy = graphEnergy.getContext('2d');
+
+        // Parameters
+        let m = 10.0;     // mass
+        let a = 0.3;      // half-width
+        let b = 0.6;      // half-height
+        let g = 9.8;      // gravity
+        let phi0 = 10 * Math.PI / 180;  // initial angle
+        let omega0 = 0.0;               // initial angular velocity
+
+        // State
+        let phi = phi0;   // rocking angle
+        let omega = omega0;
+        let time = 0;
+        let isRunning = false;
+        let animationId = null;
+
+        // History
+        let historyPhi = [];
+        let historyKE = [];
+        let historyPE = [];
+        let historyTE = [];
+        const maxHistory = 500;
+
+        // Sliders
+        const massSlider = document.getElementById('massSlider');
+        const aSlider = document.getElementById('aSlider');
+        const bSlider = document.getElementById('bSlider');
+        const gravSlider = document.getElementById('gravSlider');
+        const phi0Slider = document.getElementById('phi0Slider');
+        const omega0Slider = document.getElementById('omega0Slider');
+
+        const massVal = document.getElementById('massVal');
+        const aVal = document.getElementById('aVal');
+        const bVal = document.getElementById('bVal');
+        const gravVal = document.getElementById('gravVal');
+        const phi0Val = document.getElementById('phi0Val');
+        const omega0Val = document.getElementById('omega0Val');
+
+        massSlider.addEventListener('input', () => { m = parseFloat(massSlider.value); massVal.textContent = m.toFixed(1); });
+        aSlider.addEventListener('input', () => { a = parseFloat(aSlider.value); aVal.textContent = a.toFixed(2); if (!isRunning) reset(); });
+        bSlider.addEventListener('input', () => { b = parseFloat(bSlider.value); bVal.textContent = b.toFixed(2); if (!isRunning) reset(); });
+        gravSlider.addEventListener('input', () => { g = parseFloat(gravSlider.value); gravVal.textContent = g.toFixed(1); });
+        phi0Slider.addEventListener('input', () => { phi0 = parseFloat(phi0Slider.value) * Math.PI / 180; phi0Val.textContent = parseFloat(phi0Slider.value).toFixed(0); if (!isRunning) reset(); });
+        omega0Slider.addEventListener('input', () => { omega0 = parseFloat(omega0Slider.value); omega0Val.textContent = omega0.toFixed(1); if (!isRunning) reset(); });
+
+        document.getElementById('startBtn').addEventListener('click', start);
+        document.getElementById('stopBtn').addEventListener('click', stop);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+
+        // Calculate derived parameters
+        function getParams() {
+            const ell = Math.sqrt(a * a + b * b);  // distance from corner to center
+            const alpha = Math.atan2(a, b);        // angle of diagonal
+            // Moment of inertia about corner (parallel axis theorem)
+            // I_cm = m*(a^2 + b^2)/3 for rectangle about center
+            // I_O = I_cm + m*ell^2
+            const I_cm = m * (a * a + b * b) / 3;
+            const I_O = I_cm + m * ell * ell;
+            return { ell, alpha, I_O };
+        }
+
+        // Equation of motion:
+        // phi_ddot + (m*g*ell/I_O) * sin(alpha - sgn(phi)*phi) = 0
+        // When phi > 0, rocks to right, pivot at right corner
+        // When phi < 0, rocks to left, pivot at left corner
+        function computeAcceleration(phiVal, omegaVal) {
+            const { ell, alpha, I_O } = getParams();
+            const sgn = phiVal >= 0 ? 1 : -1;
+            const effectiveAngle = alpha - sgn * phiVal;
+            return -(m * g * ell / I_O) * Math.sin(effectiveAngle);
+        }
+
+        function rk4Step(dt) {
+            const k1a = computeAcceleration(phi, omega);
+            const k1v = omega;
+
+            const k2a = computeAcceleration(phi + k1v * dt / 2, omega + k1a * dt / 2);
+            const k2v = omega + k1a * dt / 2;
+
+            const k3a = computeAcceleration(phi + k2v * dt / 2, omega + k2a * dt / 2);
+            const k3v = omega + k2a * dt / 2;
+
+            const k4a = computeAcceleration(phi + k3v * dt, omega + k3a * dt);
+            const k4v = omega + k3a * dt;
+
+            phi += (k1v + 2 * k2v + 2 * k3v + k4v) * dt / 6;
+            omega += (k1a + 2 * k2a + 2 * k3a + k4a) * dt / 6;
+
+            // Check for toppling
+            const { alpha } = getParams();
+            if (Math.abs(phi) > alpha) {
+                // Block has toppled over
+                phi = Math.sign(phi) * alpha * 0.99;
+            }
+        }
+
+        function computeEnergies() {
+            const { ell, alpha, I_O } = getParams();
+            const KE = 0.5 * I_O * omega * omega;
+
+            // PE: height of center of mass
+            // When phi=0, center is at height b
+            // When rocking, height changes
+            const sgn = phi >= 0 ? 1 : -1;
+            const h = ell * Math.cos(alpha - sgn * phi);
+            const PE = m * g * h;
+
+            const TE = KE + PE;
+            return { KE, PE, TE };
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const groundY = 380;
+            const scale = 180;
+            const centerX = canvas.width / 2;
+
+            // Ground
+            ctx.fillStyle = '#ddd';
+            ctx.fillRect(0, groundY, canvas.width, 70);
+
+            // Hatch
+            ctx.strokeStyle = '#aaa';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 35; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * 20, groundY);
+                ctx.lineTo(i * 20 - 20, groundY + 20);
+                ctx.stroke();
+            }
+
+            // Determine pivot point
+            const pivotX = phi >= 0 ? centerX + a * scale : centerX - a * scale;
+            const pivotY = groundY;
+
+            // Calculate block corners relative to pivot
+            // When phi=0 and pivot at right corner:
+            // Right bottom corner is at pivot
+            // Block extends: left=-2a, right=0, bottom=0, top=-2b
+
+            ctx.save();
+            ctx.translate(pivotX, pivotY);
+            ctx.rotate(-phi);  // negative because canvas y is down
+
+            // Draw block
+            ctx.fillStyle = 'rgba(150, 150, 150, 0.8)';
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+
+            if (phi >= 0) {
+                // Pivot at right corner
+                ctx.fillRect(-2 * a * scale, -2 * b * scale, 2 * a * scale, 2 * b * scale);
+                ctx.strokeRect(-2 * a * scale, -2 * b * scale, 2 * a * scale, 2 * b * scale);
+
+                // Center of mass
+                ctx.fillStyle = '#333';
+                ctx.beginPath();
+                ctx.arc(-a * scale, -b * scale, 6, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.fillStyle = '#333';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText('C', -a * scale + 10, -b * scale);
+
+                // Dimension labels
+                ctx.fillStyle = '#333';
+                ctx.font = '12px serif';
+                ctx.fillText('2a', -a * scale, 15);
+                ctx.fillText('2b', -2 * a * scale - 20, -b * scale);
+            } else {
+                // Pivot at left corner
+                ctx.fillRect(0, -2 * b * scale, 2 * a * scale, 2 * b * scale);
+                ctx.strokeRect(0, -2 * b * scale, 2 * a * scale, 2 * b * scale);
+
+                // Center of mass
+                ctx.fillStyle = '#333';
+                ctx.beginPath();
+                ctx.arc(a * scale, -b * scale, 6, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.fillStyle = '#333';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText('C', a * scale + 10, -b * scale);
+            }
+
+            ctx.restore();
+
+            // Draw pivot point O
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath();
+            ctx.arc(pivotX, pivotY, 6, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('O', pivotX, pivotY + 20);
+
+            // Draw vertical reference
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(pivotX, groundY - 300);
+            ctx.lineTo(pivotX, groundY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Draw angle arc
+            if (Math.abs(phi) > 0.02) {
+                ctx.strokeStyle = '#667eea';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                const arcR = 60;
+                if (phi > 0) {
+                    ctx.arc(pivotX, pivotY, arcR, -Math.PI / 2, -Math.PI / 2 + phi, false);
+                } else {
+                    ctx.arc(pivotX, pivotY, arcR, -Math.PI / 2 + phi, -Math.PI / 2, false);
+                }
+                ctx.stroke();
+
+                ctx.fillStyle = '#667eea';
+                ctx.font = '16px serif';
+                ctx.fillText('φ', pivotX + 70 * Math.sin(phi / 2), pivotY - 70 * Math.cos(phi / 2));
+            }
+
+            // m label
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'right';
+            ctx.fillText('m', centerX + 120, groundY - 2 * b * scale + 50);
+
+            // Gravity arrow
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - 60, 60);
+            ctx.lineTo(canvas.width - 60, 100);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - 60, 100);
+            ctx.lineTo(canvas.width - 65, 90);
+            ctx.moveTo(canvas.width - 60, 100);
+            ctx.lineTo(canvas.width - 55, 90);
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('g', canvas.width - 60, 115);
+
+            // Update info
+            const { alpha } = getParams();
+            const energies = computeEnergies();
+            document.getElementById('infoDisplay').innerHTML =
+                `時間: ${time.toFixed(2)} s<br>` +
+                `角度 φ: ${(phi * 180 / Math.PI).toFixed(2)}°<br>` +
+                `角速度 φ̇: ${omega.toFixed(3)} rad/s<br>` +
+                `α: ${(alpha * 180 / Math.PI).toFixed(2)}°<br>` +
+                `tan(α) = a/b = ${(a / b).toFixed(2)}<br>` +
+                `運動E: ${energies.KE.toFixed(3)} J<br>` +
+                `位置E: ${energies.PE.toFixed(3)} J`;
+        }
+
+        function drawGraphPhi() {
+            ctxPhi.clearRect(0, 0, graphPhi.width, graphPhi.height);
+
+            const margin = 40;
+            const w = graphPhi.width - 2 * margin;
+            const h = graphPhi.height - 2 * margin;
+
+            ctxPhi.fillStyle = '#f8f9fa';
+            ctxPhi.fillRect(margin, margin, w, h);
+
+            // Grid
+            ctxPhi.strokeStyle = '#ddd';
+            ctxPhi.lineWidth = 1;
+            for (let i = 0; i <= 5; i++) {
+                ctxPhi.beginPath();
+                ctxPhi.moveTo(margin, margin + i * h / 5);
+                ctxPhi.lineTo(margin + w, margin + i * h / 5);
+                ctxPhi.stroke();
+            }
+
+            // Axes
+            ctxPhi.strokeStyle = '#333';
+            ctxPhi.lineWidth = 2;
+            ctxPhi.beginPath();
+            ctxPhi.moveTo(margin, margin);
+            ctxPhi.lineTo(margin, margin + h);
+            ctxPhi.lineTo(margin + w, margin + h);
+            ctxPhi.stroke();
+
+            // Zero line
+            ctxPhi.strokeStyle = '#ccc';
+            ctxPhi.lineWidth = 1;
+            ctxPhi.beginPath();
+            ctxPhi.moveTo(margin, margin + h / 2);
+            ctxPhi.lineTo(margin + w, margin + h / 2);
+            ctxPhi.stroke();
+
+            // Critical angle lines
+            const { alpha } = getParams();
+            const maxDeg = 30;
+            const alphaDeg = alpha * 180 / Math.PI;
+            if (alphaDeg < maxDeg) {
+                ctxPhi.strokeStyle = '#e74c3c';
+                ctxPhi.setLineDash([3, 3]);
+                const yAlpha = margin + h / 2 - (alphaDeg / maxDeg) * (h / 2);
+                ctxPhi.beginPath();
+                ctxPhi.moveTo(margin, yAlpha);
+                ctxPhi.lineTo(margin + w, yAlpha);
+                ctxPhi.stroke();
+                ctxPhi.beginPath();
+                ctxPhi.moveTo(margin, margin + h - yAlpha + margin);
+                ctxPhi.lineTo(margin + w, margin + h - yAlpha + margin);
+                ctxPhi.stroke();
+                ctxPhi.setLineDash([]);
+            }
+
+            // Labels
+            ctxPhi.fillStyle = '#333';
+            ctxPhi.font = '11px Arial';
+            ctxPhi.textAlign = 'right';
+            ctxPhi.fillText('30°', margin - 5, margin + 5);
+            ctxPhi.fillText('0°', margin - 5, margin + h / 2 + 5);
+            ctxPhi.fillText('-30°', margin - 5, margin + h);
+
+            // Plot
+            if (historyPhi.length > 1) {
+                ctxPhi.strokeStyle = '#667eea';
+                ctxPhi.lineWidth = 2;
+                ctxPhi.beginPath();
+                for (let i = 0; i < historyPhi.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const phiDeg = historyPhi[i] * 180 / Math.PI;
+                    const py = margin + h / 2 - (phiDeg / maxDeg) * (h / 2);
+                    if (i === 0) ctxPhi.moveTo(px, py);
+                    else ctxPhi.lineTo(px, py);
+                }
+                ctxPhi.stroke();
+            }
+        }
+
+        function drawGraphEnergy() {
+            ctxEnergy.clearRect(0, 0, graphEnergy.width, graphEnergy.height);
+
+            const margin = 40;
+            const w = graphEnergy.width - 2 * margin;
+            const h = graphEnergy.height - 2 * margin;
+
+            let maxE = 1, minE = 0;
+            if (historyTE.length > 0) {
+                maxE = Math.max(...historyTE, ...historyKE, ...historyPE) * 1.1;
+                minE = Math.min(...historyTE, ...historyKE, ...historyPE) * 0.9;
+                if (maxE - minE < 0.1) maxE = minE + 0.1;
+            }
+
+            ctxEnergy.fillStyle = '#f8f9fa';
+            ctxEnergy.fillRect(margin, margin, w, h);
+
+            ctxEnergy.strokeStyle = '#333';
+            ctxEnergy.lineWidth = 2;
+            ctxEnergy.beginPath();
+            ctxEnergy.moveTo(margin, margin);
+            ctxEnergy.lineTo(margin, margin + h);
+            ctxEnergy.lineTo(margin + w, margin + h);
+            ctxEnergy.stroke();
+
+            const range = maxE - minE;
+
+            // Plot KE
+            if (historyKE.length > 1) {
+                ctxEnergy.strokeStyle = '#28a745';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyKE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - ((historyKE[i] - minE) / range) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot PE
+            if (historyPE.length > 1) {
+                ctxEnergy.strokeStyle = '#dc3545';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyPE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - ((historyPE[i] - minE) / range) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot TE
+            if (historyTE.length > 1) {
+                ctxEnergy.strokeStyle = '#333';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyTE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - ((historyTE[i] - minE) / range) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Legend
+            ctxEnergy.font = '10px Arial';
+            ctxEnergy.textAlign = 'left';
+            ctxEnergy.fillStyle = '#28a745';
+            ctxEnergy.fillText('運動E', margin + 10, margin + 12);
+            ctxEnergy.fillStyle = '#dc3545';
+            ctxEnergy.fillText('位置E', margin + 60, margin + 12);
+            ctxEnergy.fillStyle = '#333';
+            ctxEnergy.fillText('全E', margin + 110, margin + 12);
+        }
+
+        function animate() {
+            const dt = 0.01;
+            const substeps = 5;
+
+            for (let i = 0; i < substeps; i++) {
+                rk4Step(dt / substeps);
+            }
+            time += dt;
+
+            historyPhi.push(phi);
+            const energies = computeEnergies();
+            historyKE.push(energies.KE);
+            historyPE.push(energies.PE);
+            historyTE.push(energies.TE);
+
+            if (historyPhi.length > maxHistory) {
+                historyPhi.shift();
+                historyKE.shift();
+                historyPE.shift();
+                historyTE.shift();
+            }
+
+            draw();
+            drawGraphPhi();
+            drawGraphEnergy();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function start() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stop() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+
+        function reset() {
+            stop();
+            phi = phi0;
+            omega = omega0;
+            time = 0;
+            historyPhi = [];
+            historyKE = [];
+            historyPE = [];
+            historyTE = [];
+            draw();
+            drawGraphPhi();
+            drawGraphEnergy();
+        }
+
+        reset();
+    </script>
+</body>
+</html>

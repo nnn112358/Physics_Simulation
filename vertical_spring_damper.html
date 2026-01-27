@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>垂直ばね-ダンパー系</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+        .main-content {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 400px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #fff;
+            display: block;
+        }
+        .control-section {
+            width: 280px;
+        }
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 0.95em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin-bottom: 12px;
+        }
+        .slider-container label {
+            display: block;
+            color: #555;
+            margin-bottom: 3px;
+            font-size: 0.85em;
+        }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            min-width: 70px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-reset { background: #6c757d; color: white; }
+        .info-display {
+            background: #e9ecef;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.8em;
+            line-height: 1.6;
+        }
+        .formula-box {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 0.8em;
+            line-height: 1.5;
+        }
+        .graphs-section {
+            width: 100%;
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .graph-container {
+            flex: 1;
+            min-width: 350px;
+        }
+        .graph-container h4 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>垂直ばね-ダンパー系</h1>
+        <p class="description">重力下でばねとダンパーに支持された質点の減衰振動</p>
+
+        <div class="main-content">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="450" height="400"></canvas>
+            </div>
+
+            <div class="control-section">
+                <div class="control-group">
+                    <h3>パラメータ設定</h3>
+
+                    <div class="slider-container">
+                        <label>質量 m: <span id="massVal">1.0</span> kg</label>
+                        <input type="range" id="massSlider" min="0.5" max="5.0" step="0.1" value="1.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>ばね定数 k: <span id="kVal">50</span> N/m</label>
+                        <input type="range" id="kSlider" min="10" max="200" step="5" value="50">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>減衰係数 c: <span id="cVal">2.0</span> Ns/m</label>
+                        <input type="range" id="cSlider" min="0" max="20" step="0.5" value="2.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>重力 g: <span id="gravVal">9.8</span> m/s²</label>
+                        <input type="range" id="gravSlider" min="0" max="20.0" step="0.1" value="9.8">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期変位 x₀: <span id="x0Val">0.3</span> m</label>
+                        <input type="range" id="x0Slider" min="-0.5" max="0.5" step="0.05" value="0.3">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期速度 ẋ₀: <span id="v0Val">0.0</span> m/s</label>
+                        <input type="range" id="v0Slider" min="-2.0" max="2.0" step="0.1" value="0.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>シミュレーション制御</h3>
+                    <div class="button-group">
+                        <button class="btn-start" id="startBtn">開始</button>
+                        <button class="btn-stop" id="stopBtn">停止</button>
+                        <button class="btn-reset" id="resetBtn">リセット</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>状態表示</h3>
+                    <div class="info-display" id="infoDisplay">
+                        時間: 0.00 s<br>
+                        変位 x: 0.00 m<br>
+                        速度 ẋ: 0.00 m/s<br>
+                        減衰比 ζ: 0.00
+                    </div>
+                    <div class="formula-box">
+                        <strong>運動方程式:</strong><br>
+                        mẍ + cẋ + kx = 0<br><br>
+                        <strong>減衰比:</strong> ζ = c/(2√(mk))<br>
+                        <strong>固有振動数:</strong> ωn = √(k/m)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="graphs-section">
+            <div class="graph-container">
+                <h4>変位の時間変化 x(t)</h4>
+                <canvas id="graphX" width="380" height="180"></canvas>
+            </div>
+            <div class="graph-container">
+                <h4>位相平面 (x, ẋ)</h4>
+                <canvas id="graphPhase" width="380" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const graphX = document.getElementById('graphX');
+        const ctxX = graphX.getContext('2d');
+        const graphPhase = document.getElementById('graphPhase');
+        const ctxPhase = graphPhase.getContext('2d');
+
+        // Parameters
+        let m = 1.0;
+        let k = 50;
+        let c = 2.0;
+        let g = 9.8;
+        let x0 = 0.3;
+        let v0 = 0.0;
+
+        // State (x measured from static equilibrium position)
+        let x = x0;
+        let v = v0;
+        let time = 0;
+        let isRunning = false;
+        let animationId = null;
+
+        // History
+        let historyX = [];
+        let historyV = [];
+        const maxHistory = 500;
+
+        // Sliders
+        const massSlider = document.getElementById('massSlider');
+        const kSlider = document.getElementById('kSlider');
+        const cSlider = document.getElementById('cSlider');
+        const gravSlider = document.getElementById('gravSlider');
+        const x0Slider = document.getElementById('x0Slider');
+        const v0Slider = document.getElementById('v0Slider');
+
+        const massVal = document.getElementById('massVal');
+        const kVal = document.getElementById('kVal');
+        const cVal = document.getElementById('cVal');
+        const gravVal = document.getElementById('gravVal');
+        const x0Val = document.getElementById('x0Val');
+        const v0Val = document.getElementById('v0Val');
+
+        massSlider.addEventListener('input', () => { m = parseFloat(massSlider.value); massVal.textContent = m.toFixed(1); });
+        kSlider.addEventListener('input', () => { k = parseFloat(kSlider.value); kVal.textContent = k.toFixed(0); });
+        cSlider.addEventListener('input', () => { c = parseFloat(cSlider.value); cVal.textContent = c.toFixed(1); });
+        gravSlider.addEventListener('input', () => { g = parseFloat(gravSlider.value); gravVal.textContent = g.toFixed(1); });
+        x0Slider.addEventListener('input', () => { x0 = parseFloat(x0Slider.value); x0Val.textContent = x0.toFixed(2); if (!isRunning) reset(); });
+        v0Slider.addEventListener('input', () => { v0 = parseFloat(v0Slider.value); v0Val.textContent = v0.toFixed(1); if (!isRunning) reset(); });
+
+        document.getElementById('startBtn').addEventListener('click', start);
+        document.getElementById('stopBtn').addEventListener('click', stop);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+
+        // Equation of motion: m*x'' + c*x' + k*x = 0 (about equilibrium)
+        function computeAcceleration(xPos, vel) {
+            return -(c * vel + k * xPos) / m;
+        }
+
+        function rk4Step(dt) {
+            const k1a = computeAcceleration(x, v);
+            const k1v = v;
+
+            const k2a = computeAcceleration(x + k1v * dt / 2, v + k1a * dt / 2);
+            const k2v = v + k1a * dt / 2;
+
+            const k3a = computeAcceleration(x + k2v * dt / 2, v + k2a * dt / 2);
+            const k3v = v + k2a * dt / 2;
+
+            const k4a = computeAcceleration(x + k3v * dt, v + k3a * dt);
+            const k4v = v + k3a * dt;
+
+            x += (k1v + 2 * k2v + 2 * k3v + k4v) * dt / 6;
+            v += (k1a + 2 * k2a + 2 * k3a + k4a) * dt / 6;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const centerX = 200;
+            const eqY = 180;  // equilibrium position on screen
+            const scale = 200;
+
+            // Mass position on screen (x positive = down)
+            const massY = eqY + x * scale;
+
+            // Draw ceiling
+            ctx.fillStyle = '#666';
+            ctx.fillRect(centerX - 80, 30, 160, 15);
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 1;
+            for (let i = -4; i <= 4; i++) {
+                ctx.beginPath();
+                ctx.moveTo(centerX + i * 15 - 5, 30);
+                ctx.lineTo(centerX + i * 15 + 10, 45);
+                ctx.stroke();
+            }
+
+            // Draw spring
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            drawSpring(ctx, centerX - 30, 45, centerX - 30, massY - 25, 8, 12);
+
+            // Draw damper
+            drawDamper(ctx, centerX + 30, 45, centerX + 30, massY - 25);
+
+            // Labels
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('k', centerX - 55, (45 + massY - 25) / 2);
+            ctx.fillText('c', centerX + 55, (45 + massY - 25) / 2);
+
+            // Draw mass
+            ctx.fillStyle = '#667eea';
+            ctx.fillRect(centerX - 40, massY - 25, 80, 50);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(centerX - 40, massY - 25, 80, 50);
+
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('m', centerX, massY);
+
+            // Equilibrium line
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(centerX + 70, eqY);
+            ctx.lineTo(centerX + 150, eqY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // x coordinate arrow
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(centerX + 110, eqY);
+            ctx.lineTo(centerX + 110, massY);
+            ctx.stroke();
+            if (Math.abs(x) > 0.01) {
+                const dir = x > 0 ? 1 : -1;
+                ctx.beginPath();
+                ctx.moveTo(centerX + 110, massY);
+                ctx.lineTo(centerX + 105, massY - dir * 8);
+                ctx.moveTo(centerX + 110, massY);
+                ctx.lineTo(centerX + 115, massY - dir * 8);
+                ctx.stroke();
+            }
+            ctx.fillStyle = '#e74c3c';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('x', centerX + 120, (eqY + massY) / 2);
+
+            // Ground reference
+            ctx.fillStyle = '#ddd';
+            ctx.fillRect(centerX + 80, eqY - 5, 80, 10);
+            ctx.strokeStyle = '#aaa';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                ctx.moveTo(centerX + 85 + i * 15, eqY - 5);
+                ctx.lineTo(centerX + 85 + i * 15 - 8, eqY + 5);
+                ctx.stroke();
+            }
+
+            // Gravity arrow
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(50, 60);
+            ctx.lineTo(50, 100);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(50, 100);
+            ctx.lineTo(45, 90);
+            ctx.moveTo(50, 100);
+            ctx.lineTo(55, 90);
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('g', 50, 115);
+
+            // Update info
+            const omega_n = Math.sqrt(k / m);
+            const zeta = c / (2 * Math.sqrt(m * k));
+            const dampingType = zeta < 1 ? '不足減衰' : (zeta === 1 ? '臨界減衰' : '過減衰');
+
+            document.getElementById('infoDisplay').innerHTML =
+                `時間: ${time.toFixed(2)} s<br>` +
+                `変位 x: ${x.toFixed(4)} m<br>` +
+                `速度 ẋ: ${v.toFixed(4)} m/s<br>` +
+                `減衰比 ζ: ${zeta.toFixed(3)}<br>` +
+                `固有振動数 ωn: ${omega_n.toFixed(2)} rad/s<br>` +
+                `減衰タイプ: ${dampingType}`;
+        }
+
+        function drawSpring(ctx, x1, y1, x2, y2, coils, amp) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            const segLen = len / (coils * 2 + 2);
+            ctx.lineTo(segLen, 0);
+
+            for (let i = 0; i < coils * 2; i++) {
+                const px = segLen * (i + 1.5);
+                const py = (i % 2 === 0 ? amp : -amp);
+                ctx.lineTo(px, py);
+            }
+            ctx.lineTo(len - segLen, 0);
+            ctx.lineTo(len, 0);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawDamper(ctx, x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            const boxW = 18;
+            const boxH = 30;
+            const boxStart = len / 2 - boxH / 2;
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(boxStart, 0);
+            ctx.stroke();
+
+            ctx.strokeRect(boxStart, -boxW / 2, boxH, boxW);
+
+            ctx.beginPath();
+            ctx.moveTo(boxStart + boxH / 2, -boxW / 2 - 5);
+            ctx.lineTo(boxStart + boxH / 2, boxW / 2 + 5);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(boxStart + boxH, 0);
+            ctx.lineTo(len, 0);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawGraphX() {
+            ctxX.clearRect(0, 0, graphX.width, graphX.height);
+
+            const margin = 40;
+            const w = graphX.width - 2 * margin;
+            const h = graphX.height - 2 * margin;
+
+            ctxX.fillStyle = '#f8f9fa';
+            ctxX.fillRect(margin, margin, w, h);
+
+            ctxX.strokeStyle = '#333';
+            ctxX.lineWidth = 2;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin);
+            ctxX.lineTo(margin, margin + h);
+            ctxX.lineTo(margin + w, margin + h);
+            ctxX.stroke();
+
+            // Zero line
+            ctxX.strokeStyle = '#ccc';
+            ctxX.lineWidth = 1;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin + h / 2);
+            ctxX.lineTo(margin + w, margin + h / 2);
+            ctxX.stroke();
+
+            const maxVal = 0.5;
+
+            ctxX.fillStyle = '#333';
+            ctxX.font = '10px Arial';
+            ctxX.textAlign = 'right';
+            ctxX.fillText(maxVal.toFixed(1), margin - 5, margin + 5);
+            ctxX.fillText('0', margin - 5, margin + h / 2 + 5);
+            ctxX.fillText((-maxVal).toFixed(1), margin - 5, margin + h);
+
+            if (historyX.length > 1) {
+                ctxX.strokeStyle = '#667eea';
+                ctxX.lineWidth = 2;
+                ctxX.beginPath();
+                for (let i = 0; i < historyX.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyX[i] / maxVal) * (h / 2);
+                    if (i === 0) ctxX.moveTo(px, py);
+                    else ctxX.lineTo(px, py);
+                }
+                ctxX.stroke();
+            }
+        }
+
+        function drawGraphPhase() {
+            ctxPhase.clearRect(0, 0, graphPhase.width, graphPhase.height);
+
+            const margin = 40;
+            const w = graphPhase.width - 2 * margin;
+            const h = graphPhase.height - 2 * margin;
+
+            ctxPhase.fillStyle = '#f8f9fa';
+            ctxPhase.fillRect(margin, margin, w, h);
+
+            ctxPhase.strokeStyle = '#333';
+            ctxPhase.lineWidth = 2;
+            ctxPhase.beginPath();
+            ctxPhase.moveTo(margin, margin);
+            ctxPhase.lineTo(margin, margin + h);
+            ctxPhase.lineTo(margin + w, margin + h);
+            ctxPhase.stroke();
+
+            // Center lines
+            ctxPhase.strokeStyle = '#ccc';
+            ctxPhase.lineWidth = 1;
+            ctxPhase.beginPath();
+            ctxPhase.moveTo(margin, margin + h / 2);
+            ctxPhase.lineTo(margin + w, margin + h / 2);
+            ctxPhase.stroke();
+            ctxPhase.beginPath();
+            ctxPhase.moveTo(margin + w / 2, margin);
+            ctxPhase.lineTo(margin + w / 2, margin + h);
+            ctxPhase.stroke();
+
+            // Labels
+            ctxPhase.fillStyle = '#333';
+            ctxPhase.font = '10px Arial';
+            ctxPhase.textAlign = 'center';
+            ctxPhase.fillText('x', margin + w / 2, margin + h + 15);
+            ctxPhase.save();
+            ctxPhase.translate(margin - 15, margin + h / 2);
+            ctxPhase.rotate(-Math.PI / 2);
+            ctxPhase.fillText('ẋ', 0, 0);
+            ctxPhase.restore();
+
+            const maxX = 0.5;
+            const maxV = 3.0;
+
+            if (historyX.length > 1) {
+                ctxPhase.strokeStyle = 'rgba(102, 126, 234, 0.5)';
+                ctxPhase.lineWidth = 1;
+                ctxPhase.beginPath();
+                for (let i = 0; i < historyX.length; i++) {
+                    const px = margin + w / 2 + (historyX[i] / maxX) * (w / 2);
+                    const py = margin + h / 2 - (historyV[i] / maxV) * (h / 2);
+                    if (i === 0) ctxPhase.moveTo(px, py);
+                    else ctxPhase.lineTo(px, py);
+                }
+                ctxPhase.stroke();
+
+                // Current point
+                const cx = margin + w / 2 + (x / maxX) * (w / 2);
+                const cy = margin + h / 2 - (v / maxV) * (h / 2);
+                ctxPhase.fillStyle = '#667eea';
+                ctxPhase.beginPath();
+                ctxPhase.arc(cx, cy, 5, 0, 2 * Math.PI);
+                ctxPhase.fill();
+            }
+        }
+
+        function animate() {
+            const dt = 0.01;
+            const substeps = 5;
+
+            for (let i = 0; i < substeps; i++) {
+                rk4Step(dt / substeps);
+            }
+            time += dt;
+
+            historyX.push(x);
+            historyV.push(v);
+
+            if (historyX.length > maxHistory) {
+                historyX.shift();
+                historyV.shift();
+            }
+
+            draw();
+            drawGraphX();
+            drawGraphPhase();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function start() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stop() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+
+        function reset() {
+            stop();
+            x = x0;
+            v = v0;
+            time = 0;
+            historyX = [];
+            historyV = [];
+            draw();
+            drawGraphX();
+            drawGraphPhase();
+        }
+
+        reset();
+    </script>
+</body>
+</html>

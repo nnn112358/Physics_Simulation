@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>バネ付きスライダーと転がり円盤の連結系</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            color: #000;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #000;
+            margin-bottom: 10px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        canvas {
+            background: #fff;
+            border: 1px solid #000;
+        }
+        .controls {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #000;
+            min-width: 250px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #000;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .value {
+            text-align: right;
+            font-size: 0.9em;
+            color: #666;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            background: #fff;
+            color: #000;
+            border: 1px solid #000;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background: #eee;
+        }
+        .equation {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.9em;
+            text-align: center;
+        }
+        .graph-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>バネ付きスライダーと転がり円盤の連結系</h1>
+
+    <div class="container">
+        <div class="graph-container">
+            <canvas id="animCanvas" width="550" height="280"></canvas>
+            <canvas id="graphCanvas" width="550" height="200"></canvas>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>スライダー質量 m (kg)</label>
+                <input type="range" id="massM" min="0.5" max="5" step="0.1" value="2">
+                <div class="value" id="massMValue">2.0 kg</div>
+            </div>
+
+            <div class="control-group">
+                <label>円盤質量 M (kg)</label>
+                <input type="range" id="massDisk" min="0.5" max="5" step="0.1" value="3">
+                <div class="value" id="massDiskValue">3.0 kg</div>
+            </div>
+
+            <div class="control-group">
+                <label>円盤半径 R (m)</label>
+                <input type="range" id="radius" min="0.05" max="0.2" step="0.01" value="0.1">
+                <div class="value" id="radiusValue">0.1 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>バネ定数 c (N/m)</label>
+                <input type="range" id="spring" min="10" max="200" step="5" value="50">
+                <div class="value" id="springValue">50 N/m</div>
+            </div>
+
+            <div class="control-group">
+                <label>初期変位 x₀ (m)</label>
+                <input type="range" id="initX" min="-0.2" max="0.2" step="0.01" value="0.1">
+                <div class="value" id="initXValue">0.1 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>減衰係数</label>
+                <input type="range" id="damping" min="0" max="2" step="0.1" value="0.2">
+                <div class="value" id="dampingValue">0.2</div>
+            </div>
+
+            <button id="resetBtn">リセット</button>
+            <button id="pauseBtn">一時停止</button>
+
+            <div class="equation">
+                <strong>拘束条件:</strong><br>
+                スライダー: 摩擦なし<br>
+                円盤: 滑りなし（転がり）<br>
+                棒で剛結合
+            </div>
+
+            <div class="equation" id="freqDisplay">
+                固有振動数: -- Hz
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // キャンバス設定
+        const animCanvas = document.getElementById('animCanvas');
+        const animCtx = animCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+
+        // パラメータ
+        let m = 2.0;        // スライダー質量
+        let M = 3.0;        // 円盤質量
+        let R = 0.1;        // 円盤半径
+        let c = 50;         // バネ定数
+        let initX = 0.1;    // 初期変位
+        let damping = 0.2;  // 減衰
+
+        // 状態変数
+        let x = initX;      // スライダー位置
+        let xDot = 0;       // スライダー速度
+        let theta = 0;      // 円盤の回転角度（描画用）
+        let t = 0;
+        let paused = false;
+        let history = [];
+        const maxHistory = 500;
+
+        // 棒の長さ
+        const rodLength = 0.3;
+
+        // UI要素
+        document.getElementById('massM').addEventListener('input', (e) => {
+            m = parseFloat(e.target.value);
+            document.getElementById('massMValue').textContent = m.toFixed(1) + ' kg';
+            updateFrequency();
+        });
+
+        document.getElementById('massDisk').addEventListener('input', (e) => {
+            M = parseFloat(e.target.value);
+            document.getElementById('massDiskValue').textContent = M.toFixed(1) + ' kg';
+            updateFrequency();
+        });
+
+        document.getElementById('radius').addEventListener('input', (e) => {
+            R = parseFloat(e.target.value);
+            document.getElementById('radiusValue').textContent = R.toFixed(2) + ' m';
+            updateFrequency();
+        });
+
+        document.getElementById('spring').addEventListener('input', (e) => {
+            c = parseFloat(e.target.value);
+            document.getElementById('springValue').textContent = c + ' N/m';
+            updateFrequency();
+        });
+
+        document.getElementById('initX').addEventListener('input', (e) => {
+            initX = parseFloat(e.target.value);
+            document.getElementById('initXValue').textContent = initX.toFixed(2) + ' m';
+        });
+
+        document.getElementById('damping').addEventListener('input', (e) => {
+            damping = parseFloat(e.target.value);
+            document.getElementById('dampingValue').textContent = damping.toFixed(1);
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', reset);
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            paused = !paused;
+            document.getElementById('pauseBtn').textContent = paused ? '再開' : '一時停止';
+        });
+
+        function updateFrequency() {
+            // 等価質量（円盤の回転慣性を含む）
+            // 円盤: I = (1/2)MR², 転がり条件より v = Rω
+            // 棒で剛結合なので、スライダーと円盤は同じ速度で動く
+            const I = 0.5 * M * R * R;
+            const mEff = m + M + I / (R * R);  // 等価質量 = m + M + I/R² = m + 1.5M
+
+            const omega = Math.sqrt(c / mEff);
+            const freq = omega / (2 * Math.PI);
+
+            document.getElementById('freqDisplay').innerHTML =
+                `固有振動数: ${freq.toFixed(2)} Hz<br>` +
+                `等価質量: ${mEff.toFixed(2)} kg`;
+        }
+
+        function reset() {
+            x = initX;
+            xDot = 0;
+            theta = 0;
+            t = 0;
+            history = [];
+            paused = false;
+            document.getElementById('pauseBtn').textContent = '一時停止';
+            updateFrequency();
+        }
+
+        // 物理シミュレーション
+        function simulate(dt) {
+            // 等価質量
+            const I = 0.5 * M * R * R;
+            const mEff = m + M + I / (R * R);
+
+            // 運動方程式: mEff * ẍ + damping * ẋ + c * x = 0
+            function f(x, xDot) {
+                return (-c * x - damping * xDot) / mEff;
+            }
+
+            // RK4
+            const k1x = xDot;
+            const k1v = f(x, xDot);
+
+            const k2x = xDot + k1v * dt/2;
+            const k2v = f(x + k1x * dt/2, xDot + k1v * dt/2);
+
+            const k3x = xDot + k2v * dt/2;
+            const k3v = f(x + k2x * dt/2, xDot + k2v * dt/2);
+
+            const k4x = xDot + k3v * dt;
+            const k4v = f(x + k3x * dt, xDot + k3v * dt);
+
+            x += (k1x + 2*k2x + 2*k3x + k4x) * dt / 6;
+            xDot += (k1v + 2*k2v + 2*k3v + k4v) * dt / 6;
+
+            // 円盤の回転角度（転がり条件）
+            theta += xDot * dt / R;
+
+            t += dt;
+
+            // u(t) は円盤の中心位置（スライダーから棒の長さ分離れた位置）
+            const u = x;  // 剛結合なので同じ変位
+
+            history.push({ t: t, x: x, u: u });
+            if (history.length > maxHistory) history.shift();
+        }
+
+        // バネを描画
+        function drawSpring(ctx, x1, y1, x2, y2, coils) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            if (len < 10) return;
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+
+            const segLen = len / (coils * 2 + 2);
+            const amplitude = 10;
+
+            ctx.lineTo(segLen, 0);
+
+            for (let i = 0; i < coils * 2; i++) {
+                const xPos = segLen + (i + 1) * segLen;
+                const yPos = (i % 2 === 0) ? amplitude : -amplitude;
+                ctx.lineTo(xPos, yPos);
+            }
+
+            ctx.lineTo(len, 0);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // アニメーション描画
+        function drawAnimation() {
+            animCtx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+
+            const scale = 500;
+            const groundY = 200;
+            const wallX = 50;
+
+            // 重力方向（紙面垂直）
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            animCtx.beginPath();
+            animCtx.arc(370, 40, 12, 0, Math.PI * 2);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(363, 33);
+            animCtx.lineTo(377, 47);
+            animCtx.moveTo(363, 47);
+            animCtx.lineTo(377, 33);
+            animCtx.stroke();
+            animCtx.fillStyle = '#000';
+            animCtx.font = '14px Arial';
+            animCtx.fillText('g', 388, 45);
+
+            // 壁
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 2;
+            animCtx.beginPath();
+            animCtx.moveTo(wallX, groundY - 80);
+            animCtx.lineTo(wallX, groundY);
+            animCtx.stroke();
+
+            // ハッチング
+            animCtx.lineWidth = 1;
+            for (let i = 0; i < 4; i++) {
+                animCtx.beginPath();
+                animCtx.moveTo(wallX, groundY - 80 + i * 20);
+                animCtx.lineTo(wallX - 10, groundY - 70 + i * 20);
+                animCtx.stroke();
+            }
+
+            // 地面
+            animCtx.lineWidth = 2;
+            animCtx.beginPath();
+            animCtx.moveTo(wallX, groundY);
+            animCtx.lineTo(530, groundY);
+            animCtx.stroke();
+
+            // ハッチング（地面）
+            animCtx.lineWidth = 1;
+            for (let i = 0; i < 24; i++) {
+                animCtx.beginPath();
+                animCtx.moveTo(wallX + i * 20, groundY);
+                animCtx.lineTo(wallX - 10 + i * 20, groundY + 10);
+                animCtx.stroke();
+            }
+
+            // スライダーの位置
+            const sliderRestX = 180;
+            const sliderX = sliderRestX + x * scale;
+            const sliderY = groundY - 30;
+            const sliderWidth = 80;
+            const sliderHeight = 40;
+
+            // バネ
+            drawSpring(animCtx, wallX, sliderY, sliderX - sliderWidth/2, sliderY, 8);
+            animCtx.fillStyle = '#000';
+            animCtx.font = '14px Arial';
+            animCtx.fillText('c', (wallX + sliderX - sliderWidth/2) / 2, sliderY - 20);
+
+            // 接続点（壁側）
+            animCtx.fillStyle = '#fff';
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            animCtx.beginPath();
+            animCtx.arc(wallX, sliderY, 5, 0, Math.PI * 2);
+            animCtx.fill();
+            animCtx.stroke();
+
+            // スライダー（①）
+            animCtx.fillStyle = '#bbb';
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            animCtx.fillRect(sliderX - sliderWidth/2, sliderY - sliderHeight/2,
+                           sliderWidth, sliderHeight);
+            animCtx.strokeRect(sliderX - sliderWidth/2, sliderY - sliderHeight/2,
+                             sliderWidth, sliderHeight);
+
+            // ①ラベル
+            animCtx.fillStyle = '#000';
+            animCtx.font = '16px Arial';
+            animCtx.textAlign = 'center';
+            animCtx.fillText('①', sliderX, sliderY + 5);
+
+            // 接続点（スライダー右側）
+            animCtx.fillStyle = '#000';
+            animCtx.beginPath();
+            animCtx.arc(sliderX + sliderWidth/2, sliderY, 5, 0, Math.PI * 2);
+            animCtx.fill();
+
+            // 円盤の位置
+            const diskRestX = sliderRestX + rodLength * scale + 80;
+            const diskX = diskRestX + x * scale;
+            const diskY = groundY - R * scale;
+            const diskR = R * scale;
+
+            // 棒（Stab）
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 3;
+            animCtx.beginPath();
+            animCtx.moveTo(sliderX + sliderWidth/2, sliderY);
+            animCtx.lineTo(diskX - diskR, diskY);
+            animCtx.stroke();
+
+            // 接続点（円盤側）
+            animCtx.fillStyle = '#000';
+            animCtx.beginPath();
+            animCtx.arc(diskX - diskR, diskY, 5, 0, Math.PI * 2);
+            animCtx.fill();
+
+            // 円盤（②）
+            animCtx.fillStyle = '#ccc';
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 2;
+            animCtx.beginPath();
+            animCtx.arc(diskX, diskY, diskR, 0, Math.PI * 2);
+            animCtx.fill();
+            animCtx.stroke();
+
+            // 円盤のスポーク（回転を可視化）
+            animCtx.lineWidth = 2;
+            for (let i = 0; i < 4; i++) {
+                const angle = theta + i * Math.PI / 2;
+                animCtx.beginPath();
+                animCtx.moveTo(diskX, diskY);
+                animCtx.lineTo(
+                    diskX + diskR * 0.7 * Math.cos(angle),
+                    diskY + diskR * 0.7 * Math.sin(angle)
+                );
+                animCtx.stroke();
+            }
+
+            // 円盤中心
+            animCtx.fillStyle = '#000';
+            animCtx.beginPath();
+            animCtx.arc(diskX, diskY, 4, 0, Math.PI * 2);
+            animCtx.fill();
+
+            // ②ラベル
+            animCtx.font = '16px Arial';
+            animCtx.fillText('②', diskX, diskY + 5);
+
+            // 接続点（円盤右側）
+            animCtx.beginPath();
+            animCtx.arc(diskX + diskR, diskY, 5, 0, Math.PI * 2);
+            animCtx.fill();
+
+            // ラベル
+            animCtx.textAlign = 'left';
+            animCtx.font = '14px Arial';
+            animCtx.fillText('m', sliderX - sliderWidth/2 - 5, sliderY - sliderHeight/2 - 10);
+            animCtx.fillText('M', diskX + diskR + 10, diskY - 10);
+            animCtx.fillText('R', diskX + 5, diskY + diskR + 20);
+            animCtx.fillText('Stab', (sliderX + diskX) / 2 - 10, sliderY - 30);
+
+            // 摩擦なしの表示
+            animCtx.font = '11px Arial';
+            animCtx.fillText('reibungsfrei', sliderX - 30, groundY + 25);
+            animCtx.fillText('schlupffrei', diskX - 20, groundY + 25);
+
+            // x(t) 矢印
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+            animCtx.beginPath();
+            animCtx.moveTo(sliderRestX - 20, sliderY - sliderHeight/2 - 30);
+            animCtx.lineTo(sliderRestX + 20, sliderY - sliderHeight/2 - 30);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(sliderRestX + 15, sliderY - sliderHeight/2 - 35);
+            animCtx.lineTo(sliderRestX + 20, sliderY - sliderHeight/2 - 30);
+            animCtx.lineTo(sliderRestX + 15, sliderY - sliderHeight/2 - 25);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(sliderRestX - 15, sliderY - sliderHeight/2 - 35);
+            animCtx.lineTo(sliderRestX - 20, sliderY - sliderHeight/2 - 30);
+            animCtx.lineTo(sliderRestX - 15, sliderY - sliderHeight/2 - 25);
+            animCtx.stroke();
+            animCtx.fillText('x(t)', sliderRestX - 10, sliderY - sliderHeight/2 - 40);
+
+            // u(t) 矢印
+            animCtx.beginPath();
+            animCtx.moveTo(diskX + diskR + 30, diskY);
+            animCtx.lineTo(diskX + diskR + 60, diskY);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(diskX + diskR + 55, diskY - 5);
+            animCtx.lineTo(diskX + diskR + 60, diskY);
+            animCtx.lineTo(diskX + diskR + 55, diskY + 5);
+            animCtx.stroke();
+            animCtx.fillText('u(t)', diskX + diskR + 65, diskY + 5);
+
+            // 状態表示
+            animCtx.fillStyle = '#000';
+            animCtx.font = '13px Arial';
+            animCtx.textAlign = 'left';
+            animCtx.fillText(`x(t) = ${(x * 100).toFixed(2)} cm`, 10, 25);
+            animCtx.fillText(`ẋ(t) = ${(xDot * 100).toFixed(2)} cm/s`, 10, 43);
+            animCtx.fillText(`t = ${t.toFixed(2)} s`, 10, 61);
+        }
+
+        // グラフ描画
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            const padding = 50;
+            const width = graphCanvas.width - padding * 2;
+            const height = graphCanvas.height - padding * 2;
+
+            // 軸
+            graphCtx.strokeStyle = '#000';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(padding, padding);
+            graphCtx.lineTo(padding, graphCanvas.height - padding);
+            graphCtx.lineTo(graphCanvas.width - padding, graphCanvas.height - padding);
+            graphCtx.stroke();
+
+            // 中心線
+            graphCtx.setLineDash([3, 3]);
+            graphCtx.strokeStyle = '#999';
+            graphCtx.beginPath();
+            graphCtx.moveTo(padding, padding + height/2);
+            graphCtx.lineTo(graphCanvas.width - padding, padding + height/2);
+            graphCtx.stroke();
+            graphCtx.setLineDash([]);
+
+            // ラベル
+            graphCtx.fillStyle = '#000';
+            graphCtx.font = '12px Arial';
+            graphCtx.textAlign = 'center';
+            graphCtx.fillText('時間 t (s)', graphCanvas.width/2, graphCanvas.height - 5);
+
+            graphCtx.save();
+            graphCtx.translate(12, graphCanvas.height/2);
+            graphCtx.rotate(-Math.PI/2);
+            graphCtx.fillText('変位 x (cm)', 0, 0);
+            graphCtx.restore();
+
+            // 履歴描画
+            if (history.length > 1) {
+                const tMax = Math.max(history[history.length-1].t, 5);
+                const xMax = Math.abs(initX) * 1.2 * 100;
+
+                // x(t)
+                graphCtx.strokeStyle = '#000';
+                graphCtx.lineWidth = 1.5;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const px = padding + (history[i].t / tMax) * width;
+                    const py = padding + height/2 - (history[i].x * 100 / xMax) * (height/2);
+                    if (i === 0) graphCtx.moveTo(px, py);
+                    else graphCtx.lineTo(px, py);
+                }
+                graphCtx.stroke();
+            }
+
+            // スケール
+            graphCtx.fillStyle = '#000';
+            graphCtx.textAlign = 'right';
+            const xMax = Math.abs(initX) * 1.2 * 100;
+            graphCtx.fillText(xMax.toFixed(0), padding - 5, padding + 5);
+            graphCtx.fillText('0', padding - 5, padding + height/2 + 5);
+            graphCtx.fillText(-xMax.toFixed(0), padding - 5, graphCanvas.height - padding + 5);
+        }
+
+        // メインループ
+        function animate() {
+            if (!paused) {
+                simulate(0.016);
+            }
+            drawAnimation();
+            drawGraph();
+            requestAnimationFrame(animate);
+        }
+
+        // 初期化
+        reset();
+        animate();
+    </script>
+</body>
+</html>

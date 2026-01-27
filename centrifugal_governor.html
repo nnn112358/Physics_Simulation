@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>遠心調速機シミュレーション</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            color: #000;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #000;
+            margin-bottom: 10px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        canvas {
+            background: #fff;
+            border: 1px solid #000;
+        }
+        .controls {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #000;
+            min-width: 250px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #000;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .value {
+            text-align: right;
+            font-size: 0.9em;
+            color: #666;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            background: #fff;
+            color: #000;
+            border: 1px solid #000;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background: #eee;
+        }
+        .stats {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        .equation {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 0.85em;
+        }
+        .graph-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>遠心調速機（ガバナー）</h1>
+
+    <div class="container">
+        <canvas id="animCanvas" width="450" height="400"></canvas>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>リンク長さ ℓ (m)</label>
+                <input type="range" id="length" min="0.2" max="0.6" step="0.02" value="0.4">
+                <div class="value" id="lengthValue">0.40 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>質量 m (kg)</label>
+                <input type="range" id="mass" min="0.1" max="1" step="0.05" value="0.3">
+                <div class="value" id="massValue">0.30 kg</div>
+            </div>
+
+            <div class="control-group">
+                <label>回転速度 ω₀ (rad/s)</label>
+                <input type="range" id="omega0" min="0" max="15" step="0.5" value="5">
+                <div class="value" id="omega0Value">5.0 rad/s</div>
+            </div>
+
+            <div class="control-group">
+                <label>初期角度 ψ₀ (°)</label>
+                <input type="range" id="initAngle" min="5" max="80" step="5" value="30">
+                <div class="value" id="initAngleValue">30°</div>
+            </div>
+
+            <div class="control-group">
+                <label>減衰係数</label>
+                <input type="range" id="damping" min="0" max="0.5" step="0.02" value="0.1">
+                <div class="value" id="dampingValue">0.10</div>
+            </div>
+
+            <button id="resetBtn">リセット</button>
+            <button id="pauseBtn">一時停止</button>
+
+            <div class="stats" id="stats">
+                角度 ψ: 30.0°<br>
+                平衡角度: 0.0°<br>
+                回転数: 0.0 rpm
+            </div>
+
+            <div class="equation">
+                <strong>運動方程式:</strong><br>
+                mℓ²ψ̈ = mℓ²ω₀²sinψcosψ<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- mgℓsinψ - cψ̇<br>
+                <strong>平衡条件:</strong><br>
+                cosψ_eq = g/(ℓω₀²)
+            </div>
+        </div>
+
+        <div class="graph-container">
+            <canvas id="graphCanvas" width="400" height="200"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // キャンバス設定
+        const animCanvas = document.getElementById('animCanvas');
+        const animCtx = animCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+
+        // パラメータ
+        let L = 0.4;           // リンク長さ
+        let m = 0.3;           // 質量
+        let omega0 = 5.0;      // 回転速度
+        let psi0 = 30;         // 初期角度（度）
+        let c = 0.1;           // 減衰係数
+
+        const g = 9.81;
+
+        // 状態変数
+        let psi = 0;           // 開き角度
+        let dpsi = 0;          // 角速度
+        let theta = 0;         // 回転角度
+        let t = 0;
+        let paused = false;
+
+        // グラフデータ
+        let history = [];
+        const maxHistory = 500;
+
+        // 位置定数
+        const pivotX = 225;
+        const pivotY = 150;
+        const scale = 350;
+
+        // UI要素
+        document.getElementById('length').addEventListener('input', (ev) => {
+            L = parseFloat(ev.target.value);
+            document.getElementById('lengthValue').textContent = L.toFixed(2) + ' m';
+        });
+
+        document.getElementById('mass').addEventListener('input', (ev) => {
+            m = parseFloat(ev.target.value);
+            document.getElementById('massValue').textContent = m.toFixed(2) + ' kg';
+        });
+
+        document.getElementById('omega0').addEventListener('input', (ev) => {
+            omega0 = parseFloat(ev.target.value);
+            document.getElementById('omega0Value').textContent = omega0.toFixed(1) + ' rad/s';
+        });
+
+        document.getElementById('initAngle').addEventListener('input', (ev) => {
+            psi0 = parseFloat(ev.target.value);
+            document.getElementById('initAngleValue').textContent = psi0 + '°';
+        });
+
+        document.getElementById('damping').addEventListener('input', (ev) => {
+            c = parseFloat(ev.target.value);
+            document.getElementById('dampingValue').textContent = c.toFixed(2);
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', reset);
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            paused = !paused;
+            document.getElementById('pauseBtn').textContent = paused ? '再開' : '一時停止';
+        });
+
+        function reset() {
+            psi = psi0 * Math.PI / 180;
+            dpsi = 0;
+            theta = 0;
+            t = 0;
+            history = [];
+            paused = false;
+            document.getElementById('pauseBtn').textContent = '一時停止';
+        }
+
+        // 運動方程式
+        function derivatives(state) {
+            const [psi, dpsi] = state;
+
+            // 慣性モーメント
+            const I = m * L * L;
+
+            // 遠心力によるトルク（外向き）
+            const torqueCentrifugal = m * L * L * omega0 * omega0 * Math.sin(psi) * Math.cos(psi);
+
+            // 重力によるトルク（内向き）
+            const torqueGravity = -m * g * L * Math.sin(psi);
+
+            // 減衰トルク
+            const torqueDamping = -c * dpsi * I;
+
+            const ddpsi = (torqueCentrifugal + torqueGravity + torqueDamping) / I;
+
+            return [dpsi, ddpsi];
+        }
+
+        function rk4Step(state, dt) {
+            const k1 = derivatives(state);
+            const k2 = derivatives([
+                state[0] + k1[0] * dt / 2,
+                state[1] + k1[1] * dt / 2
+            ]);
+            const k3 = derivatives([
+                state[0] + k2[0] * dt / 2,
+                state[1] + k2[1] * dt / 2
+            ]);
+            const k4 = derivatives([
+                state[0] + k3[0] * dt,
+                state[1] + k3[1] * dt
+            ]);
+
+            return [
+                state[0] + (k1[0] + 2*k2[0] + 2*k3[0] + k4[0]) * dt / 6,
+                state[1] + (k1[1] + 2*k2[1] + 2*k3[1] + k4[1]) * dt / 6
+            ];
+        }
+
+        function simulate(dt) {
+            const state = rk4Step([psi, dpsi], dt);
+            psi = state[0];
+            dpsi = state[1];
+
+            // 角度制限
+            if (psi < 0.01) {
+                psi = 0.01;
+                if (dpsi < 0) dpsi = 0;
+            }
+            if (psi > Math.PI / 2 - 0.01) {
+                psi = Math.PI / 2 - 0.01;
+                if (dpsi > 0) dpsi = 0;
+            }
+
+            // 回転角度更新
+            theta += omega0 * dt;
+            if (theta > 2 * Math.PI) theta -= 2 * Math.PI;
+
+            t += dt;
+
+            // 履歴保存
+            history.push({ t: t, psi: psi });
+            if (history.length > maxHistory) history.shift();
+
+            // 平衡角度計算
+            let psiEq = 0;
+            if (omega0 > 0) {
+                const cosEq = g / (L * omega0 * omega0);
+                if (cosEq <= 1) {
+                    psiEq = Math.acos(cosEq) * 180 / Math.PI;
+                }
+            }
+
+            // 統計更新
+            const rpm = omega0 * 60 / (2 * Math.PI);
+            document.getElementById('stats').innerHTML =
+                `角度 ψ: ${(psi * 180 / Math.PI).toFixed(1)}°<br>` +
+                `平衡角度: ${psiEq.toFixed(1)}°<br>` +
+                `回転数: ${rpm.toFixed(1)} rpm`;
+        }
+
+        function drawLink(x1, y1, x2, y2, width) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const nx = -dy / len * width / 2;
+            const ny = dx / len * width / 2;
+
+            animCtx.fillStyle = '#fff';
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+
+            animCtx.beginPath();
+            animCtx.moveTo(x1 + nx, y1 + ny);
+            animCtx.lineTo(x2 + nx, y2 + ny);
+            animCtx.arc(x2, y2, width / 2, Math.atan2(ny, nx), Math.atan2(-ny, -nx));
+            animCtx.lineTo(x1 - nx, y1 - ny);
+            animCtx.arc(x1, y1, width / 2, Math.atan2(-ny, -nx), Math.atan2(ny, nx));
+            animCtx.closePath();
+            animCtx.fill();
+            animCtx.stroke();
+
+            // 中央線
+            animCtx.beginPath();
+            animCtx.moveTo(x1, y1);
+            animCtx.lineTo(x2, y2);
+            animCtx.stroke();
+        }
+
+        function draw() {
+            animCtx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+
+            // 3D効果のための投影
+            const viewAngle = theta;
+
+            // リンクの位置（3D -> 2D投影）
+            const r = L * Math.sin(psi);
+            const h = L * Math.cos(psi);
+
+            // 2つのリンク（対称）
+            const link1X = pivotX + r * scale * Math.cos(viewAngle);
+            const link1Y = pivotY + h * scale;
+
+            const link2X = pivotX + r * scale * Math.cos(viewAngle + Math.PI);
+            const link2Y = pivotY + h * scale;
+
+            // 回転軸の円（上部）
+            animCtx.strokeStyle = '#aaa';
+            animCtx.lineWidth = 1;
+            animCtx.setLineDash([5, 5]);
+            animCtx.beginPath();
+            animCtx.ellipse(pivotX, pivotY, r * scale, r * scale * 0.3, 0, 0, Math.PI * 2);
+            animCtx.stroke();
+            animCtx.setLineDash([]);
+
+            // 回転軸
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 3;
+            animCtx.beginPath();
+            animCtx.moveTo(pivotX, pivotY - 60);
+            animCtx.lineTo(pivotX, pivotY);
+            animCtx.stroke();
+
+            // 回転軸のベース
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            animCtx.beginPath();
+            animCtx.moveTo(pivotX - 20, pivotY - 60);
+            animCtx.lineTo(pivotX + 20, pivotY - 60);
+            animCtx.stroke();
+
+            // ハッチング
+            for (let i = 0; i < 4; i++) {
+                animCtx.beginPath();
+                animCtx.moveTo(pivotX - 15 + i * 10, pivotY - 60);
+                animCtx.lineTo(pivotX - 22 + i * 10, pivotY - 68);
+                animCtx.stroke();
+            }
+
+            // リンクを描画（奥のものを先に）
+            const link1Depth = Math.sin(viewAngle);
+            const link2Depth = Math.sin(viewAngle + Math.PI);
+
+            if (link1Depth < link2Depth) {
+                drawLink(pivotX, pivotY, link1X, link1Y, 15);
+                drawLink(pivotX, pivotY, link2X, link2Y, 15);
+            } else {
+                drawLink(pivotX, pivotY, link2X, link2Y, 15);
+                drawLink(pivotX, pivotY, link1X, link1Y, 15);
+            }
+
+            // 質点
+            animCtx.fillStyle = '#000';
+            animCtx.beginPath();
+            animCtx.arc(link1X, link1Y, 10, 0, Math.PI * 2);
+            animCtx.fill();
+
+            animCtx.beginPath();
+            animCtx.arc(link2X, link2Y, 10, 0, Math.PI * 2);
+            animCtx.fill();
+
+            // ピボット点
+            animCtx.fillStyle = '#333';
+            animCtx.beginPath();
+            animCtx.arc(pivotX, pivotY, 8, 0, Math.PI * 2);
+            animCtx.fill();
+
+            // 角度表示
+            animCtx.strokeStyle = '#666';
+            animCtx.lineWidth = 1;
+            animCtx.setLineDash([3, 3]);
+            animCtx.beginPath();
+            animCtx.moveTo(pivotX, pivotY);
+            animCtx.lineTo(pivotX, pivotY + 80);
+            animCtx.stroke();
+            animCtx.setLineDash([]);
+
+            animCtx.beginPath();
+            animCtx.arc(pivotX, pivotY, 50, Math.PI / 2, Math.PI / 2 - psi, true);
+            animCtx.stroke();
+
+            animCtx.fillStyle = '#000';
+            animCtx.font = '14px Arial';
+            animCtx.textAlign = 'left';
+            animCtx.fillText('ψ', pivotX + 55, pivotY + 30);
+
+            // 回転方向
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            animCtx.beginPath();
+            animCtx.arc(pivotX, pivotY - 40, 25, -0.3, Math.PI + 0.3, true);
+            animCtx.stroke();
+
+            // 矢印
+            animCtx.beginPath();
+            animCtx.moveTo(pivotX + 20, pivotY - 40 - 10);
+            animCtx.lineTo(pivotX + 25, pivotY - 40);
+            animCtx.lineTo(pivotX + 15, pivotY - 40 + 5);
+            animCtx.stroke();
+            animCtx.fillText('ω₀', pivotX + 50, pivotY - 35);
+
+            // 長さ表示
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+            animCtx.beginPath();
+            animCtx.moveTo(pivotX + 100, pivotY);
+            animCtx.lineTo(pivotX + 100, pivotY + h * scale);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(pivotX + 95, pivotY);
+            animCtx.lineTo(pivotX + 105, pivotY);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(pivotX + 95, pivotY + h * scale);
+            animCtx.lineTo(pivotX + 105, pivotY + h * scale);
+            animCtx.stroke();
+            animCtx.fillText('ℓ', pivotX + 110, pivotY + h * scale / 2);
+
+            // 重力
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            animCtx.beginPath();
+            animCtx.moveTo(50, 50);
+            animCtx.lineTo(50, 90);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(45, 85);
+            animCtx.lineTo(50, 90);
+            animCtx.lineTo(55, 85);
+            animCtx.stroke();
+            animCtx.fillText('g', 60, 75);
+
+            // 地面
+            animCtx.fillStyle = '#eee';
+            animCtx.fillRect(0, animCanvas.height - 30, animCanvas.width, 30);
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+            animCtx.beginPath();
+            animCtx.moveTo(0, animCanvas.height - 30);
+            animCtx.lineTo(animCanvas.width, animCanvas.height - 30);
+            animCtx.stroke();
+
+            for (let i = 0; i < 23; i++) {
+                animCtx.beginPath();
+                animCtx.moveTo(10 + i * 20, animCanvas.height - 30);
+                animCtx.lineTo(i * 20, animCanvas.height - 20);
+                animCtx.stroke();
+            }
+        }
+
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            // 背景
+            graphCtx.fillStyle = '#f9f9f9';
+            graphCtx.fillRect(50, 10, 340, 170);
+
+            // 平衡角度ライン
+            if (omega0 > 0) {
+                const cosEq = g / (L * omega0 * omega0);
+                if (cosEq <= 1) {
+                    const psiEq = Math.acos(cosEq);
+                    const psiMax = Math.PI / 2;
+                    const eqY = 180 - (psiEq / psiMax) * 160;
+                    graphCtx.strokeStyle = '#aaa';
+                    graphCtx.lineWidth = 1;
+                    graphCtx.setLineDash([5, 5]);
+                    graphCtx.beginPath();
+                    graphCtx.moveTo(50, eqY);
+                    graphCtx.lineTo(390, eqY);
+                    graphCtx.stroke();
+                    graphCtx.setLineDash([]);
+                    graphCtx.fillStyle = '#666';
+                    graphCtx.font = '10px Arial';
+                    graphCtx.fillText('ψ_eq', 392, eqY + 4);
+                }
+            }
+
+            // 軸
+            graphCtx.strokeStyle = '#000';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(50, 180);
+            graphCtx.lineTo(390, 180);
+            graphCtx.stroke();
+            graphCtx.beginPath();
+            graphCtx.moveTo(50, 10);
+            graphCtx.lineTo(50, 180);
+            graphCtx.stroke();
+
+            // ラベル
+            graphCtx.fillStyle = '#000';
+            graphCtx.font = '12px Arial';
+            graphCtx.textAlign = 'left';
+            graphCtx.fillText('ψ (°)', 5, 20);
+            graphCtx.fillText('t (s)', 365, 195);
+
+            // データプロット
+            if (history.length > 1) {
+                const tMax = Math.max(history[history.length - 1].t, 5);
+                const psiMax = Math.PI / 2;
+
+                graphCtx.strokeStyle = '#000';
+                graphCtx.lineWidth = 1.5;
+                graphCtx.beginPath();
+
+                for (let i = 0; i < history.length; i++) {
+                    const px = 50 + (history[i].t / tMax) * 340;
+                    const py = 180 - (history[i].psi / psiMax) * 160;
+
+                    if (i === 0) {
+                        graphCtx.moveTo(px, py);
+                    } else {
+                        graphCtx.lineTo(px, py);
+                    }
+                }
+                graphCtx.stroke();
+
+                // スケール
+                graphCtx.font = '10px Arial';
+                graphCtx.fillText('90', 30, 25);
+                graphCtx.fillText('0', 35, 180);
+            }
+        }
+
+        // メインループ
+        function animate() {
+            if (!paused) {
+                for (let i = 0; i < 5; i++) {
+                    simulate(0.016 / 5);
+                }
+            }
+            draw();
+            drawGraph();
+            requestAnimationFrame(animate);
+        }
+
+        // 初期化
+        reset();
+        animate();
+    </script>
+</body>
+</html>

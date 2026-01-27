@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>サイクロイド振り子</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+        .main-content {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 500px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #fff;
+            display: block;
+        }
+        .control-section {
+            width: 280px;
+        }
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 0.95em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin-bottom: 12px;
+        }
+        .slider-container label {
+            display: block;
+            color: #555;
+            margin-bottom: 3px;
+            font-size: 0.85em;
+        }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            min-width: 70px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-reset { background: #6c757d; color: white; }
+        .info-display {
+            background: #e9ecef;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.8em;
+            line-height: 1.6;
+        }
+        .formula-box {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 0.75em;
+            line-height: 1.4;
+        }
+        .graphs-section {
+            width: 100%;
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .graph-container {
+            flex: 1;
+            min-width: 350px;
+        }
+        .graph-container h4 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>サイクロイド振り子</h1>
+        <p class="description">等時性を持つサイクロイド曲線上の振り子運動（Zykloide / Cycloid）</p>
+
+        <div class="main-content">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="550" height="450"></canvas>
+            </div>
+
+            <div class="control-section">
+                <div class="control-group">
+                    <h3>パラメータ設定</h3>
+
+                    <div class="slider-container">
+                        <label>質量 m: <span id="massVal">1.0</span> kg</label>
+                        <input type="range" id="massSlider" min="0.5" max="5.0" step="0.1" value="1.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>半径 r: <span id="rVal">0.5</span> m</label>
+                        <input type="range" id="rSlider" min="0.2" max="1.0" step="0.05" value="0.5">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>重力 g: <span id="gravVal">9.8</span> m/s²</label>
+                        <input type="range" id="gravSlider" min="1.0" max="20.0" step="0.1" value="9.8">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期角度 φ₀: <span id="phi0Val">150</span>°</label>
+                        <input type="range" id="phi0Slider" min="10" max="170" step="5" value="150">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期角速度 φ̇₀: <span id="omega0Val">0.0</span> rad/s</label>
+                        <input type="range" id="omega0Slider" min="-5.0" max="5.0" step="0.1" value="0.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>シミュレーション制御</h3>
+                    <div class="button-group">
+                        <button class="btn-start" id="startBtn">開始</button>
+                        <button class="btn-stop" id="stopBtn">停止</button>
+                        <button class="btn-reset" id="resetBtn">リセット</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>状態表示</h3>
+                    <div class="info-display" id="infoDisplay">
+                        時間: 0.00 s<br>
+                        角度 φ: 0.00°<br>
+                        角速度 φ̇: 0.00 rad/s<br>
+                        周期 T: 0.00 s
+                    </div>
+                    <div class="formula-box">
+                        <strong>運動方程式:</strong><br>
+                        2mr²(1+cos φ)φ̈ - mr²sin(φ)φ̇²<br>
+                        + mgr sin(φ) = 0<br><br>
+                        <strong>等時性周期:</strong> T = 4π√(r/g)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="graphs-section">
+            <div class="graph-container">
+                <h4>角度の時間変化 φ(t)</h4>
+                <canvas id="graphPhi" width="380" height="180"></canvas>
+            </div>
+            <div class="graph-container">
+                <h4>エネルギー変化</h4>
+                <canvas id="graphEnergy" width="380" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const graphPhi = document.getElementById('graphPhi');
+        const ctxPhi = graphPhi.getContext('2d');
+        const graphEnergy = document.getElementById('graphEnergy');
+        const ctxEnergy = graphEnergy.getContext('2d');
+
+        // Parameters
+        let m = 1.0;
+        let r = 0.5;
+        let g = 9.8;
+        let phi0 = 150 * Math.PI / 180;
+        let omega0 = 0.0;
+
+        // State
+        let phi = phi0;
+        let omega = omega0;
+        let time = 0;
+        let isRunning = false;
+        let animationId = null;
+
+        // History
+        let historyPhi = [];
+        let historyKE = [];
+        let historyPE = [];
+        let historyTE = [];
+        const maxHistory = 500;
+
+        // Trajectory
+        let trajectory = [];
+        const maxTrajectory = 300;
+
+        // Sliders
+        const massSlider = document.getElementById('massSlider');
+        const rSlider = document.getElementById('rSlider');
+        const gravSlider = document.getElementById('gravSlider');
+        const phi0Slider = document.getElementById('phi0Slider');
+        const omega0Slider = document.getElementById('omega0Slider');
+
+        const massVal = document.getElementById('massVal');
+        const rVal = document.getElementById('rVal');
+        const gravVal = document.getElementById('gravVal');
+        const phi0Val = document.getElementById('phi0Val');
+        const omega0Val = document.getElementById('omega0Val');
+
+        massSlider.addEventListener('input', () => { m = parseFloat(massSlider.value); massVal.textContent = m.toFixed(1); });
+        rSlider.addEventListener('input', () => { r = parseFloat(rSlider.value); rVal.textContent = r.toFixed(2); if (!isRunning) reset(); });
+        gravSlider.addEventListener('input', () => { g = parseFloat(gravSlider.value); gravVal.textContent = g.toFixed(1); });
+        phi0Slider.addEventListener('input', () => { phi0 = parseFloat(phi0Slider.value) * Math.PI / 180; phi0Val.textContent = parseFloat(phi0Slider.value).toFixed(0); if (!isRunning) reset(); });
+        omega0Slider.addEventListener('input', () => { omega0 = parseFloat(omega0Slider.value); omega0Val.textContent = omega0.toFixed(1); if (!isRunning) reset(); });
+
+        document.getElementById('startBtn').addEventListener('click', start);
+        document.getElementById('stopBtn').addEventListener('click', stop);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+
+        // Cycloid parametric equations:
+        // x = r(phi - sin(phi))
+        // y = r(1 - cos(phi))
+        // The cycloid has cusps at phi = 0, 2*pi, etc.
+        // The bottom is at phi = pi
+
+        // Equation of motion:
+        // 2mr^2(1 + cos(phi)) * phi_ddot - mr^2 * sin(phi) * phi_dot^2 + mgr * sin(phi) = 0
+        // Rearranging:
+        // phi_ddot = (mr^2 * sin(phi) * phi_dot^2 - mgr * sin(phi)) / (2mr^2(1 + cos(phi)))
+        // phi_ddot = (sin(phi) * (r * phi_dot^2 - g)) / (2r(1 + cos(phi)))
+
+        function computeAcceleration(phiVal, omegaVal) {
+            const cosPhi = Math.cos(phiVal);
+            const sinPhi = Math.sin(phiVal);
+
+            // Avoid division by zero near phi = pi (bottom)
+            const denom = 2 * r * (1 + cosPhi);
+            if (Math.abs(denom) < 1e-6) {
+                return 0;
+            }
+
+            const numer = sinPhi * (r * omegaVal * omegaVal - g);
+            return numer / denom;
+        }
+
+        function rk4Step(dt) {
+            const k1a = computeAcceleration(phi, omega);
+            const k1v = omega;
+
+            const k2a = computeAcceleration(phi + k1v * dt / 2, omega + k1a * dt / 2);
+            const k2v = omega + k1a * dt / 2;
+
+            const k3a = computeAcceleration(phi + k2v * dt / 2, omega + k2a * dt / 2);
+            const k3v = omega + k2a * dt / 2;
+
+            const k4a = computeAcceleration(phi + k3v * dt, omega + k3a * dt);
+            const k4v = omega + k3a * dt;
+
+            phi += (k1v + 2 * k2v + 2 * k3v + k4v) * dt / 6;
+            omega += (k1a + 2 * k2a + 2 * k3a + k4a) * dt / 6;
+
+            // Keep phi in bounds
+            if (phi < 0.01) {
+                phi = 0.01;
+                omega = Math.abs(omega);
+            }
+            if (phi > 2 * Math.PI - 0.01) {
+                phi = 2 * Math.PI - 0.01;
+                omega = -Math.abs(omega);
+            }
+        }
+
+        // Cycloid position
+        function cycloidPos(phiVal) {
+            return {
+                x: r * (phiVal - Math.sin(phiVal)),
+                y: r * (1 - Math.cos(phiVal))
+            };
+        }
+
+        function computeEnergies() {
+            // Velocity on cycloid
+            // v^2 = (dx/dt)^2 + (dy/dt)^2
+            // dx/dt = r(1 - cos(phi)) * phi_dot
+            // dy/dt = r * sin(phi) * phi_dot
+            // v^2 = r^2 * phi_dot^2 * ((1-cos(phi))^2 + sin^2(phi))
+            //     = r^2 * phi_dot^2 * (1 - 2cos(phi) + cos^2(phi) + sin^2(phi))
+            //     = r^2 * phi_dot^2 * (2 - 2cos(phi))
+            //     = 2r^2 * phi_dot^2 * (1 - cos(phi))
+
+            const v2 = 2 * r * r * omega * omega * (1 - Math.cos(phi));
+            const KE = 0.5 * m * v2;
+
+            // PE with reference at bottom (phi = pi, y = 2r)
+            const pos = cycloidPos(phi);
+            const PE = m * g * (2 * r - pos.y);
+
+            const TE = KE + PE;
+            return { KE, PE, TE };
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const pivotX = canvas.width / 2;
+            const pivotY = 60;
+            const scale = 180;
+
+            // Draw support
+            ctx.fillStyle = '#8B4513';
+            ctx.beginPath();
+            ctx.moveTo(pivotX - 30, pivotY - 20);
+            ctx.lineTo(pivotX + 30, pivotY - 20);
+            ctx.lineTo(pivotX, pivotY);
+            ctx.closePath();
+            ctx.fill();
+
+            // Hatch
+            ctx.strokeStyle = '#5D3A1A';
+            ctx.lineWidth = 1;
+            for (let i = -2; i <= 2; i++) {
+                ctx.beginPath();
+                ctx.moveTo(pivotX + i * 10 - 5, pivotY - 20);
+                ctx.lineTo(pivotX + i * 10 + 5, pivotY - 10);
+                ctx.stroke();
+            }
+
+            // Pivot point A
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(pivotX, pivotY, 6, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('A', pivotX, pivotY - 25);
+
+            // Draw cycloid curve (both sides, mirrored for the constraining cusps)
+            ctx.strokeStyle = '#999';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 3]);
+
+            // Left cusp curve
+            ctx.beginPath();
+            for (let t = 0; t <= Math.PI; t += 0.05) {
+                const x = pivotX - r * scale * (t - Math.sin(t));
+                const y = pivotY + r * scale * (1 - Math.cos(t));
+                if (t === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Right cusp curve
+            ctx.beginPath();
+            for (let t = 0; t <= Math.PI; t += 0.05) {
+                const x = pivotX + r * scale * (t - Math.sin(t));
+                const y = pivotY + r * scale * (1 - Math.cos(t));
+                if (t === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Draw actual cycloid path (the one mass follows)
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let t = 0; t <= 2 * Math.PI; t += 0.05) {
+                // Centered at bottom
+                const x = pivotX + r * scale * (t - Math.PI - Math.sin(t));
+                const y = pivotY + r * scale * (1 - Math.cos(t));
+                if (t === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Label
+            ctx.fillStyle = '#666';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText('Zykloide / Cycloid', 50, 120);
+
+            // 4r dimension
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(pivotX + 100, pivotY);
+            ctx.lineTo(pivotX + 100, pivotY + 4 * r * scale);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(pivotX + 95, pivotY);
+            ctx.lineTo(pivotX + 105, pivotY);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(pivotX + 95, pivotY + 4 * r * scale);
+            ctx.lineTo(pivotX + 105, pivotY + 4 * r * scale);
+            ctx.stroke();
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('4r', pivotX + 110, pivotY + 2 * r * scale);
+
+            // Mass position on cycloid
+            const pos = cycloidPos(phi);
+            const massX = pivotX + (pos.x - r * Math.PI) * scale;
+            const massY = pivotY + pos.y * scale;
+
+            // Store trajectory
+            trajectory.push([massX, massY]);
+            if (trajectory.length > maxTrajectory) trajectory.shift();
+
+            // Draw trajectory
+            if (trajectory.length > 1) {
+                ctx.strokeStyle = 'rgba(102, 126, 234, 0.3)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let i = 0; i < trajectory.length; i++) {
+                    const [tx, ty] = trajectory[i];
+                    if (i === 0) ctx.moveTo(tx, ty);
+                    else ctx.lineTo(tx, ty);
+                }
+                ctx.stroke();
+            }
+
+            // Draw string from pivot to mass (tangent to cusp curves)
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(pivotX, pivotY);
+            ctx.lineTo(massX, massY);
+            ctx.stroke();
+
+            // Draw mass
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(massX, massY, 15, 0, 2 * Math.PI);
+            ctx.fill();
+
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('m', massX, massY);
+
+            // Angle indicator
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(massX, massY);
+            ctx.lineTo(massX + 40, massY);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(massX, massY);
+            ctx.lineTo(massX + 30 * Math.cos(-phi + Math.PI), massY + 30 * Math.sin(-phi + Math.PI));
+            ctx.stroke();
+
+            ctx.fillStyle = '#667eea';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('φ', massX + 45, massY + 15);
+
+            // Gravity arrow
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - 60, 60);
+            ctx.lineTo(canvas.width - 60, 100);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - 60, 100);
+            ctx.lineTo(canvas.width - 65, 90);
+            ctx.moveTo(canvas.width - 60, 100);
+            ctx.lineTo(canvas.width - 55, 90);
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('g', canvas.width - 60, 115);
+
+            // Update info
+            const period = 4 * Math.PI * Math.sqrt(r / g);
+            const energies = computeEnergies();
+            document.getElementById('infoDisplay').innerHTML =
+                `時間: ${time.toFixed(2)} s<br>` +
+                `角度 φ: ${(phi * 180 / Math.PI).toFixed(2)}°<br>` +
+                `角速度 φ̇: ${omega.toFixed(3)} rad/s<br>` +
+                `理論周期 T: ${period.toFixed(3)} s<br>` +
+                `運動E: ${energies.KE.toFixed(3)} J<br>` +
+                `位置E: ${energies.PE.toFixed(3)} J<br>` +
+                `全E: ${energies.TE.toFixed(3)} J`;
+        }
+
+        function drawGraphPhi() {
+            ctxPhi.clearRect(0, 0, graphPhi.width, graphPhi.height);
+
+            const margin = 40;
+            const w = graphPhi.width - 2 * margin;
+            const h = graphPhi.height - 2 * margin;
+
+            ctxPhi.fillStyle = '#f8f9fa';
+            ctxPhi.fillRect(margin, margin, w, h);
+
+            ctxPhi.strokeStyle = '#333';
+            ctxPhi.lineWidth = 2;
+            ctxPhi.beginPath();
+            ctxPhi.moveTo(margin, margin);
+            ctxPhi.lineTo(margin, margin + h);
+            ctxPhi.lineTo(margin + w, margin + h);
+            ctxPhi.stroke();
+
+            // 180° line (bottom of cycloid)
+            ctxPhi.strokeStyle = '#ccc';
+            ctxPhi.lineWidth = 1;
+            ctxPhi.beginPath();
+            ctxPhi.moveTo(margin, margin + h / 2);
+            ctxPhi.lineTo(margin + w, margin + h / 2);
+            ctxPhi.stroke();
+
+            ctxPhi.fillStyle = '#333';
+            ctxPhi.font = '11px Arial';
+            ctxPhi.textAlign = 'right';
+            ctxPhi.fillText('360°', margin - 5, margin + 5);
+            ctxPhi.fillText('180°', margin - 5, margin + h / 2 + 5);
+            ctxPhi.fillText('0°', margin - 5, margin + h);
+
+            if (historyPhi.length > 1) {
+                ctxPhi.strokeStyle = '#667eea';
+                ctxPhi.lineWidth = 2;
+                ctxPhi.beginPath();
+                for (let i = 0; i < historyPhi.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyPhi[i] / (2 * Math.PI)) * h;
+                    if (i === 0) ctxPhi.moveTo(px, py);
+                    else ctxPhi.lineTo(px, py);
+                }
+                ctxPhi.stroke();
+            }
+        }
+
+        function drawGraphEnergy() {
+            ctxEnergy.clearRect(0, 0, graphEnergy.width, graphEnergy.height);
+
+            const margin = 40;
+            const w = graphEnergy.width - 2 * margin;
+            const h = graphEnergy.height - 2 * margin;
+
+            let maxE = 1;
+            if (historyTE.length > 0) {
+                maxE = Math.max(...historyTE, ...historyKE, ...historyPE) * 1.1;
+                if (maxE < 0.1) maxE = 0.1;
+            }
+
+            ctxEnergy.fillStyle = '#f8f9fa';
+            ctxEnergy.fillRect(margin, margin, w, h);
+
+            ctxEnergy.strokeStyle = '#333';
+            ctxEnergy.lineWidth = 2;
+            ctxEnergy.beginPath();
+            ctxEnergy.moveTo(margin, margin);
+            ctxEnergy.lineTo(margin, margin + h);
+            ctxEnergy.lineTo(margin + w, margin + h);
+            ctxEnergy.stroke();
+
+            // Plot KE
+            if (historyKE.length > 1) {
+                ctxEnergy.strokeStyle = '#28a745';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyKE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyKE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot PE
+            if (historyPE.length > 1) {
+                ctxEnergy.strokeStyle = '#dc3545';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyPE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyPE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot TE
+            if (historyTE.length > 1) {
+                ctxEnergy.strokeStyle = '#333';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyTE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyTE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            ctxEnergy.font = '10px Arial';
+            ctxEnergy.textAlign = 'left';
+            ctxEnergy.fillStyle = '#28a745';
+            ctxEnergy.fillText('KE', margin + 5, margin + 12);
+            ctxEnergy.fillStyle = '#dc3545';
+            ctxEnergy.fillText('PE', margin + 35, margin + 12);
+            ctxEnergy.fillStyle = '#333';
+            ctxEnergy.fillText('TE', margin + 65, margin + 12);
+        }
+
+        function animate() {
+            const dt = 0.01;
+            const substeps = 5;
+
+            for (let i = 0; i < substeps; i++) {
+                rk4Step(dt / substeps);
+            }
+            time += dt;
+
+            historyPhi.push(phi);
+            const energies = computeEnergies();
+            historyKE.push(energies.KE);
+            historyPE.push(energies.PE);
+            historyTE.push(energies.TE);
+
+            if (historyPhi.length > maxHistory) {
+                historyPhi.shift();
+                historyKE.shift();
+                historyPE.shift();
+                historyTE.shift();
+            }
+
+            draw();
+            drawGraphPhi();
+            drawGraphEnergy();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function start() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stop() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+
+        function reset() {
+            stop();
+            phi = phi0;
+            omega = omega0;
+            time = 0;
+            trajectory = [];
+            historyPhi = [];
+            historyKE = [];
+            historyPE = [];
+            historyTE = [];
+            draw();
+            drawGraphPhi();
+            drawGraphEnergy();
+        }
+
+        reset();
+    </script>
+</body>
+</html>

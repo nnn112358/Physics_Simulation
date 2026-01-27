@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>車両サスペンション - 路面凹凸通過シミュレーション</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            color: #000;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #000;
+            margin-bottom: 10px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        canvas {
+            background: #fff;
+            border: 1px solid #000;
+        }
+        .controls {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #000;
+            min-width: 250px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #000;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .value {
+            text-align: right;
+            font-size: 0.9em;
+            color: #666;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            background: #fff;
+            color: #000;
+            border: 1px solid #000;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background: #eee;
+        }
+        .equation {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.9em;
+            text-align: center;
+        }
+        .graph-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>車両サスペンション - 路面凹凸通過シミュレーション</h1>
+
+    <div class="container">
+        <div class="graph-container">
+            <canvas id="animCanvas" width="500" height="400"></canvas>
+            <canvas id="graphCanvas" width="500" height="200"></canvas>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>質量 m (kg)</label>
+                <input type="range" id="mass" min="100" max="1000" step="10" value="300">
+                <div class="value" id="massValue">300 kg</div>
+            </div>
+
+            <div class="control-group">
+                <label>バネ定数 k (N/m)</label>
+                <input type="range" id="spring" min="5000" max="50000" step="1000" value="20000">
+                <div class="value" id="springValue">20000 N/m</div>
+            </div>
+
+            <div class="control-group">
+                <label>減衰係数 c (Ns/m)</label>
+                <input type="range" id="damper" min="500" max="10000" step="100" value="3000">
+                <div class="value" id="damperValue">3000 Ns/m</div>
+            </div>
+
+            <div class="control-group">
+                <label>車速 v₀ (m/s)</label>
+                <input type="range" id="velocity" min="1" max="20" step="0.5" value="5">
+                <div class="value" id="velocityValue">5.0 m/s</div>
+            </div>
+
+            <div class="control-group">
+                <label>バンプ高さ 2a (m)</label>
+                <input type="range" id="bumpHeight" min="0.02" max="0.2" step="0.01" value="0.08">
+                <div class="value" id="bumpHeightValue">0.08 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>バンプ長さ ℓ (m)</label>
+                <input type="range" id="bumpLength" min="0.5" max="5" step="0.1" value="2">
+                <div class="value" id="bumpLengthValue">2.0 m</div>
+            </div>
+
+            <button id="resetBtn">リセット</button>
+            <button id="pauseBtn">一時停止</button>
+
+            <div class="equation">
+                <strong>運動方程式:</strong><br>
+                m·ÿ + c·(ẏ - u̇) + k·(y - u) = 0<br>
+                <small>u: 路面の高さ</small>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // キャンバス設定
+        const animCanvas = document.getElementById('animCanvas');
+        const animCtx = animCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+
+        // パラメータ
+        let m = 300;        // 質量 (kg)
+        let k = 20000;      // バネ定数 (N/m)
+        let c = 3000;       // 減衰係数 (Ns/m)
+        let v0 = 5;         // 車速 (m/s)
+        let bumpHeight = 0.08;  // バンプ高さ 2a (m)
+        let bumpLength = 2;     // バンプ長さ ℓ (m)
+
+        // 状態変数
+        let y = 0;          // 車体変位
+        let vy = 0;         // 車体速度
+        let x = -2;         // 水平位置 (バンプの前からスタート)
+        let t = 0;          // 時間
+        let paused = false;
+        let history = [];
+        const maxHistory = 500;
+
+        // 路面の高さ関数 u(x)
+        function roadProfile(xPos) {
+            if (xPos < 0 || xPos > bumpLength) {
+                return 0;
+            }
+            // 半正弦波形状のバンプ
+            return bumpHeight * Math.sin(Math.PI * xPos / bumpLength);
+        }
+
+        // 路面の高さの時間微分 du/dt = (du/dx) * (dx/dt) = (du/dx) * v0
+        function roadProfileDerivative(xPos) {
+            if (xPos < 0 || xPos > bumpLength) {
+                return 0;
+            }
+            // d/dx [a * sin(π*x/ℓ)] = a * π/ℓ * cos(π*x/ℓ)
+            return bumpHeight * (Math.PI / bumpLength) * Math.cos(Math.PI * xPos / bumpLength) * v0;
+        }
+
+        // UI要素
+        const massSlider = document.getElementById('mass');
+        const springSlider = document.getElementById('spring');
+        const damperSlider = document.getElementById('damper');
+        const velocitySlider = document.getElementById('velocity');
+        const bumpHeightSlider = document.getElementById('bumpHeight');
+        const bumpLengthSlider = document.getElementById('bumpLength');
+
+        // スライダーイベント
+        massSlider.addEventListener('input', () => {
+            m = parseFloat(massSlider.value);
+            document.getElementById('massValue').textContent = m + ' kg';
+        });
+
+        springSlider.addEventListener('input', () => {
+            k = parseFloat(springSlider.value);
+            document.getElementById('springValue').textContent = k + ' N/m';
+        });
+
+        damperSlider.addEventListener('input', () => {
+            c = parseFloat(damperSlider.value);
+            document.getElementById('damperValue').textContent = c + ' Ns/m';
+        });
+
+        velocitySlider.addEventListener('input', () => {
+            v0 = parseFloat(velocitySlider.value);
+            document.getElementById('velocityValue').textContent = v0.toFixed(1) + ' m/s';
+        });
+
+        bumpHeightSlider.addEventListener('input', () => {
+            bumpHeight = parseFloat(bumpHeightSlider.value);
+            document.getElementById('bumpHeightValue').textContent = bumpHeight.toFixed(2) + ' m';
+        });
+
+        bumpLengthSlider.addEventListener('input', () => {
+            bumpLength = parseFloat(bumpLengthSlider.value);
+            document.getElementById('bumpLengthValue').textContent = bumpLength.toFixed(1) + ' m';
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', reset);
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            paused = !paused;
+            document.getElementById('pauseBtn').textContent = paused ? '再開' : '一時停止';
+        });
+
+        function reset() {
+            y = 0;
+            vy = 0;
+            x = -2;
+            t = 0;
+            history = [];
+            paused = false;
+            document.getElementById('pauseBtn').textContent = '一時停止';
+        }
+
+        // 物理シミュレーション (Runge-Kutta 4次)
+        function simulate(dt) {
+            const u = roadProfile(x);
+            const uDot = roadProfileDerivative(x);
+
+            // m·ÿ + c·(ẏ - u̇) + k·(y - u) = 0
+            // ÿ = (-c·(ẏ - u̇) - k·(y - u)) / m
+            function f(y, vy) {
+                const accel = (-c * (vy - uDot) - k * (y - u)) / m;
+                return { dy: vy, dvy: accel };
+            }
+
+            const k1 = f(y, vy);
+            const k2 = f(y + k1.dy * dt/2, vy + k1.dvy * dt/2);
+            const k3 = f(y + k2.dy * dt/2, vy + k2.dvy * dt/2);
+            const k4 = f(y + k3.dy * dt, vy + k3.dvy * dt);
+
+            y += (k1.dy + 2*k2.dy + 2*k3.dy + k4.dy) * dt / 6;
+            vy += (k1.dvy + 2*k2.dvy + 2*k3.dvy + k4.dvy) * dt / 6;
+
+            x += v0 * dt;
+            t += dt;
+
+            // ループ：バンプを通過したら戻る
+            if (x > bumpLength + 3) {
+                x = -2;
+            }
+
+            history.push({ t: t, y: y, u: u });
+            if (history.length > maxHistory) history.shift();
+        }
+
+        // バネを描画
+        function drawSpring(ctx, x1, y1, x2, y2, coils) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+
+            const segLen = len / (coils * 2 + 2);
+            const amplitude = 8;
+
+            ctx.lineTo(segLen, 0);
+
+            for (let i = 0; i < coils * 2; i++) {
+                const xPos = segLen + (i + 1) * segLen;
+                const yPos = (i % 2 === 0) ? amplitude : -amplitude;
+                ctx.lineTo(xPos, yPos);
+            }
+
+            ctx.lineTo(len, 0);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // ダンパを描画
+        function drawDamper(ctx, x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            const cylHeight = 16;
+            const cylStart = len * 0.2;
+            const cylLen = len * 0.4;
+
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1.5;
+
+            // 線からシリンダーへ
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(cylStart, 0);
+            ctx.stroke();
+
+            // シリンダー
+            ctx.beginPath();
+            ctx.moveTo(cylStart, -cylHeight/2);
+            ctx.lineTo(cylStart, cylHeight/2);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(cylStart, -cylHeight/2);
+            ctx.lineTo(cylStart + cylLen, -cylHeight/2);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(cylStart, cylHeight/2);
+            ctx.lineTo(cylStart + cylLen, cylHeight/2);
+            ctx.stroke();
+
+            // ピストン
+            const pistonX = len * 0.7;
+            ctx.beginPath();
+            ctx.moveTo(pistonX, -cylHeight/2 + 2);
+            ctx.lineTo(pistonX, cylHeight/2 - 2);
+            ctx.stroke();
+
+            // ロッド
+            ctx.beginPath();
+            ctx.moveTo(pistonX, 0);
+            ctx.lineTo(len, 0);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // アニメーション描画
+        function drawAnimation() {
+            animCtx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+
+            const groundY = 320;
+            const scale = 500;  // m to pixels
+            const wheelRadius = 20;
+            const viewCenterX = 250;
+
+            // 路面を描画
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 2;
+            animCtx.beginPath();
+
+            for (let px = 0; px <= animCanvas.width; px++) {
+                const worldX = (px - viewCenterX) / scale + x;
+                const u = roadProfile(worldX);
+                const screenY = groundY - u * scale;
+                if (px === 0) {
+                    animCtx.moveTo(px, screenY);
+                } else {
+                    animCtx.lineTo(px, screenY);
+                }
+            }
+            animCtx.stroke();
+
+            // 現在の路面高さ
+            const currentU = roadProfile(x);
+            const wheelY = groundY - currentU * scale - wheelRadius;
+            const wheelX = viewCenterX;
+
+            // 車輪
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 2;
+            animCtx.beginPath();
+            animCtx.arc(wheelX, wheelY, wheelRadius, 0, Math.PI * 2);
+            animCtx.stroke();
+
+            // 車体の位置
+            const bodyY = wheelY - 80 - y * scale;
+            const bodyWidth = 60;
+            const bodyHeight = 40;
+
+            // バネとダンパ
+            drawSpring(animCtx, wheelX - 15, wheelY - wheelRadius, wheelX - 15, bodyY + bodyHeight/2, 6);
+            drawDamper(animCtx, wheelX + 15, wheelY - wheelRadius, wheelX + 15, bodyY + bodyHeight/2);
+
+            // 車体（質量 m）
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            animCtx.strokeRect(wheelX - bodyWidth/2, bodyY - bodyHeight/2, bodyWidth, bodyHeight);
+
+            // 質量ラベル
+            animCtx.fillStyle = '#000';
+            animCtx.font = '16px Arial';
+            animCtx.textAlign = 'center';
+            animCtx.fillText('m', wheelX, bodyY + 5);
+
+            // 天井（固定点）
+            const ceilingY = 50;
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 2;
+            animCtx.beginPath();
+            animCtx.moveTo(wheelX - 50, ceilingY);
+            animCtx.lineTo(wheelX + 50, ceilingY);
+            animCtx.stroke();
+
+            // 車体から天井への接続
+            animCtx.beginPath();
+            animCtx.moveTo(wheelX, bodyY - bodyHeight/2);
+            animCtx.lineTo(wheelX, ceilingY);
+            animCtx.stroke();
+
+            // ハッチング
+            animCtx.lineWidth = 1;
+            for (let i = 0; i < 5; i++) {
+                animCtx.beginPath();
+                animCtx.moveTo(wheelX - 50 + i * 20, ceilingY);
+                animCtx.lineTo(wheelX - 60 + i * 20, ceilingY - 10);
+                animCtx.stroke();
+            }
+
+            // 重力矢印
+            animCtx.fillStyle = '#000';
+            animCtx.beginPath();
+            animCtx.moveTo(420, 60);
+            animCtx.lineTo(420, 100);
+            animCtx.lineTo(415, 90);
+            animCtx.moveTo(420, 100);
+            animCtx.lineTo(425, 90);
+            animCtx.stroke();
+            animCtx.font = '14px Arial';
+            animCtx.fillText('g', 435, 80);
+
+            // 速度矢印
+            animCtx.beginPath();
+            animCtx.moveTo(wheelX + wheelRadius + 5, wheelY);
+            animCtx.lineTo(wheelX + wheelRadius + 35, wheelY);
+            animCtx.lineTo(wheelX + wheelRadius + 25, wheelY - 5);
+            animCtx.moveTo(wheelX + wheelRadius + 35, wheelY);
+            animCtx.lineTo(wheelX + wheelRadius + 25, wheelY + 5);
+            animCtx.stroke();
+            animCtx.fillText('v₀', wheelX + wheelRadius + 45, wheelY + 5);
+
+            // 変位表示
+            animCtx.fillStyle = '#000';
+            animCtx.font = '14px Arial';
+            animCtx.textAlign = 'left';
+            animCtx.fillText(`y = ${(y * 100).toFixed(2)} cm`, 10, 30);
+            animCtx.fillText(`u = ${(currentU * 100).toFixed(2)} cm`, 10, 50);
+            animCtx.fillText(`x = ${x.toFixed(2)} m`, 10, 70);
+            animCtx.fillText(`t = ${t.toFixed(2)} s`, 10, 90);
+        }
+
+        // グラフ描画
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            const padding = 50;
+            const width = graphCanvas.width - padding * 2;
+            const height = graphCanvas.height - padding * 2;
+
+            // 軸
+            graphCtx.strokeStyle = '#000';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(padding, padding);
+            graphCtx.lineTo(padding, graphCanvas.height - padding);
+            graphCtx.lineTo(graphCanvas.width - padding, graphCanvas.height - padding);
+            graphCtx.stroke();
+
+            // 中心線
+            graphCtx.setLineDash([3, 3]);
+            graphCtx.beginPath();
+            graphCtx.moveTo(padding, padding + height/2);
+            graphCtx.lineTo(graphCanvas.width - padding, padding + height/2);
+            graphCtx.stroke();
+            graphCtx.setLineDash([]);
+
+            // ラベル
+            graphCtx.fillStyle = '#000';
+            graphCtx.font = '12px Arial';
+            graphCtx.textAlign = 'center';
+            graphCtx.fillText('時間 t (s)', graphCanvas.width/2, graphCanvas.height - 5);
+
+            graphCtx.save();
+            graphCtx.translate(12, graphCanvas.height/2);
+            graphCtx.rotate(-Math.PI/2);
+            graphCtx.fillText('変位 (cm)', 0, 0);
+            graphCtx.restore();
+
+            // 履歴描画
+            if (history.length > 1) {
+                const tMax = Math.max(history[history.length-1].t, 3);
+                const yMax = Math.max(bumpHeight * 100 * 1.5, 10);
+
+                // 路面高さ u（点線）
+                graphCtx.strokeStyle = '#999';
+                graphCtx.setLineDash([5, 5]);
+                graphCtx.lineWidth = 1;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const px = padding + (history[i].t / tMax) * width;
+                    const py = padding + height/2 - (history[i].u * 100 / yMax) * (height/2);
+                    if (i === 0) graphCtx.moveTo(px, py);
+                    else graphCtx.lineTo(px, py);
+                }
+                graphCtx.stroke();
+                graphCtx.setLineDash([]);
+
+                // 車体変位 y（実線）
+                graphCtx.strokeStyle = '#000';
+                graphCtx.lineWidth = 1.5;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const px = padding + (history[i].t / tMax) * width;
+                    const py = padding + height/2 - (history[i].y * 100 / yMax) * (height/2);
+                    if (i === 0) graphCtx.moveTo(px, py);
+                    else graphCtx.lineTo(px, py);
+                }
+                graphCtx.stroke();
+            }
+
+            // 凡例
+            graphCtx.fillStyle = '#000';
+            graphCtx.font = '11px Arial';
+            graphCtx.textAlign = 'left';
+            graphCtx.strokeStyle = '#000';
+            graphCtx.lineWidth = 1.5;
+            graphCtx.beginPath();
+            graphCtx.moveTo(graphCanvas.width - 100, 20);
+            graphCtx.lineTo(graphCanvas.width - 70, 20);
+            graphCtx.stroke();
+            graphCtx.fillText('y (車体)', graphCanvas.width - 65, 24);
+
+            graphCtx.strokeStyle = '#999';
+            graphCtx.setLineDash([5, 5]);
+            graphCtx.beginPath();
+            graphCtx.moveTo(graphCanvas.width - 100, 35);
+            graphCtx.lineTo(graphCanvas.width - 70, 35);
+            graphCtx.stroke();
+            graphCtx.setLineDash([]);
+            graphCtx.fillStyle = '#999';
+            graphCtx.fillText('u (路面)', graphCanvas.width - 65, 39);
+
+            // スケール
+            graphCtx.fillStyle = '#000';
+            graphCtx.textAlign = 'right';
+            const yMax = Math.max(bumpHeight * 100 * 1.5, 10);
+            graphCtx.fillText(yMax.toFixed(0), padding - 5, padding + 5);
+            graphCtx.fillText('0', padding - 5, padding + height/2 + 5);
+            graphCtx.fillText(-yMax.toFixed(0), padding - 5, graphCanvas.height - padding + 5);
+        }
+
+        // メインループ
+        function animate() {
+            if (!paused) {
+                simulate(0.016);
+            }
+            drawAnimation();
+            drawGraph();
+            requestAnimationFrame(animate);
+        }
+
+        // 初期化
+        animate();
+    </script>
+</body>
+</html>

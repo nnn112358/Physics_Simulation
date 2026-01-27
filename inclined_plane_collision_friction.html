@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>斜面滑降・衝突・摩擦シミュレーション</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            color: #000;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #000;
+            margin-bottom: 10px;
+            font-size: 1.3em;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        canvas {
+            background: #fff;
+            border: 1px solid #000;
+        }
+        .controls {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #000;
+            min-width: 250px;
+        }
+        .control-group {
+            margin-bottom: 12px;
+        }
+        label {
+            display: block;
+            margin-bottom: 3px;
+            color: #000;
+            font-size: 0.9em;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .value {
+            text-align: right;
+            font-size: 0.85em;
+            color: #666;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            background: #fff;
+            color: #000;
+            border: 1px solid #000;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background: #eee;
+        }
+        .equation {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 0.85em;
+            text-align: center;
+        }
+        .graph-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>斜面滑降・衝突・摩擦シミュレーション</h1>
+
+    <div class="container">
+        <div class="graph-container">
+            <canvas id="animCanvas" width="650" height="300"></canvas>
+            <canvas id="graphCanvas" width="650" height="180"></canvas>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>質量 m₁ (kg)</label>
+                <input type="range" id="mass1" min="0.5" max="5" step="0.1" value="2">
+                <div class="value" id="mass1Value">2.0 kg</div>
+            </div>
+
+            <div class="control-group">
+                <label>質量 m₂ (kg)</label>
+                <input type="range" id="mass2" min="0.5" max="5" step="0.1" value="3">
+                <div class="value" id="mass2Value">3.0 kg</div>
+            </div>
+
+            <div class="control-group">
+                <label>落下高さ h (m)</label>
+                <input type="range" id="height" min="0.5" max="3" step="0.1" value="1.5">
+                <div class="value" id="heightValue">1.5 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>摩擦係数 μ₁</label>
+                <input type="range" id="mu1" min="0" max="0.5" step="0.02" value="0.1">
+                <div class="value" id="mu1Value">0.10</div>
+            </div>
+
+            <div class="control-group">
+                <label>摩擦係数 μ₂</label>
+                <input type="range" id="mu2" min="0" max="0.5" step="0.02" value="0.15">
+                <div class="value" id="mu2Value">0.15</div>
+            </div>
+
+            <div class="control-group">
+                <label>バネ定数 k₂ (N/m)</label>
+                <input type="range" id="spring" min="100" max="1000" step="50" value="500">
+                <div class="value" id="springValue">500 N/m</div>
+            </div>
+
+            <button id="resetBtn">リセット</button>
+            <button id="pauseBtn">一時停止</button>
+
+            <div class="equation">
+                <strong>衝突:</strong> 完全非弾性衝突<br>
+                m₁v₁ = (m₁+m₂)v'
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // キャンバス設定
+        const animCanvas = document.getElementById('animCanvas');
+        const animCtx = animCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+
+        // パラメータ
+        let m1 = 2.0;       // m1の質量
+        let m2 = 3.0;       // m2の質量
+        let h = 1.5;        // 落下高さ
+        let mu1 = 0.1;      // 摩擦係数1
+        let mu2 = 0.15;     // 摩擦係数2
+        let k2 = 500;       // バネ定数
+        const g = 9.81;     // 重力加速度
+
+        // 区間の長さ
+        const L1 = 1.0;     // 摩擦区間1の長さ
+        const L2 = 1.0;     // 摩擦区間2の長さ
+
+        // 状態変数
+        let phase = 0;      // 0:滑降, 1:摩擦面1, 2:衝突後, 3:摩擦面2, 4:バネ圧縮
+        let x1 = 0;         // m1の位置
+        let v1 = 0;         // m1の速度
+        let x2 = 0;         // m2/結合体の位置
+        let v2 = 0;         // m2/結合体の速度
+        let theta = Math.PI/2;  // 曲面上の角度
+        let t = 0;
+        let paused = false;
+        let history = [];
+        const maxHistory = 500;
+        let collided = false;
+
+        // 位置の定義（スケールなし）
+        const rampEndX = 1.5;
+        const frictionStart1 = rampEndX;
+        const frictionEnd1 = frictionStart1 + L1;
+        const m2StartX = frictionEnd1 + 0.5;
+        const frictionStart2 = m2StartX + 0.5;
+        const frictionEnd2 = frictionStart2 + L2;
+        const wallX = frictionEnd2 + 0.5;
+
+        // UI要素
+        document.getElementById('mass1').addEventListener('input', (e) => {
+            m1 = parseFloat(e.target.value);
+            document.getElementById('mass1Value').textContent = m1.toFixed(1) + ' kg';
+        });
+
+        document.getElementById('mass2').addEventListener('input', (e) => {
+            m2 = parseFloat(e.target.value);
+            document.getElementById('mass2Value').textContent = m2.toFixed(1) + ' kg';
+        });
+
+        document.getElementById('height').addEventListener('input', (e) => {
+            h = parseFloat(e.target.value);
+            document.getElementById('heightValue').textContent = h.toFixed(1) + ' m';
+        });
+
+        document.getElementById('mu1').addEventListener('input', (e) => {
+            mu1 = parseFloat(e.target.value);
+            document.getElementById('mu1Value').textContent = mu1.toFixed(2);
+        });
+
+        document.getElementById('mu2').addEventListener('input', (e) => {
+            mu2 = parseFloat(e.target.value);
+            document.getElementById('mu2Value').textContent = mu2.toFixed(2);
+        });
+
+        document.getElementById('spring').addEventListener('input', (e) => {
+            k2 = parseFloat(e.target.value);
+            document.getElementById('springValue').textContent = k2 + ' N/m';
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', reset);
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            paused = !paused;
+            document.getElementById('pauseBtn').textContent = paused ? '再開' : '一時停止';
+        });
+
+        function reset() {
+            phase = 0;
+            theta = Math.PI / 2;
+            x1 = 0;
+            v1 = 0;
+            x2 = m2StartX;
+            v2 = 0;
+            t = 0;
+            history = [];
+            collided = false;
+            paused = false;
+            document.getElementById('pauseBtn').textContent = '一時停止';
+        }
+
+        // 物理シミュレーション
+        function simulate(dt) {
+            const R = h;  // 曲面の半径
+
+            switch(phase) {
+                case 0: // 曲面を滑降
+                    // エネルギー保存: v = sqrt(2gh(1-cos(theta)))
+                    const currentH = h * (1 - Math.cos(theta));
+                    v1 = Math.sqrt(2 * g * currentH);
+                    theta -= v1 / R * dt;
+
+                    if (theta <= 0) {
+                        theta = 0;
+                        v1 = Math.sqrt(2 * g * h);  // 底での速度
+                        x1 = frictionStart1;
+                        phase = 1;
+                    }
+                    break;
+
+                case 1: // 摩擦面1を移動
+                    const a1 = -mu1 * g;
+                    v1 += a1 * dt;
+                    if (v1 < 0) v1 = 0;
+                    x1 += v1 * dt;
+
+                    if (x1 >= m2StartX && !collided) {
+                        // 衝突（完全非弾性）
+                        const vCombined = (m1 * v1) / (m1 + m2);
+                        v2 = vCombined;
+                        x2 = m2StartX;
+                        collided = true;
+                        phase = 2;
+                    }
+                    break;
+
+                case 2: // 衝突後、摩擦面2へ
+                    const a2 = -mu2 * g * Math.sign(v2);
+                    v2 += a2 * dt;
+                    x2 += v2 * dt;
+                    x1 = x2 - 0.15;  // m1はm2に押されている
+
+                    if (x2 >= wallX - 0.2) {
+                        phase = 3;
+                    }
+                    if (v2 <= 0) {
+                        phase = 4;  // 停止
+                    }
+                    break;
+
+                case 3: // バネ圧縮
+                    const springX = x2 - (wallX - 0.2);
+                    const springForce = -k2 * springX;
+                    const friction = -mu2 * (m1 + m2) * g * Math.sign(v2);
+                    const aSpring = (springForce + friction) / (m1 + m2);
+                    v2 += aSpring * dt;
+                    x2 += v2 * dt;
+                    x1 = x2 - 0.15;
+
+                    if (x2 < wallX - 0.2 && v2 < 0) {
+                        phase = 2;  // バネから離れる
+                    }
+                    break;
+
+                case 4: // 停止
+                    break;
+            }
+
+            t += dt;
+
+            history.push({ t: t, x1: x1, x2: x2, v1: v1, v2: v2 });
+            if (history.length > maxHistory) history.shift();
+        }
+
+        // バネを描画
+        function drawSpring(ctx, x1, y1, x2, y2, coils) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            if (len < 10) return;
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+
+            const segLen = len / (coils * 2 + 2);
+            const amplitude = 8;
+
+            ctx.lineTo(segLen, 0);
+
+            for (let i = 0; i < coils * 2; i++) {
+                const xPos = segLen + (i + 1) * segLen;
+                const yPos = (i % 2 === 0) ? amplitude : -amplitude;
+                ctx.lineTo(xPos, yPos);
+            }
+
+            ctx.lineTo(len, 0);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // アニメーション描画
+        function drawAnimation() {
+            animCtx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+
+            const scale = 100;
+            const groundY = 220;
+            const offsetX = 50;
+
+            // 重力矢印
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 2;
+            animCtx.beginPath();
+            animCtx.moveTo(100, 50);
+            animCtx.lineTo(100, 90);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(95, 80);
+            animCtx.lineTo(100, 90);
+            animCtx.lineTo(105, 80);
+            animCtx.stroke();
+            animCtx.fillStyle = '#000';
+            animCtx.font = '14px Arial';
+            animCtx.fillText('g', 110, 75);
+
+            // 点A
+            animCtx.fillText('A', offsetX - 5, groundY - h * scale - 10);
+
+            // 曲面（四分の一円）
+            const R = h * scale;
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 2;
+            animCtx.beginPath();
+            animCtx.arc(offsetX + R, groundY, R, Math.PI, Math.PI * 1.5);
+            animCtx.stroke();
+
+            // 地面
+            animCtx.beginPath();
+            animCtx.moveTo(offsetX + R, groundY);
+            animCtx.lineTo(offsetX + wallX * scale, groundY);
+            animCtx.stroke();
+
+            // 壁
+            const wallPx = offsetX + wallX * scale;
+            animCtx.beginPath();
+            animCtx.moveTo(wallPx, groundY - 80);
+            animCtx.lineTo(wallPx, groundY);
+            animCtx.stroke();
+
+            // 壁のハッチング
+            animCtx.lineWidth = 1;
+            for (let i = 0; i < 4; i++) {
+                animCtx.beginPath();
+                animCtx.moveTo(wallPx, groundY - 80 + i * 20);
+                animCtx.lineTo(wallPx + 10, groundY - 70 + i * 20);
+                animCtx.stroke();
+            }
+
+            // 摩擦面1
+            animCtx.fillStyle = '#ccc';
+            const f1Start = offsetX + frictionStart1 * scale;
+            const f1End = offsetX + frictionEnd1 * scale;
+            animCtx.fillRect(f1Start, groundY, f1End - f1Start, 5);
+            animCtx.fillStyle = '#000';
+            animCtx.font = '11px Arial';
+            animCtx.fillText('μ₁', (f1Start + f1End) / 2 - 5, groundY + 18);
+            animCtx.fillText('ℓ₁', (f1Start + f1End) / 2 - 5, groundY + 32);
+            animCtx.fillText('B', f1Start - 5, groundY + 18);
+            animCtx.fillText('C', f1End - 5, groundY + 18);
+
+            // 摩擦面2
+            const f2Start = offsetX + frictionStart2 * scale;
+            const f2End = offsetX + frictionEnd2 * scale;
+            animCtx.fillStyle = '#ccc';
+            animCtx.fillRect(f2Start, groundY, f2End - f2Start, 5);
+            animCtx.fillStyle = '#000';
+            animCtx.fillText('μ₂', (f2Start + f2End) / 2 - 5, groundY + 18);
+            animCtx.fillText('ℓ₂', (f2Start + f2End) / 2 - 5, groundY + 32);
+            animCtx.fillText('E', f2Start - 5, groundY + 18);
+            animCtx.fillText('F', f2End - 5, groundY + 18);
+
+            // 点D, G
+            animCtx.fillText('D', offsetX + m2StartX * scale - 20, groundY + 18);
+            animCtx.fillText('G', wallPx - 15, groundY + 18);
+
+            // 高さhの表示
+            animCtx.strokeStyle = '#000';
+            animCtx.setLineDash([3, 3]);
+            animCtx.beginPath();
+            animCtx.moveTo(offsetX + R + 30, groundY - h * scale);
+            animCtx.lineTo(offsetX + R + 30, groundY);
+            animCtx.stroke();
+            animCtx.setLineDash([]);
+            animCtx.fillText('h', offsetX + R + 35, groundY - h * scale / 2);
+
+            // m1の描画
+            let m1Px, m1Py;
+            if (phase === 0) {
+                // 曲面上
+                const R = h * scale;
+                m1Px = offsetX + R - R * Math.sin(theta);
+                m1Py = groundY - R * (1 - Math.cos(theta));
+            } else {
+                m1Px = offsetX + x1 * scale;
+                m1Py = groundY - 15;
+            }
+
+            if (phase < 2 || !collided) {
+                animCtx.fillStyle = '#666';
+                animCtx.strokeStyle = '#000';
+                animCtx.lineWidth = 1.5;
+                animCtx.fillRect(m1Px - 15, m1Py - 15, 30, 20);
+                animCtx.strokeRect(m1Px - 15, m1Py - 15, 30, 20);
+                animCtx.fillStyle = '#fff';
+                animCtx.font = '12px Arial';
+                animCtx.fillText('m₁', m1Px - 10, m1Py);
+            }
+
+            // m2の描画
+            const m2Px = offsetX + x2 * scale;
+            const m2Py = groundY - 20;
+
+            // バネk1（上から吊られている）
+            const ceilingY = groundY - 100;
+            drawSpring(animCtx, m2Px, ceilingY, m2Px, m2Py - 15, 5);
+            animCtx.fillStyle = '#000';
+            animCtx.fillText('k₁', m2Px + 10, ceilingY + 30);
+
+            // 天井
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 2;
+            animCtx.beginPath();
+            animCtx.moveTo(m2Px - 30, ceilingY);
+            animCtx.lineTo(m2Px + 30, ceilingY);
+            animCtx.stroke();
+            animCtx.lineWidth = 1;
+            for (let i = 0; i < 3; i++) {
+                animCtx.beginPath();
+                animCtx.moveTo(m2Px - 30 + i * 20, ceilingY);
+                animCtx.lineTo(m2Px - 40 + i * 20, ceilingY - 10);
+                animCtx.stroke();
+            }
+
+            // m2本体
+            animCtx.fillStyle = '#999';
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1.5;
+            animCtx.fillRect(m2Px - 20, m2Py - 15, 40, 30);
+            animCtx.strokeRect(m2Px - 20, m2Py - 15, 40, 30);
+            animCtx.fillStyle = '#000';
+            animCtx.font = '12px Arial';
+            animCtx.fillText('m₂', m2Px - 10, m2Py + 5);
+
+            // バネk2（壁への接続）
+            drawSpring(animCtx, m2Px + 20, m2Py, wallPx, m2Py, 6);
+            animCtx.fillText('k₂', (m2Px + 20 + wallPx) / 2 - 5, m2Py - 15);
+
+            // Δx表示
+            if (x2 > wallX - 0.3) {
+                const deltaX = x2 - (wallX - 0.2);
+                if (deltaX > 0.01) {
+                    animCtx.fillText('Δx', wallPx - 30, m2Py - 30);
+                }
+            }
+
+            // x軸
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+            animCtx.beginPath();
+            animCtx.moveTo(wallPx - 50, groundY + 45);
+            animCtx.lineTo(wallPx, groundY + 45);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(wallPx - 5, groundY + 40);
+            animCtx.lineTo(wallPx, groundY + 45);
+            animCtx.lineTo(wallPx - 5, groundY + 50);
+            animCtx.stroke();
+            animCtx.fillText('x', wallPx + 5, groundY + 50);
+
+            // 状態表示
+            animCtx.fillStyle = '#000';
+            animCtx.font = '13px Arial';
+            animCtx.textAlign = 'left';
+            animCtx.fillText(`v₁ = ${v1.toFixed(2)} m/s`, 10, 20);
+            animCtx.fillText(`v₂ = ${v2.toFixed(2)} m/s`, 10, 38);
+            animCtx.fillText(`t = ${t.toFixed(2)} s`, 10, 56);
+        }
+
+        // グラフ描画
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            const padding = 50;
+            const width = graphCanvas.width - padding * 2;
+            const height = graphCanvas.height - padding * 2;
+
+            // 軸
+            graphCtx.strokeStyle = '#000';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(padding, padding);
+            graphCtx.lineTo(padding, graphCanvas.height - padding);
+            graphCtx.lineTo(graphCanvas.width - padding, graphCanvas.height - padding);
+            graphCtx.stroke();
+
+            // ラベル
+            graphCtx.fillStyle = '#000';
+            graphCtx.font = '12px Arial';
+            graphCtx.textAlign = 'center';
+            graphCtx.fillText('時間 t (s)', graphCanvas.width/2, graphCanvas.height - 5);
+
+            graphCtx.save();
+            graphCtx.translate(12, graphCanvas.height/2);
+            graphCtx.rotate(-Math.PI/2);
+            graphCtx.fillText('速度 v (m/s)', 0, 0);
+            graphCtx.restore();
+
+            // 履歴描画
+            if (history.length > 1) {
+                const tMax = Math.max(history[history.length-1].t, 3);
+                const vMax = Math.sqrt(2 * g * h) * 1.2;
+
+                // v1（実線）
+                graphCtx.strokeStyle = '#000';
+                graphCtx.lineWidth = 1.5;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const px = padding + (history[i].t / tMax) * width;
+                    const py = graphCanvas.height - padding - (history[i].v1 / vMax) * height;
+                    if (i === 0) graphCtx.moveTo(px, py);
+                    else graphCtx.lineTo(px, py);
+                }
+                graphCtx.stroke();
+
+                // v2（点線）
+                graphCtx.strokeStyle = '#666';
+                graphCtx.setLineDash([5, 5]);
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const px = padding + (history[i].t / tMax) * width;
+                    const py = graphCanvas.height - padding - (Math.abs(history[i].v2) / vMax) * height;
+                    if (i === 0) graphCtx.moveTo(px, py);
+                    else graphCtx.lineTo(px, py);
+                }
+                graphCtx.stroke();
+                graphCtx.setLineDash([]);
+            }
+
+            // 凡例
+            graphCtx.font = '11px Arial';
+            graphCtx.textAlign = 'left';
+            graphCtx.strokeStyle = '#000';
+            graphCtx.lineWidth = 1.5;
+            graphCtx.beginPath();
+            graphCtx.moveTo(graphCanvas.width - 100, 15);
+            graphCtx.lineTo(graphCanvas.width - 70, 15);
+            graphCtx.stroke();
+            graphCtx.fillStyle = '#000';
+            graphCtx.fillText('v₁', graphCanvas.width - 65, 19);
+
+            graphCtx.strokeStyle = '#666';
+            graphCtx.setLineDash([5, 5]);
+            graphCtx.beginPath();
+            graphCtx.moveTo(graphCanvas.width - 100, 30);
+            graphCtx.lineTo(graphCanvas.width - 70, 30);
+            graphCtx.stroke();
+            graphCtx.setLineDash([]);
+            graphCtx.fillStyle = '#666';
+            graphCtx.fillText('v₂', graphCanvas.width - 65, 34);
+        }
+
+        // メインループ
+        function animate() {
+            if (!paused) {
+                simulate(0.016);
+            }
+            drawAnimation();
+            drawGraph();
+            requestAnimationFrame(animate);
+        }
+
+        // 初期化
+        reset();
+        animate();
+    </script>
+</body>
+</html>

@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>回転円盤連結クランク機構シミュレーション</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            color: #000;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #000;
+            margin-bottom: 10px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        canvas {
+            background: #fff;
+            border: 1px solid #000;
+        }
+        .controls {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #000;
+            min-width: 250px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #000;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .value {
+            text-align: right;
+            font-size: 0.9em;
+            color: #666;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            background: #fff;
+            color: #000;
+            border: 1px solid #000;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background: #eee;
+        }
+        .equation {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.9em;
+            text-align: center;
+        }
+        .graph-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>回転円盤連結クランク機構</h1>
+
+    <div class="container">
+        <div class="graph-container">
+            <canvas id="animCanvas" width="550" height="320"></canvas>
+            <canvas id="graphCanvas" width="550" height="180"></canvas>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>角速度 Ω (rad/s)</label>
+                <input type="range" id="omega" min="0.5" max="5" step="0.1" value="2">
+                <div class="value" id="omegaValue">2.0 rad/s</div>
+            </div>
+
+            <div class="control-group">
+                <label>大円盤質量 m₁ (kg)</label>
+                <input type="range" id="m1" min="1" max="10" step="0.5" value="5">
+                <div class="value" id="m1Value">5.0 kg</div>
+            </div>
+
+            <div class="control-group">
+                <label>小円盤質量 m₄ (kg)</label>
+                <input type="range" id="m4" min="0.5" max="5" step="0.5" value="2">
+                <div class="value" id="m4Value">2.0 kg</div>
+            </div>
+
+            <div class="control-group">
+                <label>棒の質量 m₃ (kg)</label>
+                <input type="range" id="m3" min="0.1" max="2" step="0.1" value="0.5">
+                <div class="value" id="m3Value">0.5 kg</div>
+            </div>
+
+            <div class="control-group">
+                <label>内側半径 R (m)</label>
+                <input type="range" id="radius" min="0.05" max="0.2" step="0.01" value="0.1">
+                <div class="value" id="radiusValue">0.1 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>棒の長さ ℓ (m)</label>
+                <input type="range" id="rodLength" min="0.2" max="0.6" step="0.02" value="0.4">
+                <div class="value" id="rodLengthValue">0.4 m</div>
+            </div>
+
+            <button id="resetBtn">リセット</button>
+            <button id="pauseBtn">一時停止</button>
+
+            <div class="equation">
+                <strong>構成:</strong><br>
+                左: 二重円盤 (R, 2R)<br>
+                右: 円盤 (R)<br>
+                棒で連結
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // キャンバス設定
+        const animCanvas = document.getElementById('animCanvas');
+        const animCtx = animCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+
+        // パラメータ
+        let Omega = 2.0;    // 角速度
+        let m1 = 5.0;       // 大円盤質量
+        let m4 = 2.0;       // 小円盤質量
+        let m3 = 0.5;       // 棒の質量
+        let R = 0.1;        // 内側半径
+        let rodLength = 0.4;  // 棒の長さ
+        const g = 9.81;
+
+        // 状態変数
+        let theta1 = 0;     // 左円盤の角度
+        let theta4 = 0;     // 右円盤の角度
+        let t = 0;
+        let paused = false;
+        let history = [];
+        const maxHistory = 500;
+
+        // UI要素
+        document.getElementById('omega').addEventListener('input', (e) => {
+            Omega = parseFloat(e.target.value);
+            document.getElementById('omegaValue').textContent = Omega.toFixed(1) + ' rad/s';
+        });
+
+        document.getElementById('m1').addEventListener('input', (e) => {
+            m1 = parseFloat(e.target.value);
+            document.getElementById('m1Value').textContent = m1.toFixed(1) + ' kg';
+        });
+
+        document.getElementById('m4').addEventListener('input', (e) => {
+            m4 = parseFloat(e.target.value);
+            document.getElementById('m4Value').textContent = m4.toFixed(1) + ' kg';
+        });
+
+        document.getElementById('m3').addEventListener('input', (e) => {
+            m3 = parseFloat(e.target.value);
+            document.getElementById('m3Value').textContent = m3.toFixed(1) + ' kg';
+        });
+
+        document.getElementById('radius').addEventListener('input', (e) => {
+            R = parseFloat(e.target.value);
+            document.getElementById('radiusValue').textContent = R.toFixed(2) + ' m';
+        });
+
+        document.getElementById('rodLength').addEventListener('input', (e) => {
+            rodLength = parseFloat(e.target.value);
+            document.getElementById('rodLengthValue').textContent = rodLength.toFixed(2) + ' m';
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', reset);
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            paused = !paused;
+            document.getElementById('pauseBtn').textContent = paused ? '再開' : '一時停止';
+        });
+
+        function reset() {
+            theta1 = 0;
+            theta4 = 0;
+            t = 0;
+            history = [];
+            paused = false;
+            document.getElementById('pauseBtn').textContent = '一時停止';
+        }
+
+        // 物理シミュレーション
+        function simulate(dt) {
+            // 左円盤は一定角速度で回転
+            theta1 += Omega * dt;
+
+            // 棒の端点（左円盤の外周、半径2R）
+            const leftPinX = 2 * R * Math.cos(theta1);
+            const leftPinY = 2 * R * Math.sin(theta1);
+
+            // 右円盤の中心位置（固定）
+            const diskSeparation = rodLength * 1.2;
+
+            // 右円盤の回転角度（棒による拘束）
+            // 簡略化：棒が両円盤を接続し、右円盤は左円盤の回転に追従
+            // 伝達比 = 2R / R = 2
+            theta4 = -theta1 * 2;
+
+            t += dt;
+
+            // 棒の中点の速度を計算
+            const rodMidVx = -2 * R * Omega * Math.sin(theta1);
+            const rodMidVy = 2 * R * Omega * Math.cos(theta1);
+            const rodMidSpeed = Math.sqrt(rodMidVx * rodMidVx + rodMidVy * rodMidVy);
+
+            history.push({
+                t: t,
+                theta1: theta1,
+                theta4: theta4,
+                speed: rodMidSpeed
+            });
+            if (history.length > maxHistory) history.shift();
+        }
+
+        // アニメーション描画
+        function drawAnimation() {
+            animCtx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+
+            const scale = 600;
+            const leftCenterX = 150;
+            const centerY = 180;
+            const diskSeparation = rodLength * scale * 1.2;
+
+            // 重力矢印
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 2;
+            animCtx.beginPath();
+            animCtx.moveTo(480, 40);
+            animCtx.lineTo(480, 80);
+            animCtx.stroke();
+            animCtx.beginPath();
+            animCtx.moveTo(475, 70);
+            animCtx.lineTo(480, 80);
+            animCtx.lineTo(485, 70);
+            animCtx.stroke();
+            animCtx.fillStyle = '#000';
+            animCtx.font = '14px Arial';
+            animCtx.fillText('g', 490, 65);
+
+            // 地面
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 2;
+            animCtx.beginPath();
+            animCtx.moveTo(50, centerY + 2 * R * scale + 30);
+            animCtx.lineTo(500, centerY + 2 * R * scale + 30);
+            animCtx.stroke();
+
+            // 左円盤（外側 2R）
+            const outerR = 2 * R * scale;
+            const innerR = R * scale;
+
+            animCtx.fillStyle = '#ddd';
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 2;
+            animCtx.beginPath();
+            animCtx.arc(leftCenterX, centerY, outerR, 0, Math.PI * 2);
+            animCtx.fill();
+            animCtx.stroke();
+
+            // 左円盤（内側 R）
+            animCtx.fillStyle = '#bbb';
+            animCtx.beginPath();
+            animCtx.arc(leftCenterX, centerY, innerR, 0, Math.PI * 2);
+            animCtx.fill();
+            animCtx.stroke();
+
+            // 左円盤の中心
+            animCtx.fillStyle = '#000';
+            animCtx.beginPath();
+            animCtx.arc(leftCenterX, centerY, 5, 0, Math.PI * 2);
+            animCtx.fill();
+
+            // 左円盤のスポーク
+            animCtx.lineWidth = 2;
+            for (let i = 0; i < 4; i++) {
+                const angle = theta1 + i * Math.PI / 2;
+                animCtx.beginPath();
+                animCtx.moveTo(leftCenterX, centerY);
+                animCtx.lineTo(
+                    leftCenterX + outerR * 0.9 * Math.cos(angle),
+                    centerY + outerR * 0.9 * Math.sin(angle)
+                );
+                animCtx.stroke();
+            }
+
+            // 棒の左端（外周上）
+            const leftPinX = leftCenterX + outerR * Math.cos(theta1);
+            const leftPinY = centerY + outerR * Math.sin(theta1);
+
+            // 右円盤の中心
+            const rightCenterX = leftCenterX + diskSeparation;
+            const rightCenterY = centerY;
+
+            // 右円盤
+            animCtx.fillStyle = '#ccc';
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 2;
+            animCtx.beginPath();
+            animCtx.arc(rightCenterX, rightCenterY, innerR, 0, Math.PI * 2);
+            animCtx.fill();
+            animCtx.stroke();
+
+            // 右円盤のスポーク
+            for (let i = 0; i < 4; i++) {
+                const angle = theta4 + i * Math.PI / 2;
+                animCtx.beginPath();
+                animCtx.moveTo(rightCenterX, rightCenterY);
+                animCtx.lineTo(
+                    rightCenterX + innerR * 0.8 * Math.cos(angle),
+                    rightCenterY + innerR * 0.8 * Math.sin(angle)
+                );
+                animCtx.stroke();
+            }
+
+            // 右円盤の中心
+            animCtx.fillStyle = '#000';
+            animCtx.beginPath();
+            animCtx.arc(rightCenterX, rightCenterY, 4, 0, Math.PI * 2);
+            animCtx.fill();
+
+            // 棒の右端（右円盤の周上）
+            const rightPinX = rightCenterX + innerR * Math.cos(theta4 + Math.PI);
+            const rightPinY = rightCenterY + innerR * Math.sin(theta4 + Math.PI);
+
+            // 棒
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 4;
+            animCtx.beginPath();
+            animCtx.moveTo(leftPinX, leftPinY);
+            animCtx.lineTo(rightPinX, rightPinY);
+            animCtx.stroke();
+
+            // 棒の中点の質量
+            const midX = (leftPinX + rightPinX) / 2;
+            const midY = (leftPinY + rightPinY) / 2;
+            animCtx.fillStyle = '#666';
+            animCtx.beginPath();
+            animCtx.arc(midX, midY, 8, 0, Math.PI * 2);
+            animCtx.fill();
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 1;
+            animCtx.stroke();
+
+            // 接続点
+            animCtx.fillStyle = '#fff';
+            animCtx.strokeStyle = '#000';
+            animCtx.lineWidth = 2;
+            animCtx.beginPath();
+            animCtx.arc(leftPinX, leftPinY, 6, 0, Math.PI * 2);
+            animCtx.fill();
+            animCtx.stroke();
+
+            animCtx.beginPath();
+            animCtx.arc(rightPinX, rightPinY, 6, 0, Math.PI * 2);
+            animCtx.fill();
+            animCtx.stroke();
+
+            // ラベル
+            animCtx.fillStyle = '#000';
+            animCtx.font = '12px Arial';
+            animCtx.textAlign = 'center';
+            animCtx.fillText('①', leftCenterX, centerY + 5);
+            animCtx.fillText('④', rightCenterX, rightCenterY + 5);
+            animCtx.fillText('m₁', leftCenterX, centerY + innerR + 20);
+            animCtx.fillText('m₄', rightCenterX, rightCenterY + innerR + 20);
+            animCtx.fillText('m₃', midX, midY - 15);
+
+            // 半径ラベル
+            animCtx.textAlign = 'left';
+            animCtx.fillText('R', leftCenterX + innerR / 2, centerY - 5);
+            animCtx.fillText('2R', leftCenterX + innerR + (outerR - innerR) / 2, centerY - 5);
+            animCtx.fillText('R', rightCenterX + innerR / 2 + 5, rightCenterY - 5);
+
+            // 棒の長さラベル
+            animCtx.fillText('ℓ/2', (leftPinX + midX) / 2, (leftPinY + midY) / 2 - 15);
+
+            // 角速度Ω
+            animCtx.beginPath();
+            animCtx.arc(leftCenterX, centerY, outerR + 15, -0.3, 0.8);
+            animCtx.stroke();
+            animCtx.fillText('Ω', leftCenterX + outerR + 20, centerY - 20);
+
+            // 点P, Q
+            animCtx.fillText('P', leftCenterX - 15, centerY + outerR + 25);
+            animCtx.fillText('Q', rightCenterX - 15, rightCenterY + innerR + 25);
+
+            // 座標系
+            animCtx.font = '10px Arial';
+            animCtx.fillText('ₖê₁', leftCenterX + 20, centerY + outerR + 15);
+            animCtx.fillText('ᵥê₁', rightCenterX + 20, rightCenterY + innerR + 15);
+
+            // 状態表示
+            animCtx.fillStyle = '#000';
+            animCtx.font = '13px Arial';
+            animCtx.textAlign = 'left';
+            animCtx.fillText(`θ₁ = ${((theta1 * 180 / Math.PI) % 360).toFixed(1)}°`, 10, 25);
+            animCtx.fillText(`θ₄ = ${((theta4 * 180 / Math.PI) % 360).toFixed(1)}°`, 10, 43);
+            animCtx.fillText(`t = ${t.toFixed(2)} s`, 10, 61);
+        }
+
+        // グラフ描画
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            const padding = 50;
+            const width = graphCanvas.width - padding * 2;
+            const height = graphCanvas.height - padding * 2;
+
+            // 軸
+            graphCtx.strokeStyle = '#000';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(padding, padding);
+            graphCtx.lineTo(padding, graphCanvas.height - padding);
+            graphCtx.lineTo(graphCanvas.width - padding, graphCanvas.height - padding);
+            graphCtx.stroke();
+
+            // ラベル
+            graphCtx.fillStyle = '#000';
+            graphCtx.font = '12px Arial';
+            graphCtx.textAlign = 'center';
+            graphCtx.fillText('時間 t (s)', graphCanvas.width/2, graphCanvas.height - 5);
+
+            graphCtx.save();
+            graphCtx.translate(12, graphCanvas.height/2);
+            graphCtx.rotate(-Math.PI/2);
+            graphCtx.fillText('角度 (°)', 0, 0);
+            graphCtx.restore();
+
+            // 履歴描画
+            if (history.length > 1) {
+                const tMax = Math.max(history[history.length-1].t, 5);
+                const angleMax = 360;
+
+                // θ₁（実線）- 正規化
+                graphCtx.strokeStyle = '#000';
+                graphCtx.lineWidth = 1.5;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const px = padding + (history[i].t / tMax) * width;
+                    const normalizedAngle = ((history[i].theta1 * 180 / Math.PI) % 360 + 360) % 360;
+                    const py = graphCanvas.height - padding - (normalizedAngle / angleMax) * height;
+                    if (i === 0) graphCtx.moveTo(px, py);
+                    else graphCtx.lineTo(px, py);
+                }
+                graphCtx.stroke();
+
+                // θ₄（点線）- 正規化
+                graphCtx.strokeStyle = '#666';
+                graphCtx.setLineDash([5, 5]);
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const px = padding + (history[i].t / tMax) * width;
+                    const normalizedAngle = ((history[i].theta4 * 180 / Math.PI) % 360 + 360) % 360;
+                    const py = graphCanvas.height - padding - (normalizedAngle / angleMax) * height;
+                    if (i === 0) graphCtx.moveTo(px, py);
+                    else graphCtx.lineTo(px, py);
+                }
+                graphCtx.stroke();
+                graphCtx.setLineDash([]);
+            }
+
+            // 凡例
+            graphCtx.font = '11px Arial';
+            graphCtx.textAlign = 'left';
+            graphCtx.strokeStyle = '#000';
+            graphCtx.lineWidth = 1.5;
+            graphCtx.beginPath();
+            graphCtx.moveTo(graphCanvas.width - 100, 18);
+            graphCtx.lineTo(graphCanvas.width - 70, 18);
+            graphCtx.stroke();
+            graphCtx.fillStyle = '#000';
+            graphCtx.fillText('θ₁ (左)', graphCanvas.width - 65, 22);
+
+            graphCtx.strokeStyle = '#666';
+            graphCtx.setLineDash([5, 5]);
+            graphCtx.beginPath();
+            graphCtx.moveTo(graphCanvas.width - 100, 33);
+            graphCtx.lineTo(graphCanvas.width - 70, 33);
+            graphCtx.stroke();
+            graphCtx.setLineDash([]);
+            graphCtx.fillStyle = '#666';
+            graphCtx.fillText('θ₄ (右)', graphCanvas.width - 65, 37);
+
+            // スケール
+            graphCtx.fillStyle = '#000';
+            graphCtx.textAlign = 'right';
+            graphCtx.fillText('360', padding - 5, padding + 5);
+            graphCtx.fillText('180', padding - 5, padding + height / 2 + 5);
+            graphCtx.fillText('0', padding - 5, graphCanvas.height - padding + 5);
+        }
+
+        // メインループ
+        function animate() {
+            if (!paused) {
+                simulate(0.016);
+            }
+            drawAnimation();
+            drawGraph();
+            requestAnimationFrame(animate);
+        }
+
+        // 初期化
+        reset();
+        animate();
+    </script>
+</body>
+</html>

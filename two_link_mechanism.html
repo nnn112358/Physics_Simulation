@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2リンク機構シミュレーション</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            color: #000;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #000;
+            margin-bottom: 10px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        canvas {
+            background: #fff;
+            border: 1px solid #000;
+        }
+        .controls {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #000;
+            min-width: 250px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #000;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .value {
+            text-align: right;
+            font-size: 0.9em;
+            color: #666;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            background: #fff;
+            color: #000;
+            border: 1px solid #000;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background: #eee;
+        }
+        .equation {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.85em;
+        }
+        .stats {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <h1>2リンク機構</h1>
+
+    <div class="container">
+        <canvas id="animCanvas" width="500" height="450"></canvas>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>主リンク長さ L₁ (m)</label>
+                <input type="range" id="link1" min="0.3" max="1" step="0.05" value="0.6">
+                <div class="value" id="link1Value">0.60 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>接続リンク長さ L₂ (m)</label>
+                <input type="range" id="link2" min="0.15" max="0.5" step="0.05" value="0.3">
+                <div class="value" id="link2Value">0.30 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>接続点位置 d (m)</label>
+                <input type="range" id="attachPoint" min="0.1" max="0.5" step="0.05" value="0.35">
+                <div class="value" id="attachPointValue">0.35 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>固定点距離 a (m)</label>
+                <input type="range" id="fixedDist" min="0.2" max="0.6" step="0.05" value="0.4">
+                <div class="value" id="fixedDistValue">0.40 m</div>
+            </div>
+
+            <div class="control-group">
+                <label>主リンク質量 m₁ (kg)</label>
+                <input type="range" id="mass1" min="0.5" max="3" step="0.1" value="1.5">
+                <div class="value" id="mass1Value">1.5 kg</div>
+            </div>
+
+            <div class="control-group">
+                <label>接続リンク質量 m₂ (kg)</label>
+                <input type="range" id="mass2" min="0.2" max="1.5" step="0.1" value="0.5">
+                <div class="value" id="mass2Value">0.5 kg</div>
+            </div>
+
+            <div class="control-group">
+                <label>減衰係数 c (Ns/m)</label>
+                <input type="range" id="damping" min="0" max="2" step="0.1" value="0.3">
+                <div class="value" id="dampingValue">0.3 Ns/m</div>
+            </div>
+
+            <button id="resetBtn">リセット</button>
+            <button id="pauseBtn">一時停止</button>
+
+            <div class="stats" id="stats">
+                θ₁: 0°<br>
+                ω₁: 0 rad/s
+            </div>
+
+            <div class="equation">
+                <strong>拘束条件付き運動:</strong><br>
+                主リンクの回転が<br>
+                接続リンクにより制限される
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // キャンバス設定
+        const canvas = document.getElementById('animCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // パラメータ
+        let L1 = 0.6;          // 主リンク長さ
+        let L2 = 0.3;          // 接続リンク長さ
+        let d = 0.35;          // 接続点位置（主リンク下端から）
+        let a = 0.4;           // 固定点の水平距離
+        let m1 = 1.5;          // 主リンク質量
+        let m2 = 0.5;          // 接続リンク質量
+        let c = 0.3;           // 減衰係数
+
+        const g = 9.81;
+
+        // 状態変数
+        let theta1 = 0;        // 主リンクの角度
+        let omega1 = 0;        // 主リンクの角速度
+        let t = 0;
+        let paused = false;
+
+        // ピボット位置
+        const pivotX = 200;
+        const pivotY = 350;
+        const fixedX = pivotX + 200;  // 固定点X
+        const fixedY = pivotY - 100;  // 固定点Y
+        const scale = 300;
+
+        // UI要素
+        document.getElementById('link1').addEventListener('input', (e) => {
+            L1 = parseFloat(e.target.value);
+            document.getElementById('link1Value').textContent = L1.toFixed(2) + ' m';
+            reset();
+        });
+
+        document.getElementById('link2').addEventListener('input', (e) => {
+            L2 = parseFloat(e.target.value);
+            document.getElementById('link2Value').textContent = L2.toFixed(2) + ' m';
+            reset();
+        });
+
+        document.getElementById('attachPoint').addEventListener('input', (e) => {
+            d = parseFloat(e.target.value);
+            document.getElementById('attachPointValue').textContent = d.toFixed(2) + ' m';
+            reset();
+        });
+
+        document.getElementById('fixedDist').addEventListener('input', (e) => {
+            a = parseFloat(e.target.value);
+            document.getElementById('fixedDistValue').textContent = a.toFixed(2) + ' m';
+            reset();
+        });
+
+        document.getElementById('mass1').addEventListener('input', (e) => {
+            m1 = parseFloat(e.target.value);
+            document.getElementById('mass1Value').textContent = m1.toFixed(1) + ' kg';
+        });
+
+        document.getElementById('mass2').addEventListener('input', (e) => {
+            m2 = parseFloat(e.target.value);
+            document.getElementById('mass2Value').textContent = m2.toFixed(1) + ' kg';
+        });
+
+        document.getElementById('damping').addEventListener('input', (e) => {
+            c = parseFloat(e.target.value);
+            document.getElementById('dampingValue').textContent = c.toFixed(1) + ' Ns/m';
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', reset);
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            paused = !paused;
+            document.getElementById('pauseBtn').textContent = paused ? '再開' : '一時停止';
+        });
+
+        function reset() {
+            // 初期角度を計算（幾何学的に有効な位置）
+            theta1 = findValidAngle();
+            omega1 = 0;
+            t = 0;
+            paused = false;
+            document.getElementById('pauseBtn').textContent = '一時停止';
+        }
+
+        // 拘束を満たす角度を見つける
+        function findValidAngle() {
+            // 固定点の相対位置
+            const relX = a;
+            const relY = (fixedY - pivotY) / scale;
+
+            // 接続点の軌跡と固定点からの距離L2の交点を求める
+            // 初期角度として45度付近を試す
+            for (let angle = 30; angle <= 80; angle += 0.5) {
+                const rad = angle * Math.PI / 180;
+                const attachX = d * Math.sin(rad);
+                const attachY = -d * Math.cos(rad);
+
+                const dx = attachX - relX;
+                const dy = attachY - relY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (Math.abs(dist - L2) < 0.01) {
+                    return rad;
+                }
+            }
+            return 45 * Math.PI / 180;
+        }
+
+        // 接続リンクの角度を計算
+        function calcLink2Angle(th1) {
+            const attachX = d * Math.sin(th1);
+            const attachY = -d * Math.cos(th1);
+
+            const relX = a;
+            const relY = (fixedY - pivotY) / scale;
+
+            const dx = relX - attachX;
+            const dy = relY - attachY;
+
+            return Math.atan2(dy, dx);
+        }
+
+        // 運動方程式（拘束付き）
+        function simulate(dt) {
+            // 現在の接続点位置
+            const attachX = d * Math.sin(theta1);
+            const attachY = -d * Math.cos(theta1);
+
+            // 固定点の相対位置
+            const relX = a;
+            const relY = (fixedY - pivotY) / scale;
+
+            // 接続リンクの方向
+            const dx = relX - attachX;
+            const dy = relY - attachY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            // 拘束力の方向（接続リンク方向）
+            const nx = dx / dist;
+            const ny = dy / dist;
+
+            // 主リンクの慣性モーメント（棒）
+            const I1 = m1 * L1 * L1 / 3;
+
+            // 接続点での拘束方向と主リンク回転による速度方向
+            // 接続点の速度 = omega1 * d * (cos(theta1), sin(theta1))
+            const vdirX = d * Math.cos(theta1);
+            const vdirY = d * Math.sin(theta1);
+
+            // 拘束条件から有効な慣性モーメント
+            const constraintFactor = Math.abs(nx * vdirX + ny * vdirY);
+
+            // 重力トルク
+            const torqueGrav = -m1 * g * (L1 / 2) * Math.sin(theta1);
+
+            // 接続リンクの重力効果
+            const theta2 = calcLink2Angle(theta1);
+            const link2CenterX = attachX + (L2 / 2) * Math.cos(theta2);
+            const link2CenterY = attachY + (L2 / 2) * Math.sin(theta2);
+
+            // 減衰トルク
+            const torqueDamp = -c * omega1 * d * d;
+
+            // 角加速度（簡略化モデル）
+            const alpha1 = (torqueGrav + torqueDamp) / (I1 + m2 * d * d);
+
+            // 速度制限（拘束による）
+            // 接続リンクの長さを維持するための補正
+            const currentDist = Math.sqrt(dx * dx + dy * dy);
+            const distError = currentDist - L2;
+
+            // オイラー法で更新
+            omega1 += alpha1 * dt;
+
+            // 拘束を維持するための補正
+            if (Math.abs(distError) > 0.001) {
+                // 角度を微調整して拘束を満たす
+                const correction = distError * 0.5;
+                const dtheta = correction / (d * constraintFactor + 0.01);
+                theta1 += dtheta * 0.1;
+            }
+
+            theta1 += omega1 * dt;
+
+            // 角度制限（拘束に基づく）
+            const minAngle = 20 * Math.PI / 180;
+            const maxAngle = 85 * Math.PI / 180;
+
+            if (theta1 < minAngle) {
+                theta1 = minAngle;
+                omega1 = Math.abs(omega1) * 0.5;
+            }
+            if (theta1 > maxAngle) {
+                theta1 = maxAngle;
+                omega1 = -Math.abs(omega1) * 0.5;
+            }
+
+            t += dt;
+        }
+
+        function drawLink(x1, y1, x2, y2, width) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const nx = -dy / len * width / 2;
+            const ny = dx / len * width / 2;
+
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+
+            ctx.beginPath();
+            ctx.moveTo(x1 + nx, y1 + ny);
+            ctx.lineTo(x2 + nx, y2 + ny);
+            ctx.arc(x2, y2, width / 2, Math.atan2(ny, nx), Math.atan2(-ny, -nx));
+            ctx.lineTo(x1 - nx, y1 - ny);
+            ctx.arc(x1, y1, width / 2, Math.atan2(-ny, -nx), Math.atan2(ny, nx));
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // 中央線
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 主リンクの先端位置
+            const tipX = pivotX + L1 * scale * Math.sin(theta1);
+            const tipY = pivotY - L1 * scale * Math.cos(theta1);
+
+            // 接続点位置
+            const attachX = pivotX + d * scale * Math.sin(theta1);
+            const attachY = pivotY - d * scale * Math.cos(theta1);
+
+            // 主リンクの描画
+            drawLink(pivotX, pivotY, tipX, tipY, 20);
+
+            // 接続リンクの描画
+            drawLink(attachX, attachY, fixedX, fixedY, 12);
+
+            // ピボット（主リンク下端）
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(pivotX, pivotY, 8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 固定端のハッチング
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(fixedX, fixedY - 30);
+            ctx.lineTo(fixedX, fixedY + 30);
+            ctx.stroke();
+
+            for (let i = 0; i < 6; i++) {
+                ctx.beginPath();
+                ctx.moveTo(fixedX, fixedY - 25 + i * 10);
+                ctx.lineTo(fixedX + 12, fixedY - 32 + i * 10);
+                ctx.stroke();
+            }
+
+            // 固定点
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(fixedX, fixedY, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 接続点
+            ctx.beginPath();
+            ctx.arc(attachX, attachY, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 先端
+            ctx.beginPath();
+            ctx.arc(tipX, tipY, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 地面（ピボット固定）
+            ctx.fillStyle = '#333';
+            ctx.fillRect(pivotX - 25, pivotY, 50, 15);
+
+            // ハッチング
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                ctx.moveTo(pivotX - 20 + i * 10, pivotY + 15);
+                ctx.lineTo(pivotX - 30 + i * 10, pivotY + 25);
+                ctx.stroke();
+            }
+
+            // ラベル
+            ctx.fillStyle = '#000';
+            ctx.font = '14px Arial';
+            ctx.fillText('L₁', pivotX - 30 + L1 * scale * 0.3 * Math.sin(theta1),
+                         pivotY - 10 - L1 * scale * 0.3 * Math.cos(theta1));
+            ctx.fillText('L₂', (attachX + fixedX) / 2, (attachY + fixedY) / 2 - 10);
+
+            // 角度表示
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(pivotX, pivotY);
+            ctx.lineTo(pivotX, pivotY - 50);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(pivotX, pivotY, 40, -Math.PI/2, -Math.PI/2 + theta1, false);
+            ctx.stroke();
+            ctx.fillText('θ₁', pivotX + 45, pivotY - 30);
+
+            // 統計更新
+            document.getElementById('stats').innerHTML =
+                `θ₁: ${(theta1 * 180 / Math.PI).toFixed(1)}°<br>` +
+                `ω₁: ${omega1.toFixed(2)} rad/s`;
+        }
+
+        // メインループ
+        function animate() {
+            if (!paused) {
+                for (let i = 0; i < 5; i++) {
+                    simulate(0.016 / 5);
+                }
+            }
+            draw();
+            requestAnimationFrame(animate);
+        }
+
+        // 初期化
+        reset();
+        animate();
+    </script>
+</body>
+</html>

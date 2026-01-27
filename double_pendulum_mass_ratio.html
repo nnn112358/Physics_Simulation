@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>二重振り子（質量比 m : m/10）</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+        .main-content {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 450px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #fff;
+            display: block;
+        }
+        .control-section {
+            width: 280px;
+        }
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 0.95em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin-bottom: 12px;
+        }
+        .slider-container label {
+            display: block;
+            color: #555;
+            margin-bottom: 3px;
+            font-size: 0.85em;
+        }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            min-width: 70px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-reset { background: #6c757d; color: white; }
+        .info-display {
+            background: #e9ecef;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.8em;
+            line-height: 1.6;
+        }
+        .graphs-section {
+            width: 100%;
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .graph-container {
+            flex: 1;
+            min-width: 350px;
+        }
+        .graph-container h4 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>二重振り子（質量比 m : m/10）</h1>
+        <p class="description">上部質量 m、下部質量 m/10 の二重振り子のカオス的運動</p>
+
+        <div class="main-content">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="500" height="500"></canvas>
+            </div>
+
+            <div class="control-section">
+                <div class="control-group">
+                    <h3>パラメータ設定</h3>
+
+                    <div class="slider-container">
+                        <label>質量 m: <span id="massVal">1.0</span> kg</label>
+                        <input type="range" id="massSlider" min="0.5" max="5.0" step="0.1" value="1.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>長さ ℓ₁: <span id="l1Val">1.0</span> m</label>
+                        <input type="range" id="l1Slider" min="0.3" max="2.0" step="0.1" value="1.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>長さ ℓ₂: <span id="l2Val">1.0</span> m</label>
+                        <input type="range" id="l2Slider" min="0.3" max="2.0" step="0.1" value="1.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>重力 g: <span id="gravVal">9.8</span> m/s²</label>
+                        <input type="range" id="gravSlider" min="1.0" max="20.0" step="0.1" value="9.8">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期角度 θ₁: <span id="theta1Val">90</span>°</label>
+                        <input type="range" id="theta1Slider" min="-180" max="180" step="5" value="90">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期角度 θ₂: <span id="theta2Val">90</span>°</label>
+                        <input type="range" id="theta2Slider" min="-180" max="180" step="5" value="90">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>シミュレーション制御</h3>
+                    <div class="button-group">
+                        <button class="btn-start" id="startBtn">開始</button>
+                        <button class="btn-stop" id="stopBtn">停止</button>
+                        <button class="btn-reset" id="resetBtn">リセット</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>状態表示</h3>
+                    <div class="info-display" id="infoDisplay">
+                        時間: 0.00 s<br>
+                        θ₁: 0.00°<br>
+                        θ₂: 0.00°<br>
+                        m₁ = m<br>
+                        m₂ = m/10
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="graphs-section">
+            <div class="graph-container">
+                <h4>角度の時間変化</h4>
+                <canvas id="graphTheta" width="380" height="180"></canvas>
+            </div>
+            <div class="graph-container">
+                <h4>エネルギー変化</h4>
+                <canvas id="graphEnergy" width="380" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const graphTheta = document.getElementById('graphTheta');
+        const ctxTheta = graphTheta.getContext('2d');
+        const graphEnergy = document.getElementById('graphEnergy');
+        const ctxEnergy = graphEnergy.getContext('2d');
+
+        // Parameters
+        let m = 1.0;
+        let l1 = 1.0;
+        let l2 = 1.0;
+        let g = 9.8;
+        let theta1_0 = 90 * Math.PI / 180;
+        let theta2_0 = 90 * Math.PI / 180;
+
+        // Mass ratio: m1 = m, m2 = m/10
+        function getM1() { return m; }
+        function getM2() { return m / 10; }
+
+        // State: [theta1, omega1, theta2, omega2]
+        let state = [theta1_0, 0, theta2_0, 0];
+        let time = 0;
+        let isRunning = false;
+        let animationId = null;
+
+        // Trajectory and history
+        let trajectory = [];
+        const maxTrajectory = 500;
+        let historyTheta1 = [], historyTheta2 = [];
+        let historyKE = [], historyPE = [], historyTE = [];
+        const maxHistory = 500;
+
+        // Sliders
+        const massSlider = document.getElementById('massSlider');
+        const l1Slider = document.getElementById('l1Slider');
+        const l2Slider = document.getElementById('l2Slider');
+        const gravSlider = document.getElementById('gravSlider');
+        const theta1Slider = document.getElementById('theta1Slider');
+        const theta2Slider = document.getElementById('theta2Slider');
+
+        const massVal = document.getElementById('massVal');
+        const l1Val = document.getElementById('l1Val');
+        const l2Val = document.getElementById('l2Val');
+        const gravVal = document.getElementById('gravVal');
+        const theta1Val = document.getElementById('theta1Val');
+        const theta2Val = document.getElementById('theta2Val');
+
+        massSlider.addEventListener('input', () => { m = parseFloat(massSlider.value); massVal.textContent = m.toFixed(1); });
+        l1Slider.addEventListener('input', () => { l1 = parseFloat(l1Slider.value); l1Val.textContent = l1.toFixed(1); if (!isRunning) reset(); });
+        l2Slider.addEventListener('input', () => { l2 = parseFloat(l2Slider.value); l2Val.textContent = l2.toFixed(1); if (!isRunning) reset(); });
+        gravSlider.addEventListener('input', () => { g = parseFloat(gravSlider.value); gravVal.textContent = g.toFixed(1); });
+        theta1Slider.addEventListener('input', () => { theta1_0 = parseFloat(theta1Slider.value) * Math.PI / 180; theta1Val.textContent = parseFloat(theta1Slider.value).toFixed(0); if (!isRunning) reset(); });
+        theta2Slider.addEventListener('input', () => { theta2_0 = parseFloat(theta2Slider.value) * Math.PI / 180; theta2Val.textContent = parseFloat(theta2Slider.value).toFixed(0); if (!isRunning) reset(); });
+
+        document.getElementById('startBtn').addEventListener('click', start);
+        document.getElementById('stopBtn').addEventListener('click', stop);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+
+        // Double pendulum equations of motion
+        function derivatives(st) {
+            const [th1, w1, th2, w2] = st;
+            const m1 = getM1();
+            const m2 = getM2();
+
+            const delta = th1 - th2;
+            const c = Math.cos(delta);
+            const s = Math.sin(delta);
+
+            const denom = m1 + m2 - m2 * c * c;
+
+            const a1_num = m2 * l1 * w1 * w1 * s * c +
+                          m2 * g * Math.sin(th2) * c +
+                          m2 * l2 * w2 * w2 * s -
+                          (m1 + m2) * g * Math.sin(th1);
+            const a1 = a1_num / (l1 * denom);
+
+            const a2_num = -m2 * l2 * w2 * w2 * s * c +
+                          (m1 + m2) * (g * Math.sin(th1) * c - l1 * w1 * w1 * s - g * Math.sin(th2));
+            const a2 = a2_num / (l2 * denom);
+
+            return [w1, a1, w2, a2];
+        }
+
+        function rk4Step(dt) {
+            const k1 = derivatives(state);
+
+            const s2 = state.map((s, i) => s + k1[i] * dt / 2);
+            const k2 = derivatives(s2);
+
+            const s3 = state.map((s, i) => s + k2[i] * dt / 2);
+            const k3 = derivatives(s3);
+
+            const s4 = state.map((s, i) => s + k3[i] * dt);
+            const k4 = derivatives(s4);
+
+            for (let i = 0; i < 4; i++) {
+                state[i] += (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]) * dt / 6;
+            }
+        }
+
+        function computeEnergies() {
+            const [th1, w1, th2, w2] = state;
+            const m1 = getM1();
+            const m2 = getM2();
+
+            const x1 = l1 * Math.sin(th1);
+            const y1 = -l1 * Math.cos(th1);
+            const x2 = x1 + l2 * Math.sin(th2);
+            const y2 = y1 - l2 * Math.cos(th2);
+
+            const vx1 = l1 * w1 * Math.cos(th1);
+            const vy1 = l1 * w1 * Math.sin(th1);
+            const vx2 = vx1 + l2 * w2 * Math.cos(th2);
+            const vy2 = vy1 + l2 * w2 * Math.sin(th2);
+
+            const KE = 0.5 * m1 * (vx1*vx1 + vy1*vy1) + 0.5 * m2 * (vx2*vx2 + vy2*vy2);
+            const PE = m1 * g * y1 + m2 * g * y2;
+            const TE = KE + PE;
+
+            return { KE, PE, TE };
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const [th1, w1, th2, w2] = state;
+            const pivotX = canvas.width / 2;
+            const pivotY = 120;
+            const scale = 100;
+
+            // Draw support
+            ctx.fillStyle = '#8B4513';
+            ctx.beginPath();
+            ctx.moveTo(pivotX - 40, pivotY - 25);
+            ctx.lineTo(pivotX + 40, pivotY - 25);
+            ctx.lineTo(pivotX, pivotY);
+            ctx.closePath();
+            ctx.fill();
+
+            // Hatch
+            ctx.strokeStyle = '#5D3A1A';
+            ctx.lineWidth = 1;
+            for (let i = -3; i <= 3; i++) {
+                ctx.beginPath();
+                ctx.moveTo(pivotX + i * 10 - 5, pivotY - 25);
+                ctx.lineTo(pivotX + i * 10 + 5, pivotY - 12);
+                ctx.stroke();
+            }
+
+            // Pivot A
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(pivotX, pivotY, 8, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('A', pivotX, pivotY - 30);
+
+            // Positions
+            const x1 = pivotX + l1 * scale * Math.sin(th1);
+            const y1 = pivotY + l1 * scale * Math.cos(th1);
+            const x2 = x1 + l2 * scale * Math.sin(th2);
+            const y2 = y1 + l2 * scale * Math.cos(th2);
+
+            // Store trajectory of m2
+            trajectory.push([x2, y2]);
+            if (trajectory.length > maxTrajectory) trajectory.shift();
+
+            // Draw trajectory
+            if (trajectory.length > 1) {
+                ctx.strokeStyle = 'rgba(102, 126, 234, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let i = 0; i < trajectory.length; i++) {
+                    const [tx, ty] = trajectory[i];
+                    if (i === 0) ctx.moveTo(tx, ty);
+                    else ctx.lineTo(tx, ty);
+                }
+                ctx.stroke();
+            }
+
+            // Draw rod 1
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(pivotX, pivotY);
+            ctx.lineTo(x1, y1);
+            ctx.stroke();
+
+            // Draw rod 2
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+
+            // Length labels
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('ℓ₁', (pivotX + x1) / 2 + 10, (pivotY + y1) / 2);
+            ctx.fillText('ℓ₂', (x1 + x2) / 2 + 10, (y1 + y2) / 2);
+
+            // Draw mass m (larger)
+            ctx.fillStyle = '#667eea';
+            ctx.beginPath();
+            ctx.arc(x1, y1, 20, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('m', x1, y1);
+
+            // Draw mass m/10 (smaller)
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(x2, y2, 12, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 9px Arial';
+            ctx.fillText('m/10', x2, y2);
+
+            // Gravity arrow
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(50, 60);
+            ctx.lineTo(50, 100);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(50, 100);
+            ctx.lineTo(45, 90);
+            ctx.moveTo(50, 100);
+            ctx.lineTo(55, 90);
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('g', 50, 115);
+
+            // Update info
+            const m1 = getM1();
+            const m2 = getM2();
+            const energies = computeEnergies();
+            document.getElementById('infoDisplay').innerHTML =
+                `時間: ${time.toFixed(2)} s<br>` +
+                `θ₁: ${(th1 * 180 / Math.PI).toFixed(2)}°<br>` +
+                `θ₂: ${(th2 * 180 / Math.PI).toFixed(2)}°<br>` +
+                `ω₁: ${w1.toFixed(3)} rad/s<br>` +
+                `ω₂: ${w2.toFixed(3)} rad/s<br>` +
+                `m₁ = ${m1.toFixed(2)} kg<br>` +
+                `m₂ = ${m2.toFixed(2)} kg<br>` +
+                `全E: ${energies.TE.toFixed(3)} J`;
+        }
+
+        function drawGraphTheta() {
+            ctxTheta.clearRect(0, 0, graphTheta.width, graphTheta.height);
+
+            const margin = 35;
+            const w = graphTheta.width - 2 * margin;
+            const h = graphTheta.height - 2 * margin;
+
+            ctxTheta.fillStyle = '#f8f9fa';
+            ctxTheta.fillRect(margin, margin, w, h);
+
+            ctxTheta.strokeStyle = '#333';
+            ctxTheta.lineWidth = 2;
+            ctxTheta.beginPath();
+            ctxTheta.moveTo(margin, margin);
+            ctxTheta.lineTo(margin, margin + h);
+            ctxTheta.lineTo(margin + w, margin + h);
+            ctxTheta.stroke();
+
+            // Zero line
+            ctxTheta.strokeStyle = '#ccc';
+            ctxTheta.lineWidth = 1;
+            ctxTheta.beginPath();
+            ctxTheta.moveTo(margin, margin + h / 2);
+            ctxTheta.lineTo(margin + w, margin + h / 2);
+            ctxTheta.stroke();
+
+            // Plot theta1
+            if (historyTheta1.length > 1) {
+                ctxTheta.strokeStyle = '#667eea';
+                ctxTheta.lineWidth = 2;
+                ctxTheta.beginPath();
+                for (let i = 0; i < historyTheta1.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyTheta1[i] / Math.PI) * (h / 2);
+                    if (i === 0) ctxTheta.moveTo(px, py);
+                    else ctxTheta.lineTo(px, py);
+                }
+                ctxTheta.stroke();
+            }
+
+            // Plot theta2
+            if (historyTheta2.length > 1) {
+                ctxTheta.strokeStyle = '#333';
+                ctxTheta.lineWidth = 2;
+                ctxTheta.beginPath();
+                for (let i = 0; i < historyTheta2.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyTheta2[i] / Math.PI) * (h / 2);
+                    if (i === 0) ctxTheta.moveTo(px, py);
+                    else ctxTheta.lineTo(px, py);
+                }
+                ctxTheta.stroke();
+            }
+
+            ctxTheta.font = '10px Arial';
+            ctxTheta.fillStyle = '#667eea';
+            ctxTheta.fillText('θ₁', margin + 5, margin + 12);
+            ctxTheta.fillStyle = '#333';
+            ctxTheta.fillText('θ₂', margin + 30, margin + 12);
+        }
+
+        function drawGraphEnergy() {
+            ctxEnergy.clearRect(0, 0, graphEnergy.width, graphEnergy.height);
+
+            const margin = 35;
+            const w = graphEnergy.width - 2 * margin;
+            const h = graphEnergy.height - 2 * margin;
+
+            let maxE = 1, minE = -1;
+            if (historyTE.length > 0) {
+                maxE = Math.max(...historyTE, ...historyKE, ...historyPE) * 1.1;
+                minE = Math.min(...historyTE, ...historyKE, ...historyPE) * 1.1;
+                if (maxE - minE < 0.1) maxE = minE + 0.1;
+            }
+
+            ctxEnergy.fillStyle = '#f8f9fa';
+            ctxEnergy.fillRect(margin, margin, w, h);
+
+            ctxEnergy.strokeStyle = '#333';
+            ctxEnergy.lineWidth = 2;
+            ctxEnergy.beginPath();
+            ctxEnergy.moveTo(margin, margin);
+            ctxEnergy.lineTo(margin, margin + h);
+            ctxEnergy.lineTo(margin + w, margin + h);
+            ctxEnergy.stroke();
+
+            const range = maxE - minE;
+
+            // Plot TE
+            if (historyTE.length > 1) {
+                ctxEnergy.strokeStyle = '#333';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyTE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - ((historyTE[i] - minE) / range) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot KE
+            if (historyKE.length > 1) {
+                ctxEnergy.strokeStyle = '#28a745';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyKE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - ((historyKE[i] - minE) / range) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot PE
+            if (historyPE.length > 1) {
+                ctxEnergy.strokeStyle = '#dc3545';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyPE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - ((historyPE[i] - minE) / range) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            ctxEnergy.font = '10px Arial';
+            ctxEnergy.textAlign = 'left';
+            ctxEnergy.fillStyle = '#28a745';
+            ctxEnergy.fillText('KE', margin + 5, margin + 12);
+            ctxEnergy.fillStyle = '#dc3545';
+            ctxEnergy.fillText('PE', margin + 35, margin + 12);
+            ctxEnergy.fillStyle = '#333';
+            ctxEnergy.fillText('TE', margin + 65, margin + 12);
+        }
+
+        function animate() {
+            const dt = 0.01;
+            const substeps = 5;
+
+            for (let i = 0; i < substeps; i++) {
+                rk4Step(dt / substeps);
+            }
+            time += dt;
+
+            historyTheta1.push(state[0]);
+            historyTheta2.push(state[2]);
+            const energies = computeEnergies();
+            historyKE.push(energies.KE);
+            historyPE.push(energies.PE);
+            historyTE.push(energies.TE);
+
+            if (historyTheta1.length > maxHistory) {
+                historyTheta1.shift();
+                historyTheta2.shift();
+                historyKE.shift();
+                historyPE.shift();
+                historyTE.shift();
+            }
+
+            draw();
+            drawGraphTheta();
+            drawGraphEnergy();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function start() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stop() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+
+        function reset() {
+            stop();
+            state = [theta1_0, 0, theta2_0, 0];
+            time = 0;
+            trajectory = [];
+            historyTheta1 = [];
+            historyTheta2 = [];
+            historyKE = [];
+            historyPE = [];
+            historyTE = [];
+            draw();
+            drawGraphTheta();
+            drawGraphEnergy();
+        }
+
+        reset();
+    </script>
+</body>
+</html>

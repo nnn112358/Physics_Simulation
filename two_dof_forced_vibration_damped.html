@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2自由度強制振動系シミュレーション</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+        .simulation-area {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 500px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #f8f9fa;
+            display: block;
+        }
+        .controls {
+            flex: 0 0 320px;
+        }
+        .control-group {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 1em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin: 10px 0;
+        }
+        .slider-container label {
+            display: flex;
+            justify-content: space-between;
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            min-width: 80px;
+            padding: 12px 20px;
+            font-size: 1em;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .start-btn { background: #4CAF50; color: white; }
+        .stop-btn { background: #f44336; color: white; }
+        .reset-btn { background: #2196F3; color: white; }
+        button:hover { transform: scale(1.05); opacity: 0.9; }
+        .info-display {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+        .info-display h3 {
+            color: #2e7d32;
+            margin-bottom: 10px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+        .graphs {
+            width: 100%;
+            margin-top: 20px;
+        }
+        .graph-container {
+            margin-bottom: 15px;
+        }
+        .graph-container h3 {
+            color: #555;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>2自由度強制振動系シミュレーション</h1>
+
+        <div class="simulation-area">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="500" height="300"></canvas>
+                <div class="graphs">
+                    <div class="graph-container">
+                        <h3>変位グラフ</h3>
+                        <canvas id="graphCanvas" width="500" height="150"></canvas>
+                    </div>
+                    <div class="graph-container">
+                        <h3>位相面図 (x₁ vs x₂)</h3>
+                        <canvas id="phaseCanvas" width="500" height="150"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <h3>質量パラメータ</h3>
+                    <div class="slider-container">
+                        <label><span>質量 m₁</span><span id="m1Val">1.0 kg</span></label>
+                        <input type="range" id="m1" min="0.5" max="5" step="0.1" value="1.0">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>質量 m₂</span><span id="m2Val">1.0 kg</span></label>
+                        <input type="range" id="m2" min="0.5" max="5" step="0.1" value="1.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>ばね定数</h3>
+                    <div class="slider-container">
+                        <label><span>k₁</span><span id="k1Val">20 N/m</span></label>
+                        <input type="range" id="k1" min="5" max="100" step="1" value="20">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>k₂</span><span id="k2Val">20 N/m</span></label>
+                        <input type="range" id="k2" min="5" max="100" step="1" value="20">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>減衰係数</h3>
+                    <div class="slider-container">
+                        <label><span>c₁</span><span id="c1Val">0.5 Ns/m</span></label>
+                        <input type="range" id="c1" min="0" max="5" step="0.1" value="0.5">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>c₂</span><span id="c2Val">0.5 Ns/m</span></label>
+                        <input type="range" id="c2" min="0" max="5" step="0.1" value="0.5">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>外力 F(t) = F₀sin(ωt)</h3>
+                    <div class="slider-container">
+                        <label><span>振幅 F₀</span><span id="F0Val">10 N</span></label>
+                        <input type="range" id="F0" min="0" max="50" step="1" value="10">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>角振動数 ω</span><span id="omegaVal">3.0 rad/s</span></label>
+                        <input type="range" id="omega" min="0.5" max="15" step="0.1" value="3.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>初期条件</h3>
+                    <div class="slider-container">
+                        <label><span>x₁(0)</span><span id="x10Val">0.5 m</span></label>
+                        <input type="range" id="x10" min="-1" max="1" step="0.05" value="0.5">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>x₂(0)</span><span id="x20Val">0.0 m</span></label>
+                        <input type="range" id="x20" min="-1" max="1" step="0.05" value="0">
+                    </div>
+                </div>
+
+                <div class="buttons">
+                    <button class="start-btn" onclick="startSim()">開始</button>
+                    <button class="stop-btn" onclick="stopSim()">停止</button>
+                    <button class="reset-btn" onclick="resetSim()">リセット</button>
+                </div>
+
+                <div class="info-display">
+                    <h3>状態表示</h3>
+                    <div class="info-row"><span>時間:</span><span id="timeDisplay">0.00 s</span></div>
+                    <div class="info-row"><span>x₁:</span><span id="x1Display">0.00 m</span></div>
+                    <div class="info-row"><span>x₂:</span><span id="x2Display">0.00 m</span></div>
+                    <div class="info-row"><span>v₁:</span><span id="v1Display">0.00 m/s</span></div>
+                    <div class="info-row"><span>v₂:</span><span id="v2Display">0.00 m/s</span></div>
+                    <div class="info-row"><span>F(t):</span><span id="forceDisplay">0.00 N</span></div>
+                    <div class="info-row"><span>固有振動数 ω₁:</span><span id="omega1Display">0.00 rad/s</span></div>
+                    <div class="info-row"><span>固有振動数 ω₂:</span><span id="omega2Display">0.00 rad/s</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const simCanvas = document.getElementById('simCanvas');
+        const simCtx = simCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+        const phaseCanvas = document.getElementById('phaseCanvas');
+        const phaseCtx = phaseCanvas.getContext('2d');
+
+        let animationId = null;
+        let isRunning = false;
+        let time = 0;
+        const dt = 0.001;
+        const stepsPerFrame = 16;
+
+        // State: [x1, v1, x2, v2]
+        let state = [0.5, 0, 0, 0];
+
+        // History for graphs
+        let history = [];
+        const maxHistory = 500;
+
+        // Phase plot history
+        let phaseHistory = [];
+        const maxPhaseHistory = 2000;
+
+        // Get parameters from sliders
+        function getParams() {
+            return {
+                m1: parseFloat(document.getElementById('m1').value),
+                m2: parseFloat(document.getElementById('m2').value),
+                k1: parseFloat(document.getElementById('k1').value),
+                k2: parseFloat(document.getElementById('k2').value),
+                c1: parseFloat(document.getElementById('c1').value),
+                c2: parseFloat(document.getElementById('c2').value),
+                F0: parseFloat(document.getElementById('F0').value),
+                omega: parseFloat(document.getElementById('omega').value),
+                x10: parseFloat(document.getElementById('x10').value),
+                x20: parseFloat(document.getElementById('x20').value)
+            };
+        }
+
+        // Calculate natural frequencies (undamped)
+        function calcNaturalFreqs(p) {
+            // For 2-DOF: eigenvalue problem
+            // [k1+k2  -k2  ] [x1]   [m1  0 ] [x1'']
+            // [-k2    k2   ] [x2] = [0   m2] [x2'']
+            const a = p.m1 * p.m2;
+            const b = -(p.m2 * (p.k1 + p.k2) + p.m1 * p.k2);
+            const c = p.k1 * p.k2;
+
+            const disc = b * b - 4 * a * c;
+            if (disc < 0) return [0, 0];
+
+            const lambda1 = (-b - Math.sqrt(disc)) / (2 * a);
+            const lambda2 = (-b + Math.sqrt(disc)) / (2 * a);
+
+            return [Math.sqrt(Math.max(0, lambda1)), Math.sqrt(Math.max(0, lambda2))];
+        }
+
+        // External force
+        function force(t, p) {
+            return p.F0 * Math.sin(p.omega * t);
+        }
+
+        // Derivatives: state = [x1, v1, x2, v2]
+        function derivatives(state, t, p) {
+            const [x1, v1, x2, v2] = state;
+
+            // Spring forces
+            const Fs1 = -p.k1 * x1;          // Spring 1 force on m1
+            const Fs2 = -p.k2 * (x1 - x2);   // Spring 2 force on m1 (and -ve on m2)
+
+            // Damping forces
+            const Fd1 = -p.c1 * v1;          // Damper 1 force on m1
+            const Fd2 = -p.c2 * (v1 - v2);   // Damper 2 force on m1 (and -ve on m2)
+
+            // External force on m1
+            const Fext = force(t, p);
+
+            // Accelerations
+            const a1 = (Fext + Fs1 - Fs2 + Fd1 - Fd2) / p.m1;
+            const a2 = (Fs2 + Fd2) / p.m2;
+
+            return [v1, a1, v2, a2];
+        }
+
+        // RK4 integration
+        function rk4Step(state, t, dt, p) {
+            const k1 = derivatives(state, t, p);
+            const s2 = state.map((s, i) => s + k1[i] * dt / 2);
+            const k2 = derivatives(s2, t + dt / 2, p);
+            const s3 = state.map((s, i) => s + k2[i] * dt / 2);
+            const k3 = derivatives(s3, t + dt / 2, p);
+            const s4 = state.map((s, i) => s + k3[i] * dt);
+            const k4 = derivatives(s4, t + dt, p);
+
+            return state.map((s, i) => s + (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]) * dt / 6);
+        }
+
+        // Draw spring
+        function drawSpring(ctx, x1, y1, x2, y2, coils = 8) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            const amplitude = 8;
+            const segmentLen = len / (coils * 2 + 2);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(segmentLen, 0);
+
+            for (let i = 0; i < coils * 2; i++) {
+                const xPos = segmentLen + (i + 1) * segmentLen;
+                const yPos = (i % 2 === 0 ? amplitude : -amplitude);
+                ctx.lineTo(xPos, yPos);
+            }
+
+            ctx.lineTo(len, 0);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Draw damper
+        function drawDamper(ctx, x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            const boxWidth = 20;
+            const boxHeight = 12;
+            const pistonLen = len * 0.3;
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 2;
+
+            // Piston rod from left
+            ctx.moveTo(0, 0);
+            ctx.lineTo(len * 0.35, 0);
+
+            // Box
+            ctx.moveTo(len * 0.35, -boxHeight);
+            ctx.lineTo(len * 0.35, boxHeight);
+            ctx.moveTo(len * 0.35, -boxHeight);
+            ctx.lineTo(len * 0.55, -boxHeight);
+            ctx.moveTo(len * 0.35, boxHeight);
+            ctx.lineTo(len * 0.55, boxHeight);
+
+            // Piston head inside box
+            const pistonX = len * 0.5;
+            ctx.moveTo(pistonX, -boxHeight + 2);
+            ctx.lineTo(pistonX, boxHeight - 2);
+
+            // Rod from piston to right
+            ctx.moveTo(pistonX, 0);
+            ctx.lineTo(len, 0);
+
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Draw simulation
+        function drawSim() {
+            const p = getParams();
+            simCtx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+
+            const scale = 80; // pixels per meter
+            const wallX = 60;
+            const groundY = 180;
+            const massSize = 50;
+            const springY = groundY - massSize / 2 - 10;
+            const damperY = groundY - massSize / 2 + 10;
+
+            // Equilibrium positions
+            const eq1 = 180;
+            const eq2 = 350;
+
+            // Current positions
+            const m1X = eq1 + state[0] * scale;
+            const m2X = eq2 + state[2] * scale;
+
+            // Draw wall
+            simCtx.fillStyle = '#888';
+            simCtx.fillRect(wallX - 10, groundY - 100, 10, 120);
+
+            // Draw ground
+            simCtx.strokeStyle = '#555';
+            simCtx.lineWidth = 2;
+            simCtx.beginPath();
+            simCtx.moveTo(wallX, groundY + 5);
+            simCtx.lineTo(simCanvas.width - 20, groundY + 5);
+            simCtx.stroke();
+
+            // Draw rollers under masses
+            for (let i = 0; i < 2; i++) {
+                const mx = i === 0 ? m1X : m2X;
+                simCtx.fillStyle = '#999';
+                simCtx.beginPath();
+                simCtx.arc(mx - 12, groundY, 5, 0, Math.PI * 2);
+                simCtx.arc(mx + 12, groundY, 5, 0, Math.PI * 2);
+                simCtx.fill();
+            }
+
+            // Draw spring k1 (wall to m1)
+            drawSpring(simCtx, wallX, springY, m1X - massSize / 2, springY, 10);
+
+            // Draw damper c1 (wall to m1)
+            drawDamper(simCtx, wallX, damperY, m1X - massSize / 2, damperY);
+
+            // Draw spring k2 (m1 to m2)
+            drawSpring(simCtx, m1X + massSize / 2, springY, m2X - massSize / 2, springY, 10);
+
+            // Draw damper c2 (m1 to m2)
+            drawDamper(simCtx, m1X + massSize / 2, damperY, m2X - massSize / 2, damperY);
+
+            // Draw mass 1
+            simCtx.fillStyle = '#e74c3c';
+            simCtx.fillRect(m1X - massSize / 2, groundY - massSize, massSize, massSize);
+            simCtx.strokeStyle = '#c0392b';
+            simCtx.lineWidth = 2;
+            simCtx.strokeRect(m1X - massSize / 2, groundY - massSize, massSize, massSize);
+            simCtx.fillStyle = 'white';
+            simCtx.font = 'bold 16px Arial';
+            simCtx.textAlign = 'center';
+            simCtx.fillText('m₁', m1X, groundY - massSize / 2 + 5);
+
+            // Draw mass 2
+            simCtx.fillStyle = '#3498db';
+            simCtx.fillRect(m2X - massSize / 2, groundY - massSize, massSize, massSize);
+            simCtx.strokeStyle = '#2980b9';
+            simCtx.lineWidth = 2;
+            simCtx.strokeRect(m2X - massSize / 2, groundY - massSize, massSize, massSize);
+            simCtx.fillStyle = 'white';
+            simCtx.fillText('m₂', m2X, groundY - massSize / 2 + 5);
+
+            // Draw external force arrow on m1
+            const Ft = force(time, p);
+            const arrowLen = Math.abs(Ft) * 2;
+            if (arrowLen > 5) {
+                const arrowX = m1X - massSize / 2 - 10;
+                const arrowY = groundY - massSize / 2;
+                const arrowDir = Ft > 0 ? 1 : -1;
+
+                simCtx.strokeStyle = '#27ae60';
+                simCtx.fillStyle = '#27ae60';
+                simCtx.lineWidth = 3;
+                simCtx.beginPath();
+                simCtx.moveTo(arrowX - arrowLen * arrowDir, arrowY);
+                simCtx.lineTo(arrowX, arrowY);
+                simCtx.stroke();
+
+                // Arrow head
+                simCtx.beginPath();
+                simCtx.moveTo(arrowX, arrowY);
+                simCtx.lineTo(arrowX - 10 * arrowDir, arrowY - 6);
+                simCtx.lineTo(arrowX - 10 * arrowDir, arrowY + 6);
+                simCtx.closePath();
+                simCtx.fill();
+
+                simCtx.font = '14px Arial';
+                simCtx.fillStyle = '#27ae60';
+                simCtx.textAlign = 'center';
+                simCtx.fillText('F(t)', arrowX - arrowLen * arrowDir / 2, arrowY - 15);
+            }
+
+            // Draw coordinate labels
+            simCtx.fillStyle = '#333';
+            simCtx.font = '14px Arial';
+            simCtx.textAlign = 'center';
+            simCtx.fillText('x₁', m1X, groundY + 25);
+            simCtx.fillText('x₂', m2X, groundY + 25);
+
+            // Draw labels for springs and dampers
+            simCtx.font = '12px Arial';
+            simCtx.fillStyle = '#666';
+            simCtx.fillText('k₁', (wallX + m1X - massSize / 2) / 2, springY - 15);
+            simCtx.fillText('c₁', (wallX + m1X - massSize / 2) / 2, damperY + 20);
+            simCtx.fillText('k₂', (m1X + m2X) / 2, springY - 15);
+            simCtx.fillText('c₂', (m1X + m2X) / 2, damperY + 20);
+
+            // Draw gravity symbol (perpendicular to page)
+            simCtx.font = '14px Arial';
+            simCtx.fillStyle = '#888';
+            simCtx.fillText('⊗ g', simCanvas.width - 40, 30);
+        }
+
+        // Draw displacement graph
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            // Background
+            graphCtx.fillStyle = '#f8f9fa';
+            graphCtx.fillRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            // Grid
+            graphCtx.strokeStyle = '#ddd';
+            graphCtx.lineWidth = 1;
+            const midY = graphCanvas.height / 2;
+            graphCtx.beginPath();
+            graphCtx.moveTo(0, midY);
+            graphCtx.lineTo(graphCanvas.width, midY);
+            graphCtx.stroke();
+
+            // Draw x1 history (red)
+            if (history.length > 1) {
+                graphCtx.strokeStyle = '#e74c3c';
+                graphCtx.lineWidth = 2;
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const x = (i / maxHistory) * graphCanvas.width;
+                    const y = midY - history[i].x1 * 50;
+                    if (i === 0) graphCtx.moveTo(x, y);
+                    else graphCtx.lineTo(x, y);
+                }
+                graphCtx.stroke();
+
+                // Draw x2 history (blue)
+                graphCtx.strokeStyle = '#3498db';
+                graphCtx.beginPath();
+                for (let i = 0; i < history.length; i++) {
+                    const x = (i / maxHistory) * graphCanvas.width;
+                    const y = midY - history[i].x2 * 50;
+                    if (i === 0) graphCtx.moveTo(x, y);
+                    else graphCtx.lineTo(x, y);
+                }
+                graphCtx.stroke();
+            }
+
+            // Legend
+            graphCtx.font = '12px Arial';
+            graphCtx.fillStyle = '#e74c3c';
+            graphCtx.fillText('x₁', 10, 15);
+            graphCtx.fillStyle = '#3498db';
+            graphCtx.fillText('x₂', 40, 15);
+        }
+
+        // Draw phase plot
+        function drawPhase() {
+            phaseCtx.clearRect(0, 0, phaseCanvas.width, phaseCanvas.height);
+
+            // Background
+            phaseCtx.fillStyle = '#f8f9fa';
+            phaseCtx.fillRect(0, 0, phaseCanvas.width, phaseCanvas.height);
+
+            // Axes
+            const centerX = phaseCanvas.width / 2;
+            const centerY = phaseCanvas.height / 2;
+            const scale = 50;
+
+            phaseCtx.strokeStyle = '#ccc';
+            phaseCtx.lineWidth = 1;
+            phaseCtx.beginPath();
+            phaseCtx.moveTo(0, centerY);
+            phaseCtx.lineTo(phaseCanvas.width, centerY);
+            phaseCtx.moveTo(centerX, 0);
+            phaseCtx.lineTo(centerX, phaseCanvas.height);
+            phaseCtx.stroke();
+
+            // Labels
+            phaseCtx.font = '12px Arial';
+            phaseCtx.fillStyle = '#666';
+            phaseCtx.fillText('x₁', phaseCanvas.width - 20, centerY - 5);
+            phaseCtx.fillText('x₂', centerX + 5, 15);
+
+            // Draw phase trajectory
+            if (phaseHistory.length > 1) {
+                phaseCtx.strokeStyle = '#9b59b6';
+                phaseCtx.lineWidth = 1.5;
+                phaseCtx.beginPath();
+                for (let i = 0; i < phaseHistory.length; i++) {
+                    const x = centerX + phaseHistory[i].x1 * scale;
+                    const y = centerY - phaseHistory[i].x2 * scale;
+                    if (i === 0) phaseCtx.moveTo(x, y);
+                    else phaseCtx.lineTo(x, y);
+                }
+                phaseCtx.stroke();
+
+                // Current point
+                const lastPt = phaseHistory[phaseHistory.length - 1];
+                phaseCtx.fillStyle = '#e74c3c';
+                phaseCtx.beginPath();
+                phaseCtx.arc(centerX + lastPt.x1 * scale, centerY - lastPt.x2 * scale, 4, 0, Math.PI * 2);
+                phaseCtx.fill();
+            }
+        }
+
+        // Update display
+        function updateDisplay() {
+            const p = getParams();
+            const Ft = force(time, p);
+            const [omega1, omega2] = calcNaturalFreqs(p);
+
+            document.getElementById('timeDisplay').textContent = time.toFixed(2) + ' s';
+            document.getElementById('x1Display').textContent = state[0].toFixed(3) + ' m';
+            document.getElementById('x2Display').textContent = state[2].toFixed(3) + ' m';
+            document.getElementById('v1Display').textContent = state[1].toFixed(3) + ' m/s';
+            document.getElementById('v2Display').textContent = state[3].toFixed(3) + ' m/s';
+            document.getElementById('forceDisplay').textContent = Ft.toFixed(2) + ' N';
+            document.getElementById('omega1Display').textContent = omega1.toFixed(2) + ' rad/s';
+            document.getElementById('omega2Display').textContent = omega2.toFixed(2) + ' rad/s';
+        }
+
+        // Update slider value displays
+        function updateSliderDisplays() {
+            document.getElementById('m1Val').textContent = document.getElementById('m1').value + ' kg';
+            document.getElementById('m2Val').textContent = document.getElementById('m2').value + ' kg';
+            document.getElementById('k1Val').textContent = document.getElementById('k1').value + ' N/m';
+            document.getElementById('k2Val').textContent = document.getElementById('k2').value + ' N/m';
+            document.getElementById('c1Val').textContent = document.getElementById('c1').value + ' Ns/m';
+            document.getElementById('c2Val').textContent = document.getElementById('c2').value + ' Ns/m';
+            document.getElementById('F0Val').textContent = document.getElementById('F0').value + ' N';
+            document.getElementById('omegaVal').textContent = document.getElementById('omega').value + ' rad/s';
+            document.getElementById('x10Val').textContent = document.getElementById('x10').value + ' m';
+            document.getElementById('x20Val').textContent = document.getElementById('x20').value + ' m';
+        }
+
+        // Animation loop
+        function animate() {
+            const p = getParams();
+
+            for (let i = 0; i < stepsPerFrame; i++) {
+                state = rk4Step(state, time, dt, p);
+                time += dt;
+            }
+
+            // Record history
+            history.push({ x1: state[0], x2: state[2] });
+            if (history.length > maxHistory) history.shift();
+
+            phaseHistory.push({ x1: state[0], x2: state[2] });
+            if (phaseHistory.length > maxPhaseHistory) phaseHistory.shift();
+
+            drawSim();
+            drawGraph();
+            drawPhase();
+            updateDisplay();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function startSim() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stopSim() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+        }
+
+        function resetSim() {
+            stopSim();
+            const p = getParams();
+            state = [p.x10, 0, p.x20, 0];
+            time = 0;
+            history = [];
+            phaseHistory = [];
+            drawSim();
+            drawGraph();
+            drawPhase();
+            updateDisplay();
+        }
+
+        // Add event listeners
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            slider.addEventListener('input', () => {
+                updateSliderDisplays();
+                if (!isRunning) {
+                    drawSim();
+                    updateDisplay();
+                }
+            });
+        });
+
+        // Initialize
+        updateSliderDisplays();
+        resetSim();
+    </script>
+</body>
+</html>

@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>半円ガイド付きスライダー系</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.7em;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+        .main-content {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 450px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #f0f8ff;
+            display: block;
+        }
+        .control-section {
+            width: 280px;
+        }
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin-bottom: 10px;
+        }
+        .slider-container label {
+            display: block;
+            color: #555;
+            margin-bottom: 2px;
+            font-size: 0.8em;
+        }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 5px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            min-width: 70px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-reset { background: #6c757d; color: white; }
+        .info-display {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.75em;
+            line-height: 1.5;
+        }
+        .graphs-section {
+            width: 100%;
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .graph-container {
+            flex: 1;
+            min-width: 350px;
+        }
+        .graph-container h4 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>半円ガイド付きスライダー系</h1>
+        <p class="description">ばね支持されたスライダーに取り付けた半円ガイド内を質点が運動</p>
+
+        <div class="main-content">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="500" height="500"></canvas>
+            </div>
+
+            <div class="control-section">
+                <div class="control-group">
+                    <h3>パラメータ設定</h3>
+
+                    <div class="slider-container">
+                        <label>スライダー質量 M: <span id="MVal">2.0</span> kg</label>
+                        <input type="range" id="MSlider" min="0.5" max="5.0" step="0.1" value="2.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>質点質量 m: <span id="mVal">1.0</span> kg</label>
+                        <input type="range" id="mSlider" min="0.5" max="3.0" step="0.1" value="1.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>半円半径 R: <span id="RVal">1.0</span> m</label>
+                        <input type="range" id="RSlider" min="0.5" max="2.0" step="0.1" value="1.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>ばね定数 k: <span id="kVal">50</span> N/m</label>
+                        <input type="range" id="kSlider" min="10" max="200" step="5" value="50">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>重力 g: <span id="gVal">9.8</span> m/s²</label>
+                        <input type="range" id="gSlider" min="1.0" max="20.0" step="0.1" value="9.8">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期角度 φ₀: <span id="phi0Val">45</span>°</label>
+                        <input type="range" id="phi0Slider" min="-90" max="90" step="5" value="45">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期スライダー位置 x₀: <span id="x0Val">0.0</span> m</label>
+                        <input type="range" id="x0Slider" min="-0.5" max="0.5" step="0.05" value="0.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>シミュレーション制御</h3>
+                    <div class="button-group">
+                        <button class="btn-start" id="startBtn">開始</button>
+                        <button class="btn-stop" id="stopBtn">停止</button>
+                        <button class="btn-reset" id="resetBtn">リセット</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>状態表示</h3>
+                    <div class="info-display" id="infoDisplay">
+                        時間: 0.00 s<br>
+                        x: 0.00 m<br>
+                        φ: 0.00°<br>
+                        ẋ: 0.00 m/s<br>
+                        φ̇: 0.00 rad/s
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="graphs-section">
+            <div class="graph-container">
+                <h4>変位 x(t) と角度 φ(t)</h4>
+                <canvas id="graphX" width="380" height="180"></canvas>
+            </div>
+            <div class="graph-container">
+                <h4>エネルギー変化</h4>
+                <canvas id="graphEnergy" width="380" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const graphX = document.getElementById('graphX');
+        const ctxX = graphX.getContext('2d');
+        const graphEnergy = document.getElementById('graphEnergy');
+        const ctxEnergy = graphEnergy.getContext('2d');
+
+        // Parameters
+        let M = 2.0;      // slider mass
+        let m = 1.0;      // ball mass
+        let R = 1.0;      // semicircle radius
+        let k = 50;       // spring constant
+        let g = 9.8;      // gravity
+        let phi0 = 45 * Math.PI / 180;  // initial angle
+        let x0 = 0.0;     // initial slider position
+
+        // State: [x, xdot, phi, phidot]
+        let state = [x0, 0, phi0, 0];
+        let time = 0;
+        let isRunning = false;
+        let animationId = null;
+
+        // History
+        let historyX = [];
+        let historyPhi = [];
+        let historyKE = [];
+        let historyPE = [];
+        let historyTE = [];
+        const maxHistory = 500;
+
+        // Sliders
+        const sliders = {
+            M: document.getElementById('MSlider'),
+            m: document.getElementById('mSlider'),
+            R: document.getElementById('RSlider'),
+            k: document.getElementById('kSlider'),
+            g: document.getElementById('gSlider'),
+            phi0: document.getElementById('phi0Slider'),
+            x0: document.getElementById('x0Slider')
+        };
+
+        const vals = {
+            M: document.getElementById('MVal'),
+            m: document.getElementById('mVal'),
+            R: document.getElementById('RVal'),
+            k: document.getElementById('kVal'),
+            g: document.getElementById('gVal'),
+            phi0: document.getElementById('phi0Val'),
+            x0: document.getElementById('x0Val')
+        };
+
+        sliders.M.addEventListener('input', () => { M = parseFloat(sliders.M.value); vals.M.textContent = M.toFixed(1); });
+        sliders.m.addEventListener('input', () => { m = parseFloat(sliders.m.value); vals.m.textContent = m.toFixed(1); });
+        sliders.R.addEventListener('input', () => { R = parseFloat(sliders.R.value); vals.R.textContent = R.toFixed(1); if (!isRunning) reset(); });
+        sliders.k.addEventListener('input', () => { k = parseFloat(sliders.k.value); vals.k.textContent = k.toFixed(0); });
+        sliders.g.addEventListener('input', () => { g = parseFloat(sliders.g.value); vals.g.textContent = g.toFixed(1); });
+        sliders.phi0.addEventListener('input', () => { phi0 = parseFloat(sliders.phi0.value) * Math.PI / 180; vals.phi0.textContent = parseFloat(sliders.phi0.value).toFixed(0); if (!isRunning) reset(); });
+        sliders.x0.addEventListener('input', () => { x0 = parseFloat(sliders.x0.value); vals.x0.textContent = x0.toFixed(2); if (!isRunning) reset(); });
+
+        document.getElementById('startBtn').addEventListener('click', start);
+        document.getElementById('stopBtn').addEventListener('click', stop);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+
+        // Equations of motion using Lagrangian mechanics
+        // Slider position: x (upward positive)
+        // Ball position relative to slider: x_B = x - R*cos(phi), y_B = -R*sin(phi)
+        // (phi = 0 at bottom, positive counterclockwise from below)
+        //
+        // Actually, let's use phi measured from vertical (down):
+        // Ball position: x_ball = R*sin(phi), y_ball = x - R*cos(phi)
+        // Ball velocity: x_dot_ball = R*cos(phi)*phi_dot, y_dot_ball = x_dot + R*sin(phi)*phi_dot
+        //
+        // T = 0.5*M*x_dot^2 + 0.5*m*(x_dot_ball^2 + y_dot_ball^2)
+        // V = 0.5*k*x^2 + (M+m)*g*x - m*g*R*cos(phi)
+        //
+        // This gives coupled equations. Let's derive them:
+        // After Lagrangian derivation, the mass matrix approach:
+        // [M+m, m*R*sin(phi)] [x_ddot]   = [-(M+m)*g - k*x + m*R*cos(phi)*phi_dot^2]
+        // [m*R*sin(phi), m*R^2] [phi_ddot]   [m*g*R*sin(phi)]
+
+        function derivatives(st) {
+            const [x, xdot, phi, phidot] = st;
+
+            // Mass matrix
+            const a11 = M + m;
+            const a12 = m * R * Math.sin(phi);
+            const a21 = m * R * Math.sin(phi);
+            const a22 = m * R * R;
+
+            // Right-hand side
+            const b1 = -(M + m) * g - k * x + m * R * Math.cos(phi) * phidot * phidot;
+            const b2 = m * g * R * Math.sin(phi);
+
+            // Solve 2x2 system
+            const det = a11 * a22 - a12 * a21;
+            const xddot = (a22 * b1 - a12 * b2) / det;
+            const phiddot = (-a21 * b1 + a11 * b2) / det;
+
+            return [xdot, xddot, phidot, phiddot];
+        }
+
+        function rk4Step(dt) {
+            const k1 = derivatives(state);
+
+            const s2 = state.map((s, i) => s + k1[i] * dt / 2);
+            const k2 = derivatives(s2);
+
+            const s3 = state.map((s, i) => s + k2[i] * dt / 2);
+            const k3 = derivatives(s3);
+
+            const s4 = state.map((s, i) => s + k3[i] * dt);
+            const k4 = derivatives(s4);
+
+            for (let i = 0; i < 4; i++) {
+                state[i] += (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]) * dt / 6;
+            }
+
+            // Keep phi in reasonable range
+            while (state[2] > Math.PI) state[2] -= 2 * Math.PI;
+            while (state[2] < -Math.PI) state[2] += 2 * Math.PI;
+        }
+
+        function computeEnergies() {
+            const [x, xdot, phi, phidot] = state;
+
+            // Ball velocity
+            const vx_ball = R * Math.cos(phi) * phidot;
+            const vy_ball = xdot + R * Math.sin(phi) * phidot;
+            const v_ball_sq = vx_ball * vx_ball + vy_ball * vy_ball;
+
+            const KE = 0.5 * M * xdot * xdot + 0.5 * m * v_ball_sq;
+            const PE = 0.5 * k * x * x + (M + m) * g * x - m * g * R * Math.cos(phi);
+            const TE = KE + PE;
+
+            return { KE, PE, TE };
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const [x, xdot, phi, phidot] = state;
+            const centerX = canvas.width / 2;
+            const refY = 150;  // reference level (Nullniveau)
+            const scale = 120;
+
+            // Slider position
+            const sliderY = refY - x * scale;
+
+            // Draw reference level
+            ctx.strokeStyle = '#999';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(100, refY);
+            ctx.lineTo(canvas.width - 50, refY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#666';
+            ctx.font = '12px Arial';
+            ctx.fillText('Nullniveau', canvas.width - 100, refY - 5);
+
+            // Draw vertical guide
+            ctx.fillStyle = '#333';
+            ctx.fillRect(centerX - 8, 30, 16, canvas.height - 60);
+
+            // Draw spring below slider
+            const springBottom = canvas.height - 40;
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            drawSpring(ctx, centerX, sliderY + 30, centerX, springBottom, 10, 12);
+
+            // Spring label
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.fillText('k', centerX + 20, (sliderY + 30 + springBottom) / 2);
+
+            // Draw floor
+            ctx.fillStyle = '#666';
+            ctx.fillRect(centerX - 40, springBottom, 80, 15);
+
+            // Draw slider (point A)
+            ctx.fillStyle = '#999';
+            ctx.fillRect(centerX - 25, sliderY - 10, 50, 20);
+            ctx.strokeStyle = '#333';
+            ctx.strokeRect(centerX - 25, sliderY - 10, 50, 20);
+
+            // Point A marker
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(centerX, sliderY, 5, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.font = '14px serif';
+            ctx.fillText('A', centerX + 10, sliderY - 15);
+
+            // Draw semicircular guide (bowl shape, opening upward)
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(centerX, sliderY, R * scale, 0, Math.PI, false);
+            ctx.stroke();
+
+            // Hatch marks on inside
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 1;
+            for (let a = 0; a <= Math.PI; a += 0.2) {
+                const x1 = centerX + R * scale * Math.cos(a);
+                const y1 = sliderY + R * scale * Math.sin(a);
+                const x2 = centerX + (R * scale - 8) * Math.cos(a);
+                const y2 = sliderY + (R * scale - 8) * Math.sin(a);
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+
+            // Ball position (phi measured from bottom, positive to right)
+            const ballX = centerX + R * scale * Math.sin(phi);
+            const ballY = sliderY + R * scale * Math.cos(phi);
+
+            // Draw radius to ball
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(centerX, sliderY);
+            ctx.lineTo(ballX, ballY);
+            ctx.stroke();
+
+            // R label
+            ctx.fillStyle = '#667eea';
+            ctx.font = '14px serif';
+            ctx.fillText('R', (centerX + ballX) / 2 + 10, (sliderY + ballY) / 2);
+
+            // Draw angle arc
+            if (Math.abs(phi) > 0.05) {
+                ctx.strokeStyle = '#667eea';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                const arcR = 40;
+                if (phi > 0) {
+                    ctx.arc(centerX, sliderY, arcR, Math.PI / 2, Math.PI / 2 - phi, true);
+                } else {
+                    ctx.arc(centerX, sliderY, arcR, Math.PI / 2, Math.PI / 2 - phi, false);
+                }
+                ctx.stroke();
+                ctx.fillText('φ', centerX + 50 * Math.sin(phi / 2), sliderY + 50 * Math.cos(phi / 2));
+            }
+
+            // Draw ball (point B)
+            ctx.fillStyle = '#667eea';
+            ctx.beginPath();
+            ctx.arc(ballX, ballY, 15, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('B', ballX, ballY);
+
+            // x coordinate arrow
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(centerX + 80, refY);
+            ctx.lineTo(centerX + 80, sliderY);
+            ctx.stroke();
+            if (Math.abs(x) > 0.01) {
+                const dir = x > 0 ? -1 : 1;
+                ctx.beginPath();
+                ctx.moveTo(centerX + 80, sliderY);
+                ctx.lineTo(centerX + 75, sliderY + dir * 8);
+                ctx.moveTo(centerX + 80, sliderY);
+                ctx.lineTo(centerX + 85, sliderY + dir * 8);
+                ctx.stroke();
+            }
+            ctx.fillStyle = '#e74c3c';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('x', centerX + 90, (refY + sliderY) / 2);
+
+            // Gravity arrow
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(50, 80);
+            ctx.lineTo(50, 130);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(50, 130);
+            ctx.lineTo(45, 120);
+            ctx.moveTo(50, 130);
+            ctx.lineTo(55, 120);
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('g', 50, 145);
+
+            // Labels
+            ctx.fillStyle = '#333';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText('M (slider)', centerX - 70, sliderY + 5);
+            ctx.fillText('m (ball)', ballX + 20, ballY);
+
+            // Update info
+            const energies = computeEnergies();
+            document.getElementById('infoDisplay').innerHTML =
+                `時間: ${time.toFixed(2)} s<br>` +
+                `x: ${x.toFixed(3)} m<br>` +
+                `φ: ${(phi * 180 / Math.PI).toFixed(2)}°<br>` +
+                `ẋ: ${xdot.toFixed(3)} m/s<br>` +
+                `φ̇: ${phidot.toFixed(3)} rad/s<br>` +
+                `運動E: ${energies.KE.toFixed(3)} J<br>` +
+                `位置E: ${energies.PE.toFixed(3)} J`;
+        }
+
+        function drawSpring(ctx, x1, y1, x2, y2, coils, amp) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            const segLen = len / (coils * 2 + 2);
+            ctx.lineTo(segLen, 0);
+
+            for (let i = 0; i < coils * 2; i++) {
+                const px = segLen * (i + 1.5);
+                const py = (i % 2 === 0 ? amp : -amp);
+                ctx.lineTo(px, py);
+            }
+            ctx.lineTo(len - segLen, 0);
+            ctx.lineTo(len, 0);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawGraphX() {
+            ctxX.clearRect(0, 0, graphX.width, graphX.height);
+
+            const margin = 35;
+            const w = graphX.width - 2 * margin;
+            const h = graphX.height - 2 * margin;
+
+            ctxX.fillStyle = '#f8f9fa';
+            ctxX.fillRect(margin, margin, w, h);
+
+            ctxX.strokeStyle = '#333';
+            ctxX.lineWidth = 2;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin);
+            ctxX.lineTo(margin, margin + h);
+            ctxX.lineTo(margin + w, margin + h);
+            ctxX.stroke();
+
+            // Zero line
+            ctxX.strokeStyle = '#ccc';
+            ctxX.lineWidth = 1;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin + h / 2);
+            ctxX.lineTo(margin + w, margin + h / 2);
+            ctxX.stroke();
+
+            // Plot x
+            if (historyX.length > 1) {
+                ctxX.strokeStyle = '#e74c3c';
+                ctxX.lineWidth = 2;
+                ctxX.beginPath();
+                for (let i = 0; i < historyX.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyX[i] / 1.0) * (h / 2);
+                    if (i === 0) ctxX.moveTo(px, py);
+                    else ctxX.lineTo(px, py);
+                }
+                ctxX.stroke();
+            }
+
+            // Plot phi (scaled to fit)
+            if (historyPhi.length > 1) {
+                ctxX.strokeStyle = '#667eea';
+                ctxX.lineWidth = 2;
+                ctxX.beginPath();
+                for (let i = 0; i < historyPhi.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyPhi[i] / (Math.PI / 2)) * (h / 2);
+                    if (i === 0) ctxX.moveTo(px, py);
+                    else ctxX.lineTo(px, py);
+                }
+                ctxX.stroke();
+            }
+
+            // Legend
+            ctxX.font = '10px Arial';
+            ctxX.fillStyle = '#e74c3c';
+            ctxX.fillText('x', margin + 5, margin + 12);
+            ctxX.fillStyle = '#667eea';
+            ctxX.fillText('φ', margin + 25, margin + 12);
+        }
+
+        function drawGraphEnergy() {
+            ctxEnergy.clearRect(0, 0, graphEnergy.width, graphEnergy.height);
+
+            const margin = 35;
+            const w = graphEnergy.width - 2 * margin;
+            const h = graphEnergy.height - 2 * margin;
+
+            let maxE = 1;
+            let minE = 0;
+            if (historyTE.length > 0) {
+                maxE = Math.max(...historyTE, ...historyKE, ...historyPE) * 1.1;
+                minE = Math.min(...historyTE, ...historyKE, ...historyPE) * 1.1;
+                if (maxE - minE < 0.1) { maxE = minE + 0.1; }
+            }
+
+            ctxEnergy.fillStyle = '#f8f9fa';
+            ctxEnergy.fillRect(margin, margin, w, h);
+
+            ctxEnergy.strokeStyle = '#333';
+            ctxEnergy.lineWidth = 2;
+            ctxEnergy.beginPath();
+            ctxEnergy.moveTo(margin, margin);
+            ctxEnergy.lineTo(margin, margin + h);
+            ctxEnergy.lineTo(margin + w, margin + h);
+            ctxEnergy.stroke();
+
+            const range = maxE - minE;
+
+            // Plot KE
+            if (historyKE.length > 1) {
+                ctxEnergy.strokeStyle = '#28a745';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyKE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - ((historyKE[i] - minE) / range) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot PE
+            if (historyPE.length > 1) {
+                ctxEnergy.strokeStyle = '#dc3545';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyPE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - ((historyPE[i] - minE) / range) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot TE
+            if (historyTE.length > 1) {
+                ctxEnergy.strokeStyle = '#333';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyTE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - ((historyTE[i] - minE) / range) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Legend
+            ctxEnergy.font = '10px Arial';
+            ctxEnergy.textAlign = 'left';
+            ctxEnergy.fillStyle = '#28a745';
+            ctxEnergy.fillText('KE', margin + 5, margin + 12);
+            ctxEnergy.fillStyle = '#dc3545';
+            ctxEnergy.fillText('PE', margin + 35, margin + 12);
+            ctxEnergy.fillStyle = '#333';
+            ctxEnergy.fillText('TE', margin + 65, margin + 12);
+        }
+
+        function animate() {
+            const dt = 0.01;
+            const substeps = 5;
+
+            for (let i = 0; i < substeps; i++) {
+                rk4Step(dt / substeps);
+            }
+            time += dt;
+
+            historyX.push(state[0]);
+            historyPhi.push(state[2]);
+            const energies = computeEnergies();
+            historyKE.push(energies.KE);
+            historyPE.push(energies.PE);
+            historyTE.push(energies.TE);
+
+            if (historyX.length > maxHistory) {
+                historyX.shift();
+                historyPhi.shift();
+                historyKE.shift();
+                historyPE.shift();
+                historyTE.shift();
+            }
+
+            draw();
+            drawGraphX();
+            drawGraphEnergy();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function start() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stop() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+
+        function reset() {
+            stop();
+            state = [x0, 0, phi0, 0];
+            time = 0;
+            historyX = [];
+            historyPhi = [];
+            historyKE = [];
+            historyPE = [];
+            historyTE = [];
+            draw();
+            drawGraphX();
+            drawGraphEnergy();
+        }
+
+        reset();
+    </script>
+</body>
+</html>

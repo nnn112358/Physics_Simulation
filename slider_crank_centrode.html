@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スライダクランク機構と瞬間中心軌跡</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 1.7em;
+        }
+        .simulation-area {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 550px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #fafafa;
+            display: block;
+        }
+        .controls {
+            flex: 0 0 280px;
+        }
+        .control-group {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 1em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin: 10px 0;
+        }
+        .slider-container label {
+            display: flex;
+            justify-content: space-between;
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            font-size: 1em;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .start-btn { background: #4CAF50; color: white; }
+        .stop-btn { background: #f44336; color: white; }
+        .reset-btn { background: #2196F3; color: white; }
+        button:hover { transform: scale(1.05); opacity: 0.9; }
+        .info-display {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+        .info-display h3 {
+            color: #2e7d32;
+            margin-bottom: 10px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 0.85em;
+        }
+        .legend {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            font-size: 0.85em;
+        }
+        .legend-color {
+            width: 20px;
+            height: 3px;
+            margin-right: 8px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>スライダクランク機構と瞬間中心軌跡</h1>
+
+        <div class="simulation-area">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="600" height="450"></canvas>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <h3>機構パラメータ</h3>
+                    <div class="slider-container">
+                        <label><span>クランク長 r</span><span id="rVal">60 px</span></label>
+                        <input type="range" id="r" min="30" max="100" step="5" value="60">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>連接棒長 L</span><span id="LVal">180 px</span></label>
+                        <input type="range" id="L" min="100" max="250" step="5" value="180">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>オフセット e</span><span id="eVal">0 px</span></label>
+                        <input type="range" id="e" min="-50" max="50" step="5" value="0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>駆動条件</h3>
+                    <div class="slider-container">
+                        <label><span>角速度 ω</span><span id="omegaVal">1.5 rad/s</span></label>
+                        <input type="range" id="omega" min="0.5" max="4" step="0.1" value="1.5">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>表示オプション</h3>
+                    <label style="display: flex; align-items: center; font-size: 0.9em; color: #666;">
+                        <input type="checkbox" id="showRastpol" checked style="margin-right: 8px;">
+                        Rastpolbahn（固定極軌跡）
+                    </label>
+                    <label style="display: flex; align-items: center; font-size: 0.9em; color: #666; margin-top: 8px;">
+                        <input type="checkbox" id="showGangpol" checked style="margin-right: 8px;">
+                        Gangpolbahn（運動極軌跡）
+                    </label>
+                </div>
+
+                <div class="buttons">
+                    <button class="start-btn" onclick="startSim()">開始</button>
+                    <button class="stop-btn" onclick="stopSim()">停止</button>
+                    <button class="reset-btn" onclick="resetSim()">リセット</button>
+                </div>
+
+                <div class="info-display">
+                    <h3>状態表示</h3>
+                    <div class="info-row"><span>クランク角 θ:</span><span id="thetaDisplay">0.00°</span></div>
+                    <div class="info-row"><span>スライダ位置 x:</span><span id="xDisplay">0.00 px</span></div>
+                    <div class="info-row"><span>連接棒角 φ:</span><span id="phiDisplay">0.00°</span></div>
+                    <div class="info-row"><span>瞬間中心 (固定):</span><span id="icDisplay">-</span></div>
+                </div>
+
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #00bcd4;"></div>
+                        <span>Rastpolbahn（固定座標系での瞬間中心軌跡）</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #4caf50;"></div>
+                        <span>Gangpolbahn（運動座標系での瞬間中心軌跡）</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const simCanvas = document.getElementById('simCanvas');
+        const simCtx = simCanvas.getContext('2d');
+
+        let animationId = null;
+        let isRunning = false;
+        let time = 0;
+        const dt = 0.016;
+
+        let theta = 0; // Crank angle
+
+        // Store centrode paths
+        let rastpolbahn = []; // Fixed centrode
+        let gangpolbahnBody = []; // Moving centrode in body coordinates
+        const maxPoints = 500;
+
+        function getParams() {
+            return {
+                r: parseFloat(document.getElementById('r').value),
+                L: parseFloat(document.getElementById('L').value),
+                e: parseFloat(document.getElementById('e').value),
+                omega: parseFloat(document.getElementById('omega').value),
+                showRastpol: document.getElementById('showRastpol').checked,
+                showGangpol: document.getElementById('showGangpol').checked
+            };
+        }
+
+        // Solve slider-crank kinematics
+        function solveKinematics(p, theta) {
+            const { r, L, e } = p;
+
+            // Crank pin position (point B)
+            const Bx = r * Math.cos(theta);
+            const By = r * Math.sin(theta);
+
+            // Slider moves along a line at y = e
+            // Find where connecting rod from B reaches the slider line
+            // |BC| = L, Cy = e
+            // (Cx - Bx)² + (e - By)² = L²
+
+            const dy = e - By;
+            const discriminant = L * L - dy * dy;
+
+            if (discriminant < 0) return null;
+
+            // Slider x-position (take the positive root for standard configuration)
+            const Cx = Bx + Math.sqrt(discriminant);
+
+            // Connecting rod angle
+            const phi = Math.atan2(e - By, Cx - Bx);
+
+            return { Bx, By, Cx, Cy: e, phi };
+        }
+
+        // Find instantaneous center of the connecting rod
+        // The IC is the intersection of:
+        // 1. Line perpendicular to crank velocity at B (passes through A)
+        // 2. Line perpendicular to slider velocity at C (vertical line through C)
+        function findInstantCenter(p, theta) {
+            const result = solveKinematics(p, theta);
+            if (!result) return null;
+
+            const { Bx, By, Cx, Cy, phi } = result;
+
+            // Velocity of B is perpendicular to AB (crank)
+            // So the line from B perpendicular to velocity passes through A (origin)
+            // This line has direction along AB: from (0,0) to (Bx, By)
+
+            // Velocity of C is horizontal (slider constraint)
+            // Line perpendicular to this is vertical: x = Cx
+
+            // Intersection: x = Cx, and point lies on line through origin with direction (Bx, By)
+            // y/x = By/Bx => y = (By/Bx) * Cx
+
+            if (Math.abs(Bx) < 1e-10) {
+                // Crank is vertical, IC is at infinity (special case)
+                return null;
+            }
+
+            const ICx = Cx;
+            const ICy = (By / Bx) * Cx;
+
+            return { x: ICx, y: ICy };
+        }
+
+        // Transform point from fixed frame to body frame (connecting rod frame)
+        function fixedToBody(px, py, Bx, By, phi) {
+            // Body frame origin at B, rotated by phi
+            const dx = px - Bx;
+            const dy = py - By;
+
+            // Rotate by -phi
+            const cos_phi = Math.cos(-phi);
+            const sin_phi = Math.sin(-phi);
+
+            return {
+                xi: dx * cos_phi - dy * sin_phi,
+                eta: dx * sin_phi + dy * cos_phi
+            };
+        }
+
+        function drawSim() {
+            const p = getParams();
+            simCtx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+
+            // Origin (crank pivot A)
+            const originX = 120;
+            const originY = 220;
+
+            const result = solveKinematics(p, theta);
+            if (!result) return;
+
+            const { Bx, By, Cx, Cy, phi } = result;
+
+            // Screen coordinates
+            const Bx_s = originX + Bx;
+            const By_s = originY - By;
+            const Cx_s = originX + Cx;
+            const Cy_s = originY - Cy;
+
+            // Find instantaneous center
+            const ic = findInstantCenter(p, theta);
+
+            if (ic) {
+                // Store for centrode paths
+                rastpolbahn.push({ x: ic.x, y: ic.y });
+                if (rastpolbahn.length > maxPoints) rastpolbahn.shift();
+
+                // Transform IC to body frame for Gangpolbahn
+                const icBody = fixedToBody(ic.x, ic.y, Bx, By, phi);
+                gangpolbahnBody.push({ xi: icBody.xi, eta: icBody.eta, Bx, By, phi });
+                if (gangpolbahnBody.length > maxPoints) gangpolbahnBody.shift();
+            }
+
+            // Draw Rastpolbahn (fixed centrode) - cyan
+            if (p.showRastpol && rastpolbahn.length > 1) {
+                simCtx.strokeStyle = 'rgba(0, 188, 212, 0.7)';
+                simCtx.lineWidth = 2;
+                simCtx.beginPath();
+                for (let i = 0; i < rastpolbahn.length; i++) {
+                    const px = originX + rastpolbahn[i].x;
+                    const py = originY - rastpolbahn[i].y;
+                    if (i === 0) simCtx.moveTo(px, py);
+                    else simCtx.lineTo(px, py);
+                }
+                simCtx.stroke();
+            }
+
+            // Draw Gangpolbahn (moving centrode) - green
+            // Transform back to current fixed frame for display
+            if (p.showGangpol && gangpolbahnBody.length > 1) {
+                simCtx.strokeStyle = 'rgba(76, 175, 80, 0.7)';
+                simCtx.lineWidth = 2;
+                simCtx.beginPath();
+
+                for (let i = 0; i < gangpolbahnBody.length; i++) {
+                    const pt = gangpolbahnBody[i];
+                    // Transform from body frame back to current fixed frame
+                    const cos_phi = Math.cos(phi);
+                    const sin_phi = Math.sin(phi);
+                    const dx = pt.xi * cos_phi - pt.eta * sin_phi;
+                    const dy = pt.xi * sin_phi + pt.eta * cos_phi;
+                    const px = originX + Bx + dx;
+                    const py = originY - (By + dy);
+
+                    if (i === 0) simCtx.moveTo(px, py);
+                    else simCtx.lineTo(px, py);
+                }
+                simCtx.stroke();
+            }
+
+            // Draw ground/slider track
+            simCtx.strokeStyle = '#666';
+            simCtx.lineWidth = 2;
+            const trackY = originY - p.e;
+            simCtx.beginPath();
+            simCtx.moveTo(originX + 50, trackY);
+            simCtx.lineTo(simCanvas.width - 30, trackY);
+            simCtx.stroke();
+
+            // Hatch marks
+            for (let x = originX + 50; x < simCanvas.width - 30; x += 15) {
+                simCtx.beginPath();
+                simCtx.moveTo(x, trackY);
+                simCtx.lineTo(x - 8, trackY + 10);
+                simCtx.stroke();
+            }
+
+            // Draw crank (link 1)
+            simCtx.strokeStyle = '#e74c3c';
+            simCtx.lineWidth = 6;
+            simCtx.lineCap = 'round';
+            simCtx.beginPath();
+            simCtx.moveTo(originX, originY);
+            simCtx.lineTo(Bx_s, By_s);
+            simCtx.stroke();
+
+            // Draw connecting rod (link 2)
+            simCtx.strokeStyle = '#333';
+            simCtx.lineWidth = 6;
+            simCtx.beginPath();
+            simCtx.moveTo(Bx_s, By_s);
+            simCtx.lineTo(Cx_s, Cy_s);
+            simCtx.stroke();
+
+            // Draw slider (link 3)
+            simCtx.fillStyle = '#888';
+            simCtx.fillRect(Cx_s - 20, Cy_s - 12, 40, 24);
+            simCtx.strokeStyle = '#555';
+            simCtx.lineWidth = 2;
+            simCtx.strokeRect(Cx_s - 20, Cy_s - 12, 40, 24);
+
+            // Draw joints
+            // Joint A (fixed pivot)
+            simCtx.fillStyle = '#888';
+            simCtx.beginPath();
+            simCtx.moveTo(originX, originY);
+            simCtx.lineTo(originX - 15, originY + 25);
+            simCtx.lineTo(originX + 15, originY + 25);
+            simCtx.closePath();
+            simCtx.fill();
+
+            simCtx.fillStyle = 'white';
+            simCtx.strokeStyle = '#333';
+            simCtx.lineWidth = 2;
+            simCtx.beginPath();
+            simCtx.arc(originX, originY, 8, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.stroke();
+
+            // Joint B (crank pin)
+            simCtx.fillStyle = 'white';
+            simCtx.beginPath();
+            simCtx.arc(Bx_s, By_s, 7, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.stroke();
+
+            // Joint C (slider pin)
+            simCtx.beginPath();
+            simCtx.arc(Cx_s, Cy_s, 6, 0, Math.PI * 2);
+            simCtx.fill();
+            simCtx.stroke();
+
+            // Draw instantaneous center
+            if (ic) {
+                const icx_s = originX + ic.x;
+                const icy_s = originY - ic.y;
+
+                // Only draw if on screen
+                if (icx_s > 0 && icx_s < simCanvas.width && icy_s > 0 && icy_s < simCanvas.height) {
+                    simCtx.fillStyle = '#9c27b0';
+                    simCtx.beginPath();
+                    simCtx.arc(icx_s, icy_s, 6, 0, Math.PI * 2);
+                    simCtx.fill();
+
+                    // Lines to IC
+                    simCtx.strokeStyle = 'rgba(156, 39, 176, 0.4)';
+                    simCtx.lineWidth = 1;
+                    simCtx.setLineDash([5, 5]);
+                    simCtx.beginPath();
+                    simCtx.moveTo(originX, originY);
+                    simCtx.lineTo(icx_s, icy_s);
+                    simCtx.lineTo(Cx_s, Cy_s);
+                    simCtx.stroke();
+                    simCtx.setLineDash([]);
+                }
+            }
+
+            // Labels
+            simCtx.fillStyle = '#333';
+            simCtx.font = 'bold 14px Arial';
+            simCtx.textAlign = 'center';
+            simCtx.fillText('A', originX, originY + 40);
+            simCtx.fillText('B', Bx_s - 15, By_s - 10);
+
+            // Link numbers
+            simCtx.font = '12px Arial';
+            simCtx.fillStyle = '#e74c3c';
+            simCtx.fillText('①', (originX + Bx_s) / 2 - 15, (originY + By_s) / 2 - 10);
+            simCtx.fillStyle = '#333';
+            simCtx.fillText('②', (Bx_s + Cx_s) / 2, (By_s + Cy_s) / 2 - 15);
+            simCtx.fillStyle = '#666';
+            simCtx.fillText('③', Cx_s, Cy_s + 25);
+
+            // Coordinate system at A
+            simCtx.strokeStyle = '#333';
+            simCtx.lineWidth = 1.5;
+
+            // x-axis
+            simCtx.beginPath();
+            simCtx.moveTo(originX, originY);
+            simCtx.lineTo(originX + 40, originY);
+            simCtx.stroke();
+            simCtx.fillStyle = '#333';
+            simCtx.beginPath();
+            simCtx.moveTo(originX + 40, originY);
+            simCtx.lineTo(originX + 32, originY - 4);
+            simCtx.lineTo(originX + 32, originY + 4);
+            simCtx.closePath();
+            simCtx.fill();
+            simCtx.font = '12px Arial';
+            simCtx.fillText('x', originX + 48, originY + 4);
+
+            // y-axis
+            simCtx.beginPath();
+            simCtx.moveTo(originX, originY);
+            simCtx.lineTo(originX, originY - 40);
+            simCtx.stroke();
+            simCtx.beginPath();
+            simCtx.moveTo(originX, originY - 40);
+            simCtx.lineTo(originX - 4, originY - 32);
+            simCtx.lineTo(originX + 4, originY - 32);
+            simCtx.closePath();
+            simCtx.fill();
+            simCtx.fillText('y', originX - 5, originY - 48);
+
+            // Body coordinate system at B (ξ, η)
+            const axisLen = 30;
+            simCtx.strokeStyle = '#666';
+            simCtx.lineWidth = 1;
+
+            // ξ-axis (along connecting rod)
+            const xiEndX = Bx_s + axisLen * Math.cos(phi);
+            const xiEndY = By_s - axisLen * Math.sin(phi);
+            simCtx.beginPath();
+            simCtx.moveTo(Bx_s, By_s);
+            simCtx.lineTo(xiEndX, xiEndY);
+            simCtx.stroke();
+            simCtx.fillStyle = '#666';
+            simCtx.font = '11px Arial';
+            simCtx.fillText('ξ', xiEndX + 8, xiEndY);
+
+            // η-axis (perpendicular)
+            const etaEndX = Bx_s + axisLen * Math.cos(phi + Math.PI / 2);
+            const etaEndY = By_s - axisLen * Math.sin(phi + Math.PI / 2);
+            simCtx.beginPath();
+            simCtx.moveTo(Bx_s, By_s);
+            simCtx.lineTo(etaEndX, etaEndY);
+            simCtx.stroke();
+            simCtx.fillText('η', etaEndX, etaEndY - 8);
+
+            // Legend in corner
+            simCtx.font = '12px Arial';
+            simCtx.textAlign = 'left';
+            simCtx.fillStyle = '#00bcd4';
+            simCtx.fillText('Rastpolbahn', 20, 25);
+            simCtx.fillStyle = '#4caf50';
+            simCtx.fillText('Gangpolbahn', 20, 42);
+
+            // Update display
+            document.getElementById('thetaDisplay').textContent = (theta * 180 / Math.PI).toFixed(1) + '°';
+            document.getElementById('xDisplay').textContent = Cx.toFixed(1) + ' px';
+            document.getElementById('phiDisplay').textContent = (phi * 180 / Math.PI).toFixed(1) + '°';
+            if (ic) {
+                document.getElementById('icDisplay').textContent = `(${ic.x.toFixed(0)}, ${ic.y.toFixed(0)})`;
+            } else {
+                document.getElementById('icDisplay').textContent = '∞';
+            }
+        }
+
+        function updateSliderDisplays() {
+            document.getElementById('rVal').textContent = document.getElementById('r').value + ' px';
+            document.getElementById('LVal').textContent = document.getElementById('L').value + ' px';
+            document.getElementById('eVal').textContent = document.getElementById('e').value + ' px';
+            document.getElementById('omegaVal').textContent = document.getElementById('omega').value + ' rad/s';
+        }
+
+        function animate() {
+            const p = getParams();
+
+            theta += p.omega * dt;
+            if (theta > Math.PI * 2) theta -= Math.PI * 2;
+
+            time += dt;
+
+            drawSim();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function startSim() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stopSim() {
+            isRunning = false;
+            if (animationId) cancelAnimationFrame(animationId);
+        }
+
+        function resetSim() {
+            stopSim();
+            theta = 0;
+            time = 0;
+            rastpolbahn = [];
+            gangpolbahnBody = [];
+            drawSim();
+        }
+
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            slider.addEventListener('input', () => {
+                updateSliderDisplays();
+                rastpolbahn = [];
+                gangpolbahnBody = [];
+                if (!isRunning) drawSim();
+            });
+        });
+
+        document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', () => {
+                if (!isRunning) drawSim();
+            });
+        });
+
+        updateSliderDisplays();
+        resetSim();
+    </script>
+</body>
+</html>

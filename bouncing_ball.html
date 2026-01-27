@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>跳ね返るボール（放物運動と衝突）</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+        .main-content {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 550px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #fff;
+            display: block;
+        }
+        .control-section {
+            width: 280px;
+        }
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 0.95em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin-bottom: 12px;
+        }
+        .slider-container label {
+            display: block;
+            color: #555;
+            margin-bottom: 3px;
+            font-size: 0.85em;
+        }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            min-width: 70px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-reset { background: #6c757d; color: white; }
+        .info-display {
+            background: #e9ecef;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.8em;
+            line-height: 1.6;
+        }
+        .graphs-section {
+            width: 100%;
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .graph-container {
+            flex: 1;
+            min-width: 350px;
+        }
+        .graph-container h4 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>跳ね返るボール（放物運動と衝突）</h1>
+        <p class="description">初速度 v₀ で投げ出された質点が反発係数 e で床に跳ね返る</p>
+
+        <div class="main-content">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="600" height="400"></canvas>
+            </div>
+
+            <div class="control-section">
+                <div class="control-group">
+                    <h3>パラメータ設定</h3>
+
+                    <div class="slider-container">
+                        <label>質量 m: <span id="massVal">1.0</span> kg</label>
+                        <input type="range" id="massSlider" min="0.5" max="5.0" step="0.1" value="1.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初速度 v₀: <span id="v0Val">8.0</span> m/s</label>
+                        <input type="range" id="v0Slider" min="2.0" max="15.0" step="0.5" value="8.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>発射角度 θ: <span id="angleVal">60</span>°</label>
+                        <input type="range" id="angleSlider" min="10" max="85" step="1" value="60">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>反発係数 e: <span id="eVal">0.80</span></label>
+                        <input type="range" id="eSlider" min="0.0" max="1.0" step="0.05" value="0.80">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>重力加速度 g: <span id="gravVal">9.8</span> m/s²</label>
+                        <input type="range" id="gravSlider" min="1.0" max="20.0" step="0.1" value="9.8">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期高さ y₀: <span id="y0Val">2.0</span> m</label>
+                        <input type="range" id="y0Slider" min="0.0" max="5.0" step="0.2" value="2.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>シミュレーション制御</h3>
+                    <div class="button-group">
+                        <button class="btn-start" id="startBtn">開始</button>
+                        <button class="btn-stop" id="stopBtn">停止</button>
+                        <button class="btn-reset" id="resetBtn">リセット</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>状態表示</h3>
+                    <div class="info-display" id="infoDisplay">
+                        時間: 0.00 s<br>
+                        位置 x: 0.00 m<br>
+                        位置 y: 0.00 m<br>
+                        速度 vx: 0.00 m/s<br>
+                        速度 vy: 0.00 m/s<br>
+                        衝突回数: 0
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="graphs-section">
+            <div class="graph-container">
+                <h4>軌道 y(x)</h4>
+                <canvas id="graphTrajectory" width="380" height="200"></canvas>
+            </div>
+            <div class="graph-container">
+                <h4>エネルギー変化</h4>
+                <canvas id="graphEnergy" width="380" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const graphTraj = document.getElementById('graphTrajectory');
+        const ctxTraj = graphTraj.getContext('2d');
+        const graphEnergy = document.getElementById('graphEnergy');
+        const ctxEnergy = graphEnergy.getContext('2d');
+
+        // Parameters
+        let m = 1.0;      // mass
+        let v0 = 8.0;     // initial speed
+        let angle = 60 * Math.PI / 180;  // launch angle
+        let e = 0.80;     // coefficient of restitution
+        let g = 9.8;      // gravity
+        let y0 = 2.0;     // initial height
+
+        // State
+        let x = 0;
+        let y = y0;
+        let vx = v0 * Math.cos(angle);
+        let vy = v0 * Math.sin(angle);
+        let time = 0;
+        let bounceCount = 0;
+        let isRunning = false;
+        let animationId = null;
+
+        // Trajectory and history
+        let trajectory = [];
+        let historyKE = [];
+        let historyPE = [];
+        let historyTE = [];
+        const maxHistory = 600;
+
+        // Sliders
+        const massSlider = document.getElementById('massSlider');
+        const v0Slider = document.getElementById('v0Slider');
+        const angleSlider = document.getElementById('angleSlider');
+        const eSlider = document.getElementById('eSlider');
+        const gravSlider = document.getElementById('gravSlider');
+        const y0Slider = document.getElementById('y0Slider');
+
+        const massVal = document.getElementById('massVal');
+        const v0Val = document.getElementById('v0Val');
+        const angleVal = document.getElementById('angleVal');
+        const eVal = document.getElementById('eVal');
+        const gravVal = document.getElementById('gravVal');
+        const y0Val = document.getElementById('y0Val');
+
+        massSlider.addEventListener('input', () => {
+            m = parseFloat(massSlider.value);
+            massVal.textContent = m.toFixed(1);
+        });
+
+        v0Slider.addEventListener('input', () => {
+            v0 = parseFloat(v0Slider.value);
+            v0Val.textContent = v0.toFixed(1);
+            if (!isRunning) reset();
+        });
+
+        angleSlider.addEventListener('input', () => {
+            angle = parseFloat(angleSlider.value) * Math.PI / 180;
+            angleVal.textContent = parseFloat(angleSlider.value).toFixed(0);
+            if (!isRunning) reset();
+        });
+
+        eSlider.addEventListener('input', () => {
+            e = parseFloat(eSlider.value);
+            eVal.textContent = e.toFixed(2);
+        });
+
+        gravSlider.addEventListener('input', () => {
+            g = parseFloat(gravSlider.value);
+            gravVal.textContent = g.toFixed(1);
+        });
+
+        y0Slider.addEventListener('input', () => {
+            y0 = parseFloat(y0Slider.value);
+            y0Val.textContent = y0.toFixed(1);
+            if (!isRunning) reset();
+        });
+
+        document.getElementById('startBtn').addEventListener('click', start);
+        document.getElementById('stopBtn').addEventListener('click', stop);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+
+        function step(dt) {
+            // Euler integration for projectile motion
+            x += vx * dt;
+            y += vy * dt;
+            vy -= g * dt;
+
+            // Ground collision
+            if (y < 0) {
+                y = 0;
+                vy = -e * vy;  // reflect with energy loss
+                bounceCount++;
+
+                // Stop if velocity is too small
+                if (Math.abs(vy) < 0.1) {
+                    vy = 0;
+                }
+            }
+        }
+
+        function computeEnergies() {
+            const speed = Math.sqrt(vx * vx + vy * vy);
+            const KE = 0.5 * m * speed * speed;
+            const PE = m * g * y;
+            const TE = KE + PE;
+            return { KE, PE, TE };
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const originX = 50;
+            const groundY = canvas.height - 50;
+            const scale = 40;
+
+            // Draw ground
+            ctx.fillStyle = '#ddd';
+            ctx.fillRect(0, groundY, canvas.width, 50);
+
+            // Hatch pattern
+            ctx.strokeStyle = '#aaa';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 45; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * 20, groundY);
+                ctx.lineTo(i * 20 - 20, groundY + 20);
+                ctx.stroke();
+            }
+
+            // Draw coordinate axes
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            // x-axis
+            ctx.beginPath();
+            ctx.moveTo(originX, groundY);
+            ctx.lineTo(canvas.width - 20, groundY);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - 20, groundY);
+            ctx.lineTo(canvas.width - 30, groundY - 5);
+            ctx.moveTo(canvas.width - 20, groundY);
+            ctx.lineTo(canvas.width - 30, groundY + 5);
+            ctx.stroke();
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.fillText('x', canvas.width - 25, groundY + 20);
+
+            // y-axis
+            ctx.beginPath();
+            ctx.moveTo(originX, groundY);
+            ctx.lineTo(originX, 30);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(originX, 30);
+            ctx.lineTo(originX - 5, 40);
+            ctx.moveTo(originX, 30);
+            ctx.lineTo(originX + 5, 40);
+            ctx.stroke();
+            ctx.fillText('y', originX - 20, 35);
+
+            // z-axis (into page)
+            ctx.beginPath();
+            ctx.arc(originX, groundY, 8, 0, 2 * Math.PI);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(originX, groundY, 3, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillText('z', originX - 20, groundY + 5);
+
+            // Draw trajectory
+            if (trajectory.length > 1) {
+                ctx.strokeStyle = 'rgba(102, 126, 234, 0.4)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let i = 0; i < trajectory.length; i++) {
+                    const [tx, ty] = trajectory[i];
+                    const px = originX + tx * scale;
+                    const py = groundY - ty * scale;
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+            }
+
+            // Ball position
+            const ballX = originX + x * scale;
+            const ballY = groundY - y * scale;
+
+            // Draw velocity vector
+            const velScale = 8;
+            ctx.strokeStyle = '#28a745';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(ballX, ballY);
+            ctx.lineTo(ballX + vx * velScale, ballY - vy * velScale);
+            ctx.stroke();
+
+            // Arrow head
+            const vAngle = Math.atan2(-vy, vx);
+            ctx.beginPath();
+            ctx.moveTo(ballX + vx * velScale, ballY - vy * velScale);
+            ctx.lineTo(ballX + vx * velScale - 8 * Math.cos(vAngle - 0.3),
+                       ballY - vy * velScale + 8 * Math.sin(vAngle - 0.3));
+            ctx.moveTo(ballX + vx * velScale, ballY - vy * velScale);
+            ctx.lineTo(ballX + vx * velScale - 8 * Math.cos(vAngle + 0.3),
+                       ballY - vy * velScale + 8 * Math.sin(vAngle + 0.3));
+            ctx.stroke();
+
+            // v0 label
+            ctx.fillStyle = '#28a745';
+            ctx.font = '12px serif';
+            ctx.fillText('v₀', ballX + vx * velScale + 5, ballY - vy * velScale - 5);
+
+            // Draw ball
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(ballX, ballY, 12, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // m label
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.fillText('m', ballX - 25, ballY - 5);
+
+            // Draw gravity arrow
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - 60, 50);
+            ctx.lineTo(canvas.width - 60, 90);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - 60, 90);
+            ctx.lineTo(canvas.width - 65, 80);
+            ctx.moveTo(canvas.width - 60, 90);
+            ctx.lineTo(canvas.width - 55, 80);
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.font = '14px serif';
+            ctx.fillText('g', canvas.width - 60, 105);
+
+            // e label
+            ctx.fillStyle = '#e74c3c';
+            ctx.font = '14px serif';
+            ctx.fillText('e = ' + e.toFixed(2), originX + 150, groundY + 25);
+
+            // Update info
+            const speed = Math.sqrt(vx * vx + vy * vy);
+            document.getElementById('infoDisplay').innerHTML =
+                `時間: ${time.toFixed(2)} s<br>` +
+                `位置 x: ${x.toFixed(3)} m<br>` +
+                `位置 y: ${y.toFixed(3)} m<br>` +
+                `速度 vx: ${vx.toFixed(3)} m/s<br>` +
+                `速度 vy: ${vy.toFixed(3)} m/s<br>` +
+                `速さ |v|: ${speed.toFixed(3)} m/s<br>` +
+                `衝突回数: ${bounceCount}`;
+        }
+
+        function drawTrajectoryGraph() {
+            ctxTraj.clearRect(0, 0, graphTraj.width, graphTraj.height);
+
+            const margin = 40;
+            const w = graphTraj.width - 2 * margin;
+            const h = graphTraj.height - 2 * margin;
+
+            ctxTraj.fillStyle = '#f8f9fa';
+            ctxTraj.fillRect(margin, margin, w, h);
+
+            // Axes
+            ctxTraj.strokeStyle = '#333';
+            ctxTraj.lineWidth = 2;
+            ctxTraj.beginPath();
+            ctxTraj.moveTo(margin, margin);
+            ctxTraj.lineTo(margin, margin + h);
+            ctxTraj.lineTo(margin + w, margin + h);
+            ctxTraj.stroke();
+
+            // Find scale
+            let maxX = 1, maxY = 1;
+            if (trajectory.length > 0) {
+                maxX = Math.max(...trajectory.map(p => p[0]), 1);
+                maxY = Math.max(...trajectory.map(p => p[1]), 1);
+            }
+            maxX *= 1.1;
+            maxY *= 1.1;
+
+            // Labels
+            ctxTraj.fillStyle = '#333';
+            ctxTraj.font = '10px Arial';
+            ctxTraj.textAlign = 'right';
+            ctxTraj.fillText(maxY.toFixed(1), margin - 5, margin + 5);
+            ctxTraj.fillText('0', margin - 5, margin + h);
+            ctxTraj.textAlign = 'center';
+            ctxTraj.fillText('0', margin, margin + h + 15);
+            ctxTraj.fillText(maxX.toFixed(1), margin + w, margin + h + 15);
+
+            // Plot trajectory
+            if (trajectory.length > 1) {
+                ctxTraj.strokeStyle = '#667eea';
+                ctxTraj.lineWidth = 2;
+                ctxTraj.beginPath();
+                for (let i = 0; i < trajectory.length; i++) {
+                    const [tx, ty] = trajectory[i];
+                    const px = margin + (tx / maxX) * w;
+                    const py = margin + h - (ty / maxY) * h;
+                    if (i === 0) ctxTraj.moveTo(px, py);
+                    else ctxTraj.lineTo(px, py);
+                }
+                ctxTraj.stroke();
+            }
+
+            // Axis labels
+            ctxTraj.fillStyle = '#333';
+            ctxTraj.font = '12px serif';
+            ctxTraj.textAlign = 'center';
+            ctxTraj.fillText('x', margin + w / 2, margin + h + 30);
+            ctxTraj.save();
+            ctxTraj.translate(15, margin + h / 2);
+            ctxTraj.rotate(-Math.PI / 2);
+            ctxTraj.fillText('y', 0, 0);
+            ctxTraj.restore();
+        }
+
+        function drawGraphEnergy() {
+            ctxEnergy.clearRect(0, 0, graphEnergy.width, graphEnergy.height);
+
+            const margin = 40;
+            const w = graphEnergy.width - 2 * margin;
+            const h = graphEnergy.height - 2 * margin;
+
+            let maxE = 1;
+            if (historyTE.length > 0) {
+                maxE = Math.max(...historyTE, ...historyKE, ...historyPE) * 1.1;
+                if (maxE < 0.1) maxE = 0.1;
+            }
+
+            ctxEnergy.fillStyle = '#f8f9fa';
+            ctxEnergy.fillRect(margin, margin, w, h);
+
+            // Axes
+            ctxEnergy.strokeStyle = '#333';
+            ctxEnergy.lineWidth = 2;
+            ctxEnergy.beginPath();
+            ctxEnergy.moveTo(margin, margin);
+            ctxEnergy.lineTo(margin, margin + h);
+            ctxEnergy.lineTo(margin + w, margin + h);
+            ctxEnergy.stroke();
+
+            // Labels
+            ctxEnergy.fillStyle = '#333';
+            ctxEnergy.font = '10px Arial';
+            ctxEnergy.textAlign = 'right';
+            ctxEnergy.fillText(maxE.toFixed(1), margin - 5, margin + 5);
+            ctxEnergy.fillText('0', margin - 5, margin + h);
+
+            // Plot KE
+            if (historyKE.length > 1) {
+                ctxEnergy.strokeStyle = '#28a745';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyKE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyKE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot PE
+            if (historyPE.length > 1) {
+                ctxEnergy.strokeStyle = '#dc3545';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyPE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyPE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot TE
+            if (historyTE.length > 1) {
+                ctxEnergy.strokeStyle = '#333';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyTE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyTE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Legend
+            ctxEnergy.font = '10px Arial';
+            ctxEnergy.textAlign = 'left';
+            ctxEnergy.fillStyle = '#28a745';
+            ctxEnergy.fillText('運動E', margin + 5, margin + 12);
+            ctxEnergy.fillStyle = '#dc3545';
+            ctxEnergy.fillText('位置E', margin + 55, margin + 12);
+            ctxEnergy.fillStyle = '#333';
+            ctxEnergy.fillText('全E', margin + 105, margin + 12);
+        }
+
+        function animate() {
+            const dt = 0.01;
+            const substeps = 3;
+
+            for (let i = 0; i < substeps; i++) {
+                step(dt / substeps);
+            }
+            time += dt;
+
+            // Store trajectory
+            trajectory.push([x, y]);
+            if (trajectory.length > maxHistory * 2) {
+                trajectory = trajectory.slice(-maxHistory);
+            }
+
+            // Store energy history
+            const energies = computeEnergies();
+            historyKE.push(energies.KE);
+            historyPE.push(energies.PE);
+            historyTE.push(energies.TE);
+
+            if (historyKE.length > maxHistory) {
+                historyKE.shift();
+                historyPE.shift();
+                historyTE.shift();
+            }
+
+            draw();
+            drawTrajectoryGraph();
+            drawGraphEnergy();
+
+            // Stop if ball has essentially stopped
+            if (y < 0.01 && Math.abs(vy) < 0.05 && bounceCount > 10) {
+                stop();
+                return;
+            }
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function start() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stop() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+
+        function reset() {
+            stop();
+            x = 0;
+            y = y0;
+            vx = v0 * Math.cos(angle);
+            vy = v0 * Math.sin(angle);
+            time = 0;
+            bounceCount = 0;
+            trajectory = [];
+            historyKE = [];
+            historyPE = [];
+            historyTE = [];
+            draw();
+            drawTrajectoryGraph();
+            drawGraphEnergy();
+        }
+
+        reset();
+    </script>
+</body>
+</html>

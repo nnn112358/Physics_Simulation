@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3質点連成振動系シミュレーション</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 1.8em;
+        }
+        .simulation-area {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 500px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #f8f9fa;
+            display: block;
+        }
+        .controls {
+            flex: 0 0 300px;
+        }
+        .control-group {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 1em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin: 8px 0;
+        }
+        .slider-container label {
+            display: flex;
+            justify-content: space-between;
+            color: #666;
+            font-size: 0.85em;
+            margin-bottom: 3px;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        button {
+            flex: 1;
+            padding: 10px 15px;
+            font-size: 0.95em;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .start-btn { background: #4CAF50; color: white; }
+        .stop-btn { background: #f44336; color: white; }
+        .reset-btn { background: #2196F3; color: white; }
+        button:hover { transform: scale(1.05); opacity: 0.9; }
+        .info-display {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+        .info-display h3 {
+            color: #2e7d32;
+            margin-bottom: 10px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 4px 0;
+            font-size: 0.8em;
+        }
+        .graphs {
+            width: 100%;
+            margin-top: 20px;
+        }
+        .graph-container {
+            margin-bottom: 15px;
+        }
+        .graph-container h3 {
+            color: #555;
+            margin-bottom: 5px;
+        }
+        .mode-buttons {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 8px;
+            font-size: 0.8em;
+            background: #9c27b0;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>3質点連成振動系シミュレーション</h1>
+
+        <div class="simulation-area">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="550" height="200"></canvas>
+                <div class="graphs">
+                    <div class="graph-container">
+                        <h3>変位グラフ</h3>
+                        <canvas id="graphCanvas" width="550" height="150"></canvas>
+                    </div>
+                    <div class="graph-container">
+                        <h3>モード振幅</h3>
+                        <canvas id="modeCanvas" width="550" height="120"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <h3>質量</h3>
+                    <div class="slider-container">
+                        <label><span>m₁</span><span id="m1Val">1.0 kg</span></label>
+                        <input type="range" id="m1" min="0.5" max="3" step="0.1" value="1.0">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>m₂</span><span id="m2Val">1.0 kg</span></label>
+                        <input type="range" id="m2" min="0.5" max="3" step="0.1" value="1.0">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>m₃</span><span id="m3Val">1.0 kg</span></label>
+                        <input type="range" id="m3" min="0.5" max="3" step="0.1" value="1.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>ばね定数</h3>
+                    <div class="slider-container">
+                        <label><span>k₁</span><span id="k1Val">20 N/m</span></label>
+                        <input type="range" id="k1" min="5" max="100" step="1" value="20">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>k₂</span><span id="k2Val">20 N/m</span></label>
+                        <input type="range" id="k2" min="5" max="100" step="1" value="20">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>k₃</span><span id="k3Val">20 N/m</span></label>
+                        <input type="range" id="k3" min="5" max="100" step="1" value="20">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>初期変位</h3>
+                    <div class="slider-container">
+                        <label><span>x₁(0)</span><span id="x10Val">0.3 m</span></label>
+                        <input type="range" id="x10" min="-0.5" max="0.5" step="0.05" value="0.3">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>x₂(0)</span><span id="x20Val">0.0 m</span></label>
+                        <input type="range" id="x20" min="-0.5" max="0.5" step="0.05" value="0">
+                    </div>
+                    <div class="slider-container">
+                        <label><span>x₃(0)</span><span id="x30Val">0.0 m</span></label>
+                        <input type="range" id="x30" min="-0.5" max="0.5" step="0.05" value="0">
+                    </div>
+                    <div class="mode-buttons">
+                        <button class="mode-btn" onclick="setMode(1)">Mode 1</button>
+                        <button class="mode-btn" onclick="setMode(2)">Mode 2</button>
+                        <button class="mode-btn" onclick="setMode(3)">Mode 3</button>
+                    </div>
+                </div>
+
+                <div class="buttons">
+                    <button class="start-btn" onclick="startSim()">開始</button>
+                    <button class="stop-btn" onclick="stopSim()">停止</button>
+                    <button class="reset-btn" onclick="resetSim()">リセット</button>
+                </div>
+
+                <div class="info-display">
+                    <h3>状態表示</h3>
+                    <div class="info-row"><span>時間:</span><span id="timeDisplay">0.00 s</span></div>
+                    <div class="info-row"><span>x₁:</span><span id="x1Display">0.00 m</span></div>
+                    <div class="info-row"><span>x₂:</span><span id="x2Display">0.00 m</span></div>
+                    <div class="info-row"><span>x₃:</span><span id="x3Display">0.00 m</span></div>
+                    <div class="info-row"><span>ω₁:</span><span id="omega1Display">0.00 rad/s</span></div>
+                    <div class="info-row"><span>ω₂:</span><span id="omega2Display">0.00 rad/s</span></div>
+                    <div class="info-row"><span>ω₃:</span><span id="omega3Display">0.00 rad/s</span></div>
+                    <div class="info-row"><span>全エネルギー:</span><span id="energyDisplay">0.00 J</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const simCanvas = document.getElementById('simCanvas');
+        const simCtx = simCanvas.getContext('2d');
+        const graphCanvas = document.getElementById('graphCanvas');
+        const graphCtx = graphCanvas.getContext('2d');
+        const modeCanvas = document.getElementById('modeCanvas');
+        const modeCtx = modeCanvas.getContext('2d');
+
+        let animationId = null;
+        let isRunning = false;
+        let time = 0;
+        const dt = 0.0005;
+        const stepsPerFrame = 32;
+
+        // State: [x1, v1, x2, v2, x3, v3]
+        let state = [0.3, 0, 0, 0, 0, 0];
+
+        let history = [];
+        const maxHistory = 400;
+
+        // Eigenfrequencies and modes
+        let eigenfreqs = [0, 0, 0];
+        let eigenmodes = [[1, 1, 1], [1, 0, -1], [1, -2, 1]];
+
+        function getParams() {
+            return {
+                m1: parseFloat(document.getElementById('m1').value),
+                m2: parseFloat(document.getElementById('m2').value),
+                m3: parseFloat(document.getElementById('m3').value),
+                k1: parseFloat(document.getElementById('k1').value),
+                k2: parseFloat(document.getElementById('k2').value),
+                k3: parseFloat(document.getElementById('k3').value),
+                x10: parseFloat(document.getElementById('x10').value),
+                x20: parseFloat(document.getElementById('x20').value),
+                x30: parseFloat(document.getElementById('x30').value)
+            };
+        }
+
+        // Calculate eigenfrequencies for the special case m1=m2=m3=m, k1=k2=k3=k
+        // The general eigenvalue problem: K*x = omega^2 * M * x
+        function calcEigenfreqs(p) {
+            // For equal masses and springs:
+            // omega_1 = sqrt(k/m) * sqrt(2 - sqrt(2))
+            // omega_2 = sqrt(k/m) * sqrt(2)
+            // omega_3 = sqrt(k/m) * sqrt(2 + sqrt(2))
+
+            // Simplified approximation for varying parameters
+            const avgK = (p.k1 + p.k2 + p.k3) / 3;
+            const avgM = (p.m1 + p.m2 + p.m3) / 3;
+            const w0 = Math.sqrt(avgK / avgM);
+
+            // Approximate eigenfrequencies
+            eigenfreqs[0] = w0 * Math.sqrt(0.6);
+            eigenfreqs[1] = w0 * Math.sqrt(1.5);
+            eigenfreqs[2] = w0 * Math.sqrt(2.4);
+
+            return eigenfreqs;
+        }
+
+        // Equations of motion:
+        // m1*x1'' = -k1*x1 + k2*(x2-x1)
+        // m2*x2'' = -k2*(x2-x1) + k3*(x3-x2)
+        // m3*x3'' = -k3*(x3-x2)
+        function derivatives(state, p) {
+            const [x1, v1, x2, v2, x3, v3] = state;
+
+            const a1 = (-p.k1 * x1 + p.k2 * (x2 - x1)) / p.m1;
+            const a2 = (-p.k2 * (x2 - x1) + p.k3 * (x3 - x2)) / p.m2;
+            const a3 = (-p.k3 * (x3 - x2)) / p.m3;
+
+            return [v1, a1, v2, a2, v3, a3];
+        }
+
+        function rk4Step(state, dt, p) {
+            const k1 = derivatives(state, p);
+            const s2 = state.map((s, i) => s + k1[i] * dt / 2);
+            const k2 = derivatives(s2, p);
+            const s3 = state.map((s, i) => s + k2[i] * dt / 2);
+            const k3 = derivatives(s3, p);
+            const s4 = state.map((s, i) => s + k3[i] * dt);
+            const k4 = derivatives(s4, p);
+
+            return state.map((s, i) => s + (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]) * dt / 6);
+        }
+
+        function calcEnergy(p) {
+            const [x1, v1, x2, v2, x3, v3] = state;
+
+            const KE = 0.5 * p.m1 * v1 * v1 + 0.5 * p.m2 * v2 * v2 + 0.5 * p.m3 * v3 * v3;
+            const PE = 0.5 * p.k1 * x1 * x1 + 0.5 * p.k2 * (x2 - x1) * (x2 - x1) + 0.5 * p.k3 * (x3 - x2) * (x3 - x2);
+
+            return KE + PE;
+        }
+
+        function drawSpring(ctx, x1, y1, x2, y2, coils = 8) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            const amplitude = 10;
+            const segLen = len / (coils * 2 + 2);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(segLen, 0);
+
+            for (let i = 0; i < coils * 2; i++) {
+                const xPos = segLen + (i + 1) * segLen;
+                const yPos = (i % 2 === 0 ? amplitude : -amplitude);
+                ctx.lineTo(xPos, yPos);
+            }
+            ctx.lineTo(len, 0);
+            ctx.strokeStyle = '#555';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawSim() {
+            const p = getParams();
+            simCtx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+
+            const [x1, v1, x2, v2, x3, v3] = state;
+            const scale = 150; // pixels per meter
+
+            const baseY = 100;
+            const massSize = 45;
+            const wallX = 50;
+
+            // Equilibrium positions
+            const eq1 = 150;
+            const eq2 = 300;
+            const eq3 = 450;
+
+            // Current positions
+            const m1X = eq1 + x1 * scale;
+            const m2X = eq2 + x2 * scale;
+            const m3X = eq3 + x3 * scale;
+
+            // Draw wall
+            simCtx.fillStyle = '#888';
+            simCtx.fillRect(wallX - 15, baseY - 50, 15, 100);
+            for (let y = baseY - 45; y < baseY + 50; y += 12) {
+                simCtx.strokeStyle = '#666';
+                simCtx.lineWidth = 1;
+                simCtx.beginPath();
+                simCtx.moveTo(wallX - 15, y);
+                simCtx.lineTo(wallX - 25, y + 8);
+                simCtx.stroke();
+            }
+
+            // Draw springs
+            drawSpring(simCtx, wallX, baseY, m1X - massSize / 2, baseY, 6);
+            drawSpring(simCtx, m1X + massSize / 2, baseY, m2X - massSize / 2, baseY, 6);
+            drawSpring(simCtx, m2X + massSize / 2, baseY, m3X - massSize / 2, baseY, 6);
+
+            // Draw masses
+            const masses = [
+                { x: m1X, label: 'm₁', color: '#e74c3c', borderColor: '#c0392b' },
+                { x: m2X, label: 'm₂', color: '#3498db', borderColor: '#2980b9' },
+                { x: m3X, label: 'm₃', color: '#27ae60', borderColor: '#1e8449' }
+            ];
+
+            masses.forEach(mass => {
+                simCtx.fillStyle = mass.color;
+                simCtx.fillRect(mass.x - massSize / 2, baseY - massSize / 2, massSize, massSize);
+                simCtx.strokeStyle = mass.borderColor;
+                simCtx.lineWidth = 2;
+                simCtx.strokeRect(mass.x - massSize / 2, baseY - massSize / 2, massSize, massSize);
+
+                simCtx.fillStyle = 'white';
+                simCtx.font = 'bold 14px Arial';
+                simCtx.textAlign = 'center';
+                simCtx.fillText(mass.label, mass.x, baseY + 5);
+            });
+
+            // Spring labels
+            simCtx.fillStyle = '#666';
+            simCtx.font = '12px Arial';
+            simCtx.textAlign = 'center';
+            simCtx.fillText('k₁', (wallX + m1X - massSize / 2) / 2, baseY - 35);
+            simCtx.fillText('k₂', (m1X + m2X) / 2, baseY - 35);
+            simCtx.fillText('k₃', (m2X + m3X) / 2, baseY - 35);
+
+            // Draw coordinate labels
+            simCtx.fillStyle = '#333';
+            simCtx.font = '11px Arial';
+            simCtx.fillText('x₁', m1X, baseY + 40);
+            simCtx.fillText('x₂', m2X, baseY + 40);
+            simCtx.fillText('x₃', m3X, baseY + 40);
+
+            // Draw equilibrium markers
+            simCtx.strokeStyle = '#aaa';
+            simCtx.lineWidth = 1;
+            simCtx.setLineDash([3, 3]);
+            [eq1, eq2, eq3].forEach(eq => {
+                simCtx.beginPath();
+                simCtx.moveTo(eq, baseY + 30);
+                simCtx.lineTo(eq, baseY + 50);
+                simCtx.stroke();
+            });
+            simCtx.setLineDash([]);
+
+            // Gravity symbol
+            simCtx.fillStyle = '#666';
+            simCtx.font = '14px Arial';
+            simCtx.textAlign = 'center';
+            simCtx.fillText('⊗ g', simCanvas.width - 40, 30);
+        }
+
+        function drawGraph() {
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+            graphCtx.fillStyle = '#f8f9fa';
+            graphCtx.fillRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+            const midY = graphCanvas.height / 2;
+            graphCtx.strokeStyle = '#ddd';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(0, midY);
+            graphCtx.lineTo(graphCanvas.width, midY);
+            graphCtx.stroke();
+
+            if (history.length > 1) {
+                const colors = ['#e74c3c', '#3498db', '#27ae60'];
+                const labels = ['x₁', 'x₂', 'x₃'];
+
+                for (let j = 0; j < 3; j++) {
+                    graphCtx.strokeStyle = colors[j];
+                    graphCtx.lineWidth = 2;
+                    graphCtx.beginPath();
+                    for (let i = 0; i < history.length; i++) {
+                        const hx = (i / maxHistory) * graphCanvas.width;
+                        const y = midY - history[i]['x' + (j + 1)] * 150;
+                        if (i === 0) graphCtx.moveTo(hx, y);
+                        else graphCtx.lineTo(hx, y);
+                    }
+                    graphCtx.stroke();
+                }
+
+                // Legend
+                graphCtx.font = '11px Arial';
+                colors.forEach((c, i) => {
+                    graphCtx.fillStyle = c;
+                    graphCtx.fillText(labels[i], 10 + i * 35, 12);
+                });
+            }
+        }
+
+        function drawModes() {
+            const p = getParams();
+            modeCtx.clearRect(0, 0, modeCanvas.width, modeCanvas.height);
+            modeCtx.fillStyle = '#f8f9fa';
+            modeCtx.fillRect(0, 0, modeCanvas.width, modeCanvas.height);
+
+            calcEigenfreqs(p);
+
+            const modeWidth = modeCanvas.width / 3;
+            const baseY = modeCanvas.height / 2;
+
+            // Approximate mode shapes for visualization
+            const modes = [
+                [1, 1.4, 1],       // Mode 1: in-phase
+                [1, 0, -1],        // Mode 2: m2 stationary
+                [1, -2, 1]         // Mode 3: out-of-phase
+            ];
+
+            const colors = ['#9b59b6', '#e67e22', '#1abc9c'];
+
+            for (let m = 0; m < 3; m++) {
+                const centerX = modeWidth * (m + 0.5);
+
+                // Draw mode shape
+                modeCtx.strokeStyle = colors[m];
+                modeCtx.lineWidth = 2;
+                modeCtx.beginPath();
+
+                // Wall point
+                modeCtx.moveTo(centerX - 60, baseY);
+
+                // Mass positions
+                const positions = [-30, 0, 30];
+                modes[m].forEach((amp, i) => {
+                    const y = baseY - amp * 20;
+                    const x = centerX + positions[i];
+                    modeCtx.lineTo(x, y);
+
+                    // Draw mass marker
+                    modeCtx.fillStyle = colors[m];
+                    modeCtx.beginPath();
+                    modeCtx.arc(x, y, 6, 0, Math.PI * 2);
+                    modeCtx.fill();
+                });
+
+                // Free end
+                modeCtx.lineTo(centerX + 60, baseY);
+                modeCtx.stroke();
+
+                // Label
+                modeCtx.fillStyle = '#333';
+                modeCtx.font = '11px Arial';
+                modeCtx.textAlign = 'center';
+                modeCtx.fillText(`Mode ${m + 1}`, centerX, 15);
+                modeCtx.fillText(`ω = ${eigenfreqs[m].toFixed(2)} rad/s`, centerX, modeCanvas.height - 8);
+
+                // Equilibrium line
+                modeCtx.strokeStyle = '#ddd';
+                modeCtx.lineWidth = 1;
+                modeCtx.setLineDash([3, 3]);
+                modeCtx.beginPath();
+                modeCtx.moveTo(centerX - 60, baseY);
+                modeCtx.lineTo(centerX + 60, baseY);
+                modeCtx.stroke();
+                modeCtx.setLineDash([]);
+            }
+        }
+
+        function setMode(modeNum) {
+            const amplitude = 0.3;
+            const modes = [
+                [1, 1.4, 1],       // Mode 1
+                [1, 0, -1],        // Mode 2
+                [1, -2, 1]         // Mode 3
+            ];
+
+            const mode = modes[modeNum - 1];
+            const norm = Math.max(...mode.map(Math.abs));
+
+            document.getElementById('x10').value = (amplitude * mode[0] / norm).toFixed(2);
+            document.getElementById('x20').value = (amplitude * mode[1] / norm).toFixed(2);
+            document.getElementById('x30').value = (amplitude * mode[2] / norm).toFixed(2);
+
+            updateSliderDisplays();
+            resetSim();
+        }
+
+        function updateDisplay() {
+            const p = getParams();
+            const [x1, v1, x2, v2, x3, v3] = state;
+            const energy = calcEnergy(p);
+
+            calcEigenfreqs(p);
+
+            document.getElementById('timeDisplay').textContent = time.toFixed(2) + ' s';
+            document.getElementById('x1Display').textContent = x1.toFixed(3) + ' m';
+            document.getElementById('x2Display').textContent = x2.toFixed(3) + ' m';
+            document.getElementById('x3Display').textContent = x3.toFixed(3) + ' m';
+            document.getElementById('omega1Display').textContent = eigenfreqs[0].toFixed(2) + ' rad/s';
+            document.getElementById('omega2Display').textContent = eigenfreqs[1].toFixed(2) + ' rad/s';
+            document.getElementById('omega3Display').textContent = eigenfreqs[2].toFixed(2) + ' rad/s';
+            document.getElementById('energyDisplay').textContent = energy.toFixed(4) + ' J';
+
+            history.push({ x1, x2, x3 });
+            if (history.length > maxHistory) history.shift();
+        }
+
+        function updateSliderDisplays() {
+            document.getElementById('m1Val').textContent = document.getElementById('m1').value + ' kg';
+            document.getElementById('m2Val').textContent = document.getElementById('m2').value + ' kg';
+            document.getElementById('m3Val').textContent = document.getElementById('m3').value + ' kg';
+            document.getElementById('k1Val').textContent = document.getElementById('k1').value + ' N/m';
+            document.getElementById('k2Val').textContent = document.getElementById('k2').value + ' N/m';
+            document.getElementById('k3Val').textContent = document.getElementById('k3').value + ' N/m';
+            document.getElementById('x10Val').textContent = document.getElementById('x10').value + ' m';
+            document.getElementById('x20Val').textContent = document.getElementById('x20').value + ' m';
+            document.getElementById('x30Val').textContent = document.getElementById('x30').value + ' m';
+        }
+
+        function animate() {
+            const p = getParams();
+
+            for (let i = 0; i < stepsPerFrame; i++) {
+                state = rk4Step(state, dt, p);
+                time += dt;
+            }
+
+            drawSim();
+            drawGraph();
+            updateDisplay();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function startSim() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stopSim() {
+            isRunning = false;
+            if (animationId) cancelAnimationFrame(animationId);
+        }
+
+        function resetSim() {
+            stopSim();
+            const p = getParams();
+            state = [p.x10, 0, p.x20, 0, p.x30, 0];
+            time = 0;
+            history = [];
+            drawSim();
+            drawGraph();
+            drawModes();
+            updateDisplay();
+        }
+
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            slider.addEventListener('input', () => {
+                updateSliderDisplays();
+                if (!isRunning) {
+                    drawSim();
+                    drawModes();
+                    updateDisplay();
+                }
+            });
+        });
+
+        updateSliderDisplays();
+        resetSim();
+    </script>
+</body>
+</html>

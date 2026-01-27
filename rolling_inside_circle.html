@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>内周転がり運動</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+        .main-content {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 450px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #fff;
+            display: block;
+        }
+        .control-section {
+            width: 280px;
+        }
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 0.95em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin-bottom: 12px;
+        }
+        .slider-container label {
+            display: block;
+            color: #555;
+            margin-bottom: 3px;
+            font-size: 0.85em;
+        }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            min-width: 70px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-reset { background: #6c757d; color: white; }
+        .info-display {
+            background: #e9ecef;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.8em;
+            line-height: 1.6;
+        }
+        .graphs-section {
+            width: 100%;
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .graph-container {
+            flex: 1;
+            min-width: 350px;
+        }
+        .graph-container h4 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>内周転がり運動</h1>
+        <p class="description">大きな円の内側で転がる小さな円（重力下での振動）</p>
+
+        <div class="main-content">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="500" height="500"></canvas>
+            </div>
+
+            <div class="control-section">
+                <div class="control-group">
+                    <h3>パラメータ設定</h3>
+
+                    <div class="slider-container">
+                        <label>小円の質量 M: <span id="massVal">1.0</span> kg</label>
+                        <input type="range" id="massSlider" min="0.5" max="5.0" step="0.1" value="1.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>大円の半径 R: <span id="RVal">2.0</span> m</label>
+                        <input type="range" id="RSlider" min="1.0" max="3.0" step="0.1" value="2.0">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>小円の半径 r: <span id="rVal">0.3</span> m</label>
+                        <input type="range" id="rSlider" min="0.1" max="0.8" step="0.05" value="0.3">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>重力加速度 g: <span id="gravVal">9.8</span> m/s²</label>
+                        <input type="range" id="gravSlider" min="1.0" max="20.0" step="0.1" value="9.8">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期角度 θ₀: <span id="theta0Val">45</span>°</label>
+                        <input type="range" id="theta0Slider" min="0" max="90" step="1" value="45">
+                    </div>
+
+                    <div class="slider-container">
+                        <label>初期角速度 Ω₀: <span id="omega0Val">0.0</span> rad/s</label>
+                        <input type="range" id="omega0Slider" min="-5.0" max="5.0" step="0.1" value="0.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>シミュレーション制御</h3>
+                    <div class="button-group">
+                        <button class="btn-start" id="startBtn">開始</button>
+                        <button class="btn-stop" id="stopBtn">停止</button>
+                        <button class="btn-reset" id="resetBtn">リセット</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>状態表示</h3>
+                    <div class="info-display" id="infoDisplay">
+                        時間: 0.00 s<br>
+                        角度 θ: 0.00°<br>
+                        角速度 Ω: 0.00 rad/s<br>
+                        回転角 ω: 0.00 rad/s
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="graphs-section">
+            <div class="graph-container">
+                <h4>角度の時間変化 θ(t)</h4>
+                <canvas id="graphTheta" width="380" height="180"></canvas>
+            </div>
+            <div class="graph-container">
+                <h4>エネルギー変化</h4>
+                <canvas id="graphEnergy" width="380" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const graphTheta = document.getElementById('graphTheta');
+        const ctxTheta = graphTheta.getContext('2d');
+        const graphEnergy = document.getElementById('graphEnergy');
+        const ctxEnergy = graphEnergy.getContext('2d');
+
+        // Parameters
+        let M = 1.0;      // small circle mass
+        let R = 2.0;      // big circle radius
+        let r = 0.3;      // small circle radius
+        let g = 9.8;      // gravity
+        let theta0 = 45 * Math.PI / 180;  // initial angle from bottom
+        let Omega0 = 0.0; // initial angular velocity
+
+        // State
+        let theta = theta0;  // angle of small circle center (0 = bottom)
+        let Omega = Omega0;  // angular velocity of center
+        let phi = 0;         // rotation angle of small circle
+        let time = 0;
+        let isRunning = false;
+        let animationId = null;
+
+        // Trajectory
+        let trajectory = [];
+        const maxTrajectory = 500;
+
+        // History
+        let historyTheta = [];
+        let historyKE = [];
+        let historyPE = [];
+        let historyTE = [];
+        const maxHistory = 500;
+
+        // Sliders
+        const massSlider = document.getElementById('massSlider');
+        const RSlider = document.getElementById('RSlider');
+        const rSlider = document.getElementById('rSlider');
+        const gravSlider = document.getElementById('gravSlider');
+        const theta0Slider = document.getElementById('theta0Slider');
+        const omega0Slider = document.getElementById('omega0Slider');
+
+        const massVal = document.getElementById('massVal');
+        const RVal = document.getElementById('RVal');
+        const rVal = document.getElementById('rVal');
+        const gravVal = document.getElementById('gravVal');
+        const theta0Val = document.getElementById('theta0Val');
+        const omega0Val = document.getElementById('omega0Val');
+
+        massSlider.addEventListener('input', () => {
+            M = parseFloat(massSlider.value);
+            massVal.textContent = M.toFixed(1);
+        });
+
+        RSlider.addEventListener('input', () => {
+            R = parseFloat(RSlider.value);
+            RVal.textContent = R.toFixed(1);
+            if (!isRunning) reset();
+        });
+
+        rSlider.addEventListener('input', () => {
+            r = parseFloat(rSlider.value);
+            rVal.textContent = r.toFixed(2);
+            if (!isRunning) reset();
+        });
+
+        gravSlider.addEventListener('input', () => {
+            g = parseFloat(gravSlider.value);
+            gravVal.textContent = g.toFixed(1);
+        });
+
+        theta0Slider.addEventListener('input', () => {
+            theta0 = parseFloat(theta0Slider.value) * Math.PI / 180;
+            theta0Val.textContent = parseFloat(theta0Slider.value).toFixed(0);
+            if (!isRunning) reset();
+        });
+
+        omega0Slider.addEventListener('input', () => {
+            Omega0 = parseFloat(omega0Slider.value);
+            omega0Val.textContent = Omega0.toFixed(1);
+            if (!isRunning) reset();
+        });
+
+        document.getElementById('startBtn').addEventListener('click', start);
+        document.getElementById('stopBtn').addEventListener('click', stop);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+
+        // Equation of motion for rolling inside a circle
+        // Small circle center is at distance (R - r) from big circle center
+        // Position: x = (R-r)*sin(theta), y = -(R-r)*cos(theta) (theta=0 at bottom)
+        // For solid cylinder: I = 0.5*M*r^2
+        // Rolling constraint: phi_dot = (R-r)/r * theta_dot
+        //
+        // Lagrangian mechanics:
+        // T = 0.5*M*(R-r)^2*Omega^2 + 0.5*I*omega^2
+        // where omega = (R-r)/r * Omega
+        // T = 0.5*M*(R-r)^2*Omega^2 + 0.5*(0.5*M*r^2)*((R-r)/r)^2*Omega^2
+        // T = 0.5*M*(R-r)^2*Omega^2 * (1 + 0.5) = 0.75*M*(R-r)^2*Omega^2
+        //
+        // V = -M*g*(R-r)*cos(theta)
+        //
+        // Lagrange eq: d/dt(dT/dOmega) - dV/dtheta = 0
+        // 1.5*M*(R-r)^2*Omega_dot = -M*g*(R-r)*sin(theta)
+        // Omega_dot = -g*sin(theta) / (1.5*(R-r))
+
+        function computeAcceleration(th, Om) {
+            const Reff = R - r;
+            return -g * Math.sin(th) / (1.5 * Reff);
+        }
+
+        function rk4Step(dt) {
+            const k1a = computeAcceleration(theta, Omega);
+            const k1v = Omega;
+
+            const k2a = computeAcceleration(theta + k1v * dt / 2, Omega + k1a * dt / 2);
+            const k2v = Omega + k1a * dt / 2;
+
+            const k3a = computeAcceleration(theta + k2v * dt / 2, Omega + k2a * dt / 2);
+            const k3v = Omega + k2a * dt / 2;
+
+            const k4a = computeAcceleration(theta + k3v * dt, Omega + k3a * dt);
+            const k4v = Omega + k3a * dt;
+
+            theta += (k1v + 2 * k2v + 2 * k3v + k4v) * dt / 6;
+            Omega += (k1a + 2 * k2a + 2 * k3a + k4a) * dt / 6;
+
+            // Update small circle rotation
+            phi += (R - r) / r * Omega * dt;
+        }
+
+        function computeEnergies() {
+            const Reff = R - r;
+            const I = 0.5 * M * r * r;
+            const omega = Reff / r * Omega;
+            const v = Reff * Math.abs(Omega);
+
+            const KE_trans = 0.5 * M * v * v;
+            const KE_rot = 0.5 * I * omega * omega;
+            const KE = KE_trans + KE_rot;
+
+            // PE with reference at bottom (theta = 0)
+            const PE = M * g * Reff * (1 - Math.cos(theta));
+            const TE = KE + PE;
+
+            return { KE, PE, TE };
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const scale = 100;
+
+            // Draw big circle
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, R * scale, 0, 2 * Math.PI);
+            ctx.stroke();
+
+            // Hatch marks on inside of big circle
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 1;
+            for (let a = 0; a < 2 * Math.PI; a += 0.15) {
+                const x1 = centerX + R * scale * Math.cos(a);
+                const y1 = centerY + R * scale * Math.sin(a);
+                const x2 = centerX + (R * scale - 10) * Math.cos(a);
+                const y2 = centerY + (R * scale - 10) * Math.sin(a);
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+
+            // Center of big circle
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 5, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.font = '14px serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('O', centerX + 10, centerY - 10);
+
+            // Small circle center position (theta measured from bottom, counterclockwise)
+            const Reff = R - r;
+            const smallCX = centerX + Reff * scale * Math.sin(theta);
+            const smallCY = centerY + Reff * scale * Math.cos(theta);
+
+            // Draw trajectory
+            if (trajectory.length > 1) {
+                ctx.strokeStyle = 'rgba(102, 126, 234, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let i = 0; i < trajectory.length; i++) {
+                    const [tx, ty] = trajectory[i];
+                    const px = centerX + tx * scale;
+                    const py = centerY + ty * scale;
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+            }
+
+            // Draw radius R
+            ctx.strokeStyle = '#999';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(centerX - R * scale, centerY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#333';
+            ctx.fillText('R', centerX - R * scale / 2, centerY - 10);
+
+            // Draw line from center to small circle
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(smallCX, smallCY);
+            ctx.stroke();
+
+            // Small circle
+            ctx.fillStyle = '#999';
+            ctx.beginPath();
+            ctx.arc(smallCX, smallCY, r * scale, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Rotation indicator on small circle
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(smallCX, smallCY);
+            ctx.lineTo(smallCX + r * scale * 0.7 * Math.cos(phi),
+                       smallCY - r * scale * 0.7 * Math.sin(phi));
+            ctx.stroke();
+
+            // Center of small circle marker
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(smallCX, smallCY, 4, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Label M
+            ctx.fillStyle = '#333';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('M', smallCX, smallCY + 5);
+
+            // Angular velocity symbols
+            ctx.fillStyle = '#667eea';
+            ctx.font = '16px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Ω', centerX, centerY - 30);
+
+            // omega symbol near small circle
+            ctx.fillText('ω', smallCX, smallCY + r * scale + 25);
+
+            // r label
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.fillText('r', smallCX + r * scale / 2 + 10, smallCY - 5);
+
+            // Update info
+            const omegaSmall = (R - r) / r * Omega;
+            const energies = computeEnergies();
+            document.getElementById('infoDisplay').innerHTML =
+                `時間: ${time.toFixed(2)} s<br>` +
+                `角度 θ: ${(theta * 180 / Math.PI).toFixed(2)}°<br>` +
+                `角速度 Ω: ${Omega.toFixed(3)} rad/s<br>` +
+                `回転速度 ω: ${omegaSmall.toFixed(3)} rad/s<br>` +
+                `運動E: ${energies.KE.toFixed(3)} J<br>` +
+                `位置E: ${energies.PE.toFixed(3)} J<br>` +
+                `全E: ${energies.TE.toFixed(3)} J`;
+        }
+
+        function drawGraphTheta() {
+            ctxTheta.clearRect(0, 0, graphTheta.width, graphTheta.height);
+
+            const margin = 40;
+            const w = graphTheta.width - 2 * margin;
+            const h = graphTheta.height - 2 * margin;
+
+            ctxTheta.fillStyle = '#f8f9fa';
+            ctxTheta.fillRect(margin, margin, w, h);
+
+            // Grid
+            ctxTheta.strokeStyle = '#ddd';
+            ctxTheta.lineWidth = 1;
+            for (let i = 0; i <= 5; i++) {
+                ctxTheta.beginPath();
+                ctxTheta.moveTo(margin, margin + i * h / 5);
+                ctxTheta.lineTo(margin + w, margin + i * h / 5);
+                ctxTheta.stroke();
+            }
+
+            // Axes
+            ctxTheta.strokeStyle = '#333';
+            ctxTheta.lineWidth = 2;
+            ctxTheta.beginPath();
+            ctxTheta.moveTo(margin, margin);
+            ctxTheta.lineTo(margin, margin + h);
+            ctxTheta.lineTo(margin + w, margin + h);
+            ctxTheta.stroke();
+
+            // Zero line
+            ctxTheta.strokeStyle = '#ccc';
+            ctxTheta.lineWidth = 1;
+            ctxTheta.beginPath();
+            ctxTheta.moveTo(margin, margin + h / 2);
+            ctxTheta.lineTo(margin + w, margin + h / 2);
+            ctxTheta.stroke();
+
+            // Labels
+            ctxTheta.fillStyle = '#333';
+            ctxTheta.font = '11px Arial';
+            ctxTheta.textAlign = 'right';
+            ctxTheta.fillText('90°', margin - 5, margin + 5);
+            ctxTheta.fillText('0°', margin - 5, margin + h / 2 + 5);
+            ctxTheta.fillText('-90°', margin - 5, margin + h);
+
+            // Plot
+            if (historyTheta.length > 1) {
+                ctxTheta.strokeStyle = '#667eea';
+                ctxTheta.lineWidth = 2;
+                ctxTheta.beginPath();
+                for (let i = 0; i < historyTheta.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const thetaDeg = historyTheta[i] * 180 / Math.PI;
+                    const py = margin + h / 2 - (thetaDeg / 90) * (h / 2);
+                    if (i === 0) ctxTheta.moveTo(px, py);
+                    else ctxTheta.lineTo(px, py);
+                }
+                ctxTheta.stroke();
+            }
+        }
+
+        function drawGraphEnergy() {
+            ctxEnergy.clearRect(0, 0, graphEnergy.width, graphEnergy.height);
+
+            const margin = 40;
+            const w = graphEnergy.width - 2 * margin;
+            const h = graphEnergy.height - 2 * margin;
+
+            let maxE = 1;
+            if (historyTE.length > 0) {
+                maxE = Math.max(...historyTE, ...historyKE, ...historyPE) * 1.1;
+                if (maxE < 0.1) maxE = 0.1;
+            }
+
+            ctxEnergy.fillStyle = '#f8f9fa';
+            ctxEnergy.fillRect(margin, margin, w, h);
+
+            // Grid
+            ctxEnergy.strokeStyle = '#ddd';
+            ctxEnergy.lineWidth = 1;
+            for (let i = 0; i <= 5; i++) {
+                ctxEnergy.beginPath();
+                ctxEnergy.moveTo(margin, margin + i * h / 5);
+                ctxEnergy.lineTo(margin + w, margin + i * h / 5);
+                ctxEnergy.stroke();
+            }
+
+            // Axes
+            ctxEnergy.strokeStyle = '#333';
+            ctxEnergy.lineWidth = 2;
+            ctxEnergy.beginPath();
+            ctxEnergy.moveTo(margin, margin);
+            ctxEnergy.lineTo(margin, margin + h);
+            ctxEnergy.lineTo(margin + w, margin + h);
+            ctxEnergy.stroke();
+
+            // Labels
+            ctxEnergy.fillStyle = '#333';
+            ctxEnergy.font = '11px Arial';
+            ctxEnergy.textAlign = 'right';
+            ctxEnergy.fillText(maxE.toFixed(1), margin - 5, margin + 5);
+            ctxEnergy.fillText('0', margin - 5, margin + h);
+
+            // Plot KE
+            if (historyKE.length > 1) {
+                ctxEnergy.strokeStyle = '#28a745';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyKE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyKE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot PE
+            if (historyPE.length > 1) {
+                ctxEnergy.strokeStyle = '#dc3545';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyPE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyPE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot TE
+            if (historyTE.length > 1) {
+                ctxEnergy.strokeStyle = '#333';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyTE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyTE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Legend
+            ctxEnergy.font = '10px Arial';
+            ctxEnergy.textAlign = 'left';
+            ctxEnergy.fillStyle = '#28a745';
+            ctxEnergy.fillText('運動E', margin + 10, margin + 12);
+            ctxEnergy.fillStyle = '#dc3545';
+            ctxEnergy.fillText('位置E', margin + 60, margin + 12);
+            ctxEnergy.fillStyle = '#333';
+            ctxEnergy.fillText('全E', margin + 110, margin + 12);
+        }
+
+        function animate() {
+            const dt = 0.01;
+            const substeps = 5;
+
+            for (let i = 0; i < substeps; i++) {
+                rk4Step(dt / substeps);
+            }
+            time += dt;
+
+            // Store trajectory
+            const Reff = R - r;
+            const tx = Reff * Math.sin(theta);
+            const ty = Reff * Math.cos(theta);
+            trajectory.push([tx, ty]);
+            if (trajectory.length > maxTrajectory) {
+                trajectory.shift();
+            }
+
+            // Store history
+            historyTheta.push(theta);
+            const energies = computeEnergies();
+            historyKE.push(energies.KE);
+            historyPE.push(energies.PE);
+            historyTE.push(energies.TE);
+
+            if (historyTheta.length > maxHistory) {
+                historyTheta.shift();
+                historyKE.shift();
+                historyPE.shift();
+                historyTE.shift();
+            }
+
+            draw();
+            drawGraphTheta();
+            drawGraphEnergy();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function start() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stop() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+
+        function reset() {
+            stop();
+            theta = theta0;
+            Omega = Omega0;
+            phi = 0;
+            time = 0;
+            trajectory = [];
+            historyTheta = [];
+            historyKE = [];
+            historyPE = [];
+            historyTE = [];
+            draw();
+            drawGraphTheta();
+            drawGraphEnergy();
+        }
+
+        reset();
+    </script>
+</body>
+</html>

@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3質点連成振動系</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+        }
+        .main-content {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 550px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #fff;
+            display: block;
+        }
+        .control-section {
+            width: 280px;
+        }
+        .control-group {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+        }
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin-bottom: 10px;
+        }
+        .slider-container label {
+            display: block;
+            color: #555;
+            margin-bottom: 2px;
+            font-size: 0.8em;
+        }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 5px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            min-width: 70px;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-reset { background: #6c757d; color: white; }
+        .info-display {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.75em;
+            line-height: 1.5;
+        }
+        .graphs-section {
+            width: 100%;
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .graph-container {
+            flex: 1;
+            min-width: 350px;
+        }
+        .graph-container h4 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>3質点連成振動系</h1>
+        <p class="description">ばねで連結された3つの質点の水平振動</p>
+
+        <div class="main-content">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="600" height="280"></canvas>
+            </div>
+
+            <div class="control-section">
+                <div class="control-group">
+                    <h3>質量設定</h3>
+                    <div class="slider-container">
+                        <label>m₁: <span id="m1Val">1.0</span> kg</label>
+                        <input type="range" id="m1Slider" min="0.5" max="3.0" step="0.1" value="1.0">
+                    </div>
+                    <div class="slider-container">
+                        <label>m₂: <span id="m2Val">1.0</span> kg</label>
+                        <input type="range" id="m2Slider" min="0.5" max="3.0" step="0.1" value="1.0">
+                    </div>
+                    <div class="slider-container">
+                        <label>m₃: <span id="m3Val">1.0</span> kg</label>
+                        <input type="range" id="m3Slider" min="0.5" max="3.0" step="0.1" value="1.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>ばね定数</h3>
+                    <div class="slider-container">
+                        <label>k₁: <span id="k1Val">50</span> N/m</label>
+                        <input type="range" id="k1Slider" min="10" max="150" step="5" value="50">
+                    </div>
+                    <div class="slider-container">
+                        <label>k₂: <span id="k2Val">50</span> N/m</label>
+                        <input type="range" id="k2Slider" min="10" max="150" step="5" value="50">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>初期条件</h3>
+                    <div class="slider-container">
+                        <label>x₁(0): <span id="x1_0Val">0.5</span> m</label>
+                        <input type="range" id="x1_0Slider" min="-1.0" max="1.0" step="0.1" value="0.5">
+                    </div>
+                    <div class="slider-container">
+                        <label>x₂(0): <span id="x2_0Val">0.0</span> m</label>
+                        <input type="range" id="x2_0Slider" min="-1.0" max="1.0" step="0.1" value="0.0">
+                    </div>
+                    <div class="slider-container">
+                        <label>x₃(0): <span id="x3_0Val">0.0</span> m</label>
+                        <input type="range" id="x3_0Slider" min="-1.0" max="1.0" step="0.1" value="0.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>制御</h3>
+                    <div class="button-group">
+                        <button class="btn-start" id="startBtn">開始</button>
+                        <button class="btn-stop" id="stopBtn">停止</button>
+                        <button class="btn-reset" id="resetBtn">リセット</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>状態表示</h3>
+                    <div class="info-display" id="infoDisplay">
+                        時間: 0.00 s<br>
+                        x₁: 0.00 m<br>
+                        x₂: 0.00 m<br>
+                        x₃: 0.00 m
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="graphs-section">
+            <div class="graph-container">
+                <h4>変位の時間変化</h4>
+                <canvas id="graphX" width="380" height="180"></canvas>
+            </div>
+            <div class="graph-container">
+                <h4>エネルギー変化</h4>
+                <canvas id="graphEnergy" width="380" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const graphX = document.getElementById('graphX');
+        const ctxX = graphX.getContext('2d');
+        const graphEnergy = document.getElementById('graphEnergy');
+        const ctxEnergy = graphEnergy.getContext('2d');
+
+        // Parameters
+        let m1 = 1.0, m2 = 1.0, m3 = 1.0;
+        let k1 = 50, k2 = 50;
+        let x1_0 = 0.5, x2_0 = 0.0, x3_0 = 0.0;
+
+        // State: [x1, v1, x2, v2, x3, v3]
+        let state = [x1_0, 0, x2_0, 0, x3_0, 0];
+        let time = 0;
+        let isRunning = false;
+        let animationId = null;
+
+        // History
+        let historyX1 = [], historyX2 = [], historyX3 = [];
+        let historyKE = [], historyPE = [], historyTE = [];
+        const maxHistory = 500;
+
+        // Sliders
+        const sliders = {
+            m1: document.getElementById('m1Slider'),
+            m2: document.getElementById('m2Slider'),
+            m3: document.getElementById('m3Slider'),
+            k1: document.getElementById('k1Slider'),
+            k2: document.getElementById('k2Slider'),
+            x1_0: document.getElementById('x1_0Slider'),
+            x2_0: document.getElementById('x2_0Slider'),
+            x3_0: document.getElementById('x3_0Slider')
+        };
+
+        const vals = {
+            m1: document.getElementById('m1Val'),
+            m2: document.getElementById('m2Val'),
+            m3: document.getElementById('m3Val'),
+            k1: document.getElementById('k1Val'),
+            k2: document.getElementById('k2Val'),
+            x1_0: document.getElementById('x1_0Val'),
+            x2_0: document.getElementById('x2_0Val'),
+            x3_0: document.getElementById('x3_0Val')
+        };
+
+        sliders.m1.addEventListener('input', () => { m1 = parseFloat(sliders.m1.value); vals.m1.textContent = m1.toFixed(1); });
+        sliders.m2.addEventListener('input', () => { m2 = parseFloat(sliders.m2.value); vals.m2.textContent = m2.toFixed(1); });
+        sliders.m3.addEventListener('input', () => { m3 = parseFloat(sliders.m3.value); vals.m3.textContent = m3.toFixed(1); });
+        sliders.k1.addEventListener('input', () => { k1 = parseFloat(sliders.k1.value); vals.k1.textContent = k1.toFixed(0); });
+        sliders.k2.addEventListener('input', () => { k2 = parseFloat(sliders.k2.value); vals.k2.textContent = k2.toFixed(0); });
+        sliders.x1_0.addEventListener('input', () => { x1_0 = parseFloat(sliders.x1_0.value); vals.x1_0.textContent = x1_0.toFixed(1); if (!isRunning) reset(); });
+        sliders.x2_0.addEventListener('input', () => { x2_0 = parseFloat(sliders.x2_0.value); vals.x2_0.textContent = x2_0.toFixed(1); if (!isRunning) reset(); });
+        sliders.x3_0.addEventListener('input', () => { x3_0 = parseFloat(sliders.x3_0.value); vals.x3_0.textContent = x3_0.toFixed(1); if (!isRunning) reset(); });
+
+        document.getElementById('startBtn').addEventListener('click', start);
+        document.getElementById('stopBtn').addEventListener('click', stop);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+
+        // Equations of motion
+        // m1*x1'' = -k1*(x1 - x2)
+        // m2*x2'' = k1*(x1 - x2) - k2*(x2 - x3)
+        // m3*x3'' = k2*(x2 - x3)
+        function derivatives(st) {
+            const [x1, v1, x2, v2, x3, v3] = st;
+
+            const a1 = -k1 * (x1 - x2) / m1;
+            const a2 = (k1 * (x1 - x2) - k2 * (x2 - x3)) / m2;
+            const a3 = k2 * (x2 - x3) / m3;
+
+            return [v1, a1, v2, a2, v3, a3];
+        }
+
+        function rk4Step(dt) {
+            const k1d = derivatives(state);
+
+            const s2 = state.map((s, i) => s + k1d[i] * dt / 2);
+            const k2d = derivatives(s2);
+
+            const s3 = state.map((s, i) => s + k2d[i] * dt / 2);
+            const k3d = derivatives(s3);
+
+            const s4 = state.map((s, i) => s + k3d[i] * dt);
+            const k4d = derivatives(s4);
+
+            for (let i = 0; i < 6; i++) {
+                state[i] += (k1d[i] + 2 * k2d[i] + 2 * k3d[i] + k4d[i]) * dt / 6;
+            }
+        }
+
+        function computeEnergies() {
+            const [x1, v1, x2, v2, x3, v3] = state;
+
+            const KE = 0.5 * m1 * v1 * v1 + 0.5 * m2 * v2 * v2 + 0.5 * m3 * v3 * v3;
+            const PE = 0.5 * k1 * (x1 - x2) * (x1 - x2) + 0.5 * k2 * (x2 - x3) * (x2 - x3);
+            const TE = KE + PE;
+
+            return { KE, PE, TE };
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const [x1, v1, x2, v2, x3, v3] = state;
+            const groundY = 200;
+            const scale = 80;
+            const baseX1 = 100;
+            const spacing = 180;
+
+            // Ground
+            ctx.fillStyle = '#ddd';
+            ctx.fillRect(0, groundY, canvas.width, 80);
+
+            // Hatch
+            ctx.strokeStyle = '#aaa';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 45; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * 20, groundY);
+                ctx.lineTo(i * 20 - 15, groundY + 15);
+                ctx.stroke();
+            }
+
+            // Mass positions
+            const pos1 = baseX1 + x1 * scale;
+            const pos2 = baseX1 + spacing + x2 * scale;
+            const pos3 = baseX1 + 2 * spacing + x3 * scale;
+            const massSize = 50;
+            const massY = groundY - massSize;
+
+            // Spring k1 (between m1 and m2)
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            drawSpring(ctx, pos1 + massSize / 2, massY + massSize / 2,
+                       pos2 - massSize / 2, massY + massSize / 2, 8, 12);
+
+            // Spring k2 (between m2 and m3)
+            drawSpring(ctx, pos2 + massSize / 2, massY + massSize / 2,
+                       pos3 - massSize / 2, massY + massSize / 2, 8, 12);
+
+            // k labels
+            ctx.fillStyle = '#333';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('k₁', (pos1 + massSize / 2 + pos2 - massSize / 2) / 2, massY + massSize / 2 - 20);
+            ctx.fillText('k₂', (pos2 + massSize / 2 + pos3 - massSize / 2) / 2, massY + massSize / 2 - 20);
+
+            // Mass 1
+            ctx.fillStyle = '#667eea';
+            ctx.fillRect(pos1 - massSize / 2, massY, massSize, massSize);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(pos1 - massSize / 2, massY, massSize, massSize);
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 14px Arial';
+            ctx.fillText('m₁', pos1, massY + massSize / 2 + 5);
+
+            // Mass 2
+            ctx.fillStyle = '#667eea';
+            ctx.fillRect(pos2 - massSize / 2, massY, massSize, massSize);
+            ctx.strokeStyle = '#333';
+            ctx.strokeRect(pos2 - massSize / 2, massY, massSize, massSize);
+            ctx.fillStyle = '#fff';
+            ctx.fillText('m₂', pos2, massY + massSize / 2 + 5);
+
+            // Mass 3
+            ctx.fillStyle = '#667eea';
+            ctx.fillRect(pos3 - massSize / 2, massY, massSize, massSize);
+            ctx.strokeStyle = '#333';
+            ctx.strokeRect(pos3 - massSize / 2, massY, massSize, massSize);
+            ctx.fillStyle = '#fff';
+            ctx.fillText('m₃', pos3, massY + massSize / 2 + 5);
+
+            // Equilibrium markers
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            [baseX1, baseX1 + spacing, baseX1 + 2 * spacing].forEach(bx => {
+                ctx.beginPath();
+                ctx.moveTo(bx, massY - 20);
+                ctx.lineTo(bx, groundY);
+                ctx.stroke();
+            });
+            ctx.setLineDash([]);
+
+            // Gravity arrow
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(40, 50);
+            ctx.lineTo(40, 90);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(40, 90);
+            ctx.lineTo(35, 80);
+            ctx.moveTo(40, 90);
+            ctx.lineTo(45, 80);
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('g', 40, 105);
+
+            // Update info
+            const energies = computeEnergies();
+            document.getElementById('infoDisplay').innerHTML =
+                `時間: ${time.toFixed(2)} s<br>` +
+                `x₁: ${x1.toFixed(3)} m<br>` +
+                `x₂: ${x2.toFixed(3)} m<br>` +
+                `x₃: ${x3.toFixed(3)} m<br>` +
+                `運動E: ${energies.KE.toFixed(3)} J<br>` +
+                `位置E: ${energies.PE.toFixed(3)} J<br>` +
+                `全E: ${energies.TE.toFixed(3)} J`;
+        }
+
+        function drawSpring(ctx, x1, y1, x2, y2, coils, amp) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            const segLen = len / (coils * 2 + 2);
+            ctx.lineTo(segLen, 0);
+
+            for (let i = 0; i < coils * 2; i++) {
+                const px = segLen * (i + 1.5);
+                const py = (i % 2 === 0 ? amp : -amp);
+                ctx.lineTo(px, py);
+            }
+            ctx.lineTo(len - segLen, 0);
+            ctx.lineTo(len, 0);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawGraphX() {
+            ctxX.clearRect(0, 0, graphX.width, graphX.height);
+
+            const margin = 35;
+            const w = graphX.width - 2 * margin;
+            const h = graphX.height - 2 * margin;
+
+            ctxX.fillStyle = '#f8f9fa';
+            ctxX.fillRect(margin, margin, w, h);
+
+            ctxX.strokeStyle = '#333';
+            ctxX.lineWidth = 2;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin);
+            ctxX.lineTo(margin, margin + h);
+            ctxX.lineTo(margin + w, margin + h);
+            ctxX.stroke();
+
+            // Zero line
+            ctxX.strokeStyle = '#ccc';
+            ctxX.lineWidth = 1;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin + h / 2);
+            ctxX.lineTo(margin + w, margin + h / 2);
+            ctxX.stroke();
+
+            const maxVal = 1.0;
+
+            // Plot x1
+            if (historyX1.length > 1) {
+                ctxX.strokeStyle = '#667eea';
+                ctxX.lineWidth = 2;
+                ctxX.beginPath();
+                for (let i = 0; i < historyX1.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyX1[i] / maxVal) * (h / 2);
+                    if (i === 0) ctxX.moveTo(px, py);
+                    else ctxX.lineTo(px, py);
+                }
+                ctxX.stroke();
+            }
+
+            // Plot x2
+            if (historyX2.length > 1) {
+                ctxX.strokeStyle = '#28a745';
+                ctxX.lineWidth = 2;
+                ctxX.beginPath();
+                for (let i = 0; i < historyX2.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyX2[i] / maxVal) * (h / 2);
+                    if (i === 0) ctxX.moveTo(px, py);
+                    else ctxX.lineTo(px, py);
+                }
+                ctxX.stroke();
+            }
+
+            // Plot x3
+            if (historyX3.length > 1) {
+                ctxX.strokeStyle = '#dc3545';
+                ctxX.lineWidth = 2;
+                ctxX.beginPath();
+                for (let i = 0; i < historyX3.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyX3[i] / maxVal) * (h / 2);
+                    if (i === 0) ctxX.moveTo(px, py);
+                    else ctxX.lineTo(px, py);
+                }
+                ctxX.stroke();
+            }
+
+            // Legend
+            ctxX.font = '10px Arial';
+            ctxX.fillStyle = '#667eea';
+            ctxX.fillText('x₁', margin + 5, margin + 12);
+            ctxX.fillStyle = '#28a745';
+            ctxX.fillText('x₂', margin + 30, margin + 12);
+            ctxX.fillStyle = '#dc3545';
+            ctxX.fillText('x₃', margin + 55, margin + 12);
+        }
+
+        function drawGraphEnergy() {
+            ctxEnergy.clearRect(0, 0, graphEnergy.width, graphEnergy.height);
+
+            const margin = 35;
+            const w = graphEnergy.width - 2 * margin;
+            const h = graphEnergy.height - 2 * margin;
+
+            let maxE = 1;
+            if (historyTE.length > 0) {
+                maxE = Math.max(...historyTE, ...historyKE, ...historyPE) * 1.1;
+                if (maxE < 0.1) maxE = 0.1;
+            }
+
+            ctxEnergy.fillStyle = '#f8f9fa';
+            ctxEnergy.fillRect(margin, margin, w, h);
+
+            ctxEnergy.strokeStyle = '#333';
+            ctxEnergy.lineWidth = 2;
+            ctxEnergy.beginPath();
+            ctxEnergy.moveTo(margin, margin);
+            ctxEnergy.lineTo(margin, margin + h);
+            ctxEnergy.lineTo(margin + w, margin + h);
+            ctxEnergy.stroke();
+
+            // Plot KE
+            if (historyKE.length > 1) {
+                ctxEnergy.strokeStyle = '#28a745';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyKE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyKE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot PE
+            if (historyPE.length > 1) {
+                ctxEnergy.strokeStyle = '#dc3545';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyPE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyPE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Plot TE
+            if (historyTE.length > 1) {
+                ctxEnergy.strokeStyle = '#333';
+                ctxEnergy.lineWidth = 2;
+                ctxEnergy.beginPath();
+                for (let i = 0; i < historyTE.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h - (historyTE[i] / maxE) * h;
+                    if (i === 0) ctxEnergy.moveTo(px, py);
+                    else ctxEnergy.lineTo(px, py);
+                }
+                ctxEnergy.stroke();
+            }
+
+            // Legend
+            ctxEnergy.font = '10px Arial';
+            ctxEnergy.textAlign = 'left';
+            ctxEnergy.fillStyle = '#28a745';
+            ctxEnergy.fillText('KE', margin + 5, margin + 12);
+            ctxEnergy.fillStyle = '#dc3545';
+            ctxEnergy.fillText('PE', margin + 35, margin + 12);
+            ctxEnergy.fillStyle = '#333';
+            ctxEnergy.fillText('TE', margin + 65, margin + 12);
+        }
+
+        function animate() {
+            const dt = 0.01;
+            const substeps = 5;
+
+            for (let i = 0; i < substeps; i++) {
+                rk4Step(dt / substeps);
+            }
+            time += dt;
+
+            historyX1.push(state[0]);
+            historyX2.push(state[2]);
+            historyX3.push(state[4]);
+            const energies = computeEnergies();
+            historyKE.push(energies.KE);
+            historyPE.push(energies.PE);
+            historyTE.push(energies.TE);
+
+            if (historyX1.length > maxHistory) {
+                historyX1.shift();
+                historyX2.shift();
+                historyX3.shift();
+                historyKE.shift();
+                historyPE.shift();
+                historyTE.shift();
+            }
+
+            draw();
+            drawGraphX();
+            drawGraphEnergy();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function start() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stop() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+
+        function reset() {
+            stop();
+            state = [x1_0, 0, x2_0, 0, x3_0, 0];
+            time = 0;
+            historyX1 = [];
+            historyX2 = [];
+            historyX3 = [];
+            historyKE = [];
+            historyPE = [];
+            historyTE = [];
+            draw();
+            drawGraphX();
+            drawGraphEnergy();
+        }
+
+        reset();
+    </script>
+</body>
+</html>

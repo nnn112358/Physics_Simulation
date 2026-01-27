@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ロープ結合円筒・質点系</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.7em;
+        }
+        .description {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+        .main-content {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            flex: 1;
+            min-width: 600px;
+        }
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: #fff;
+            display: block;
+        }
+        .control-section {
+            width: 280px;
+        }
+        .control-group {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+        }
+        .control-group h3 {
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        .slider-container {
+            margin-bottom: 10px;
+        }
+        .slider-container label {
+            display: block;
+            color: #555;
+            margin-bottom: 2px;
+            font-size: 0.8em;
+        }
+        .slider-container input[type="range"] {
+            width: 100%;
+            height: 5px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .button-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            min-width: 60px;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 0.8em;
+        }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-reset { background: #6c757d; color: white; }
+        .info-display {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.75em;
+            line-height: 1.5;
+        }
+        .graphs-section {
+            width: 100%;
+            margin-top: 15px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .graph-container {
+            flex: 1;
+            min-width: 300px;
+        }
+        .graph-container h4 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 5px;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ロープ結合円筒・質点系</h1>
+        <p class="description">外力u(t)で駆動される転がり円筒と、ロープで吊り下げられた質点 (摩擦あり μ≠0)</p>
+
+        <div class="main-content">
+            <div class="canvas-section">
+                <canvas id="simCanvas" width="650" height="400"></canvas>
+            </div>
+
+            <div class="control-section">
+                <div class="control-group">
+                    <h3>円筒パラメータ</h3>
+                    <div class="slider-container">
+                        <label>円筒質量 M: <span id="MVal">2.0</span> kg</label>
+                        <input type="range" id="MSlider" min="0.5" max="5.0" step="0.1" value="2.0">
+                    </div>
+                    <div class="slider-container">
+                        <label>外半径 R: <span id="RVal">0.3</span> m</label>
+                        <input type="range" id="RSlider" min="0.1" max="0.5" step="0.02" value="0.3">
+                    </div>
+                    <div class="slider-container">
+                        <label>内半径 r: <span id="rVal">0.15</span> m</label>
+                        <input type="range" id="rSlider" min="0.05" max="0.3" step="0.01" value="0.15">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>質点・ばね・ダンパー</h3>
+                    <div class="slider-container">
+                        <label>質量 m: <span id="mVal">1.0</span> kg</label>
+                        <input type="range" id="mSlider" min="0.5" max="3.0" step="0.1" value="1.0">
+                    </div>
+                    <div class="slider-container">
+                        <label>k₁ (入力側): <span id="k1Val">50</span> N/m</label>
+                        <input type="range" id="k1Slider" min="10" max="200" step="5" value="50">
+                    </div>
+                    <div class="slider-container">
+                        <label>k₂ (上ばね): <span id="k2Val">30</span> N/m</label>
+                        <input type="range" id="k2Slider" min="10" max="150" step="5" value="30">
+                    </div>
+                    <div class="slider-container">
+                        <label>k₃ (下ばね): <span id="k3Val">20</span> N/m</label>
+                        <input type="range" id="k3Slider" min="0" max="100" step="5" value="20">
+                    </div>
+                    <div class="slider-container">
+                        <label>減衰 c: <span id="cVal">5.0</span> Ns/m</label>
+                        <input type="range" id="cSlider" min="0" max="20" step="0.5" value="5.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>外力設定</h3>
+                    <div class="slider-container">
+                        <label>振幅 A: <span id="ampVal">5.0</span> N</label>
+                        <input type="range" id="ampSlider" min="0" max="20" step="0.5" value="5.0">
+                    </div>
+                    <div class="slider-container">
+                        <label>周波数 f: <span id="freqVal">0.5</span> Hz</label>
+                        <input type="range" id="freqSlider" min="0.1" max="3.0" step="0.1" value="0.5">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>制御</h3>
+                    <div class="button-group">
+                        <button class="btn-start" id="startBtn">開始</button>
+                        <button class="btn-stop" id="stopBtn">停止</button>
+                        <button class="btn-reset" id="resetBtn">リセット</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>状態表示</h3>
+                    <div class="info-display" id="infoDisplay">
+                        時間: 0.00 s<br>
+                        x₁: 0.00 m<br>
+                        x₂: 0.00 m<br>
+                        u(t): 0.00 N
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="graphs-section">
+            <div class="graph-container">
+                <h4>変位 x₁, x₂ の時間変化</h4>
+                <canvas id="graphX" width="400" height="160"></canvas>
+            </div>
+            <div class="graph-container">
+                <h4>速度の時間変化</h4>
+                <canvas id="graphV" width="400" height="160"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const graphX = document.getElementById('graphX');
+        const ctxX = graphX.getContext('2d');
+        const graphV = document.getElementById('graphV');
+        const ctxV = graphV.getContext('2d');
+
+        // Parameters
+        let M = 2.0;      // cylinder mass
+        let R = 0.3;      // outer radius
+        let r = 0.15;     // inner radius (rope winding)
+        let m = 1.0;      // hanging mass
+        let k1 = 50;      // input spring
+        let k2 = 30;      // upper spring
+        let k3 = 20;      // lower spring
+        let c = 5.0;      // damping
+        let amp = 5.0;    // forcing amplitude
+        let freq = 0.5;   // forcing frequency
+        let g = 9.8;
+
+        // State: [x1, v1, x2, v2]
+        // x1 = cylinder center displacement
+        // x2 = mass displacement (down positive)
+        let state = [0, 0, 0, 0];
+        let time = 0;
+        let isRunning = false;
+        let animationId = null;
+
+        // History
+        let historyX1 = [], historyX2 = [];
+        let historyV1 = [], historyV2 = [];
+        const maxHistory = 400;
+
+        // Slider setup
+        const sliders = {
+            M: document.getElementById('MSlider'),
+            R: document.getElementById('RSlider'),
+            r: document.getElementById('rSlider'),
+            m: document.getElementById('mSlider'),
+            k1: document.getElementById('k1Slider'),
+            k2: document.getElementById('k2Slider'),
+            k3: document.getElementById('k3Slider'),
+            c: document.getElementById('cSlider'),
+            amp: document.getElementById('ampSlider'),
+            freq: document.getElementById('freqSlider')
+        };
+
+        const vals = {
+            M: document.getElementById('MVal'),
+            R: document.getElementById('RVal'),
+            r: document.getElementById('rVal'),
+            m: document.getElementById('mVal'),
+            k1: document.getElementById('k1Val'),
+            k2: document.getElementById('k2Val'),
+            k3: document.getElementById('k3Val'),
+            c: document.getElementById('cVal'),
+            amp: document.getElementById('ampVal'),
+            freq: document.getElementById('freqVal')
+        };
+
+        sliders.M.addEventListener('input', () => { M = parseFloat(sliders.M.value); vals.M.textContent = M.toFixed(1); });
+        sliders.R.addEventListener('input', () => { R = parseFloat(sliders.R.value); vals.R.textContent = R.toFixed(2); });
+        sliders.r.addEventListener('input', () => { r = parseFloat(sliders.r.value); vals.r.textContent = r.toFixed(2); });
+        sliders.m.addEventListener('input', () => { m = parseFloat(sliders.m.value); vals.m.textContent = m.toFixed(1); });
+        sliders.k1.addEventListener('input', () => { k1 = parseFloat(sliders.k1.value); vals.k1.textContent = k1.toFixed(0); });
+        sliders.k2.addEventListener('input', () => { k2 = parseFloat(sliders.k2.value); vals.k2.textContent = k2.toFixed(0); });
+        sliders.k3.addEventListener('input', () => { k3 = parseFloat(sliders.k3.value); vals.k3.textContent = k3.toFixed(0); });
+        sliders.c.addEventListener('input', () => { c = parseFloat(sliders.c.value); vals.c.textContent = c.toFixed(1); });
+        sliders.amp.addEventListener('input', () => { amp = parseFloat(sliders.amp.value); vals.amp.textContent = amp.toFixed(1); });
+        sliders.freq.addEventListener('input', () => { freq = parseFloat(sliders.freq.value); vals.freq.textContent = freq.toFixed(1); });
+
+        document.getElementById('startBtn').addEventListener('click', start);
+        document.getElementById('stopBtn').addEventListener('click', stop);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+
+        // External forcing
+        function u(t) {
+            return amp * Math.sin(2 * Math.PI * freq * t);
+        }
+
+        // Equations of motion for rolling cylinder + hanging mass
+        // Cylinder: rolling without slip, moment of inertia I = 0.5*M*R^2 (solid cylinder approx)
+        // Constraint: rope connects cylinder rotation to mass displacement
+        // theta*r = x2 (rope unwinding)
+        // x1 = theta*R (rolling)
+        // So x2 = (r/R)*x1
+        //
+        // Actually, let's treat them as more coupled:
+        // The rope tension T acts on both systems
+        // Cylinder eq: (M + I/R^2)*x1'' = u(t) - k1*x1 - T*(r/R)
+        // Mass eq: m*x2'' = m*g - k2*x2 - k3*x2 - c*x2' + T
+        // Constraint: x2 = (r/R)*x1 + delta (where delta allows some independent motion via spring k2)
+        //
+        // For simplicity, let's decouple slightly and use:
+        // Cylinder translation coupled to mass through rope tension
+
+        function derivatives(st, t) {
+            const [x1, v1, x2, v2] = st;
+
+            // Moment of inertia for solid cylinder
+            const I = 0.5 * M * R * R;
+
+            // Effective mass for rolling cylinder
+            const Meff = M + I / (R * R);  // = 1.5*M for solid cylinder
+
+            // Rope constraint: rope tension T
+            // The rope wraps around inner radius r
+            // When cylinder moves x1, rope unwinds by theta*r = (x1/R)*r
+            // Let's use a stiff spring coupling for the rope
+            const kRope = 1000;  // rope stiffness
+            const ropeExtension = x2 - (r / R) * x1;  // how much rope has extended
+            const T = kRope * ropeExtension;  // tension in rope
+
+            // Cylinder equation
+            // Meff * x1'' = u(t) - k1*x1 + T*(r/R)
+            const F1 = u(t) - k1 * x1 + T * (r / R);
+            const a1 = F1 / Meff;
+
+            // Mass equation
+            // m * x2'' = m*g - T - k2*x2 - k3*x2 - c*v2
+            const F2 = m * g - T - k2 * x2 - k3 * x2 - c * v2;
+            const a2 = F2 / m;
+
+            return [v1, a1, v2, a2];
+        }
+
+        function rk4Step(dt) {
+            const k1d = derivatives(state, time);
+
+            const s2 = state.map((s, i) => s + k1d[i] * dt / 2);
+            const k2d = derivatives(s2, time + dt / 2);
+
+            const s3 = state.map((s, i) => s + k2d[i] * dt / 2);
+            const k3d = derivatives(s3, time + dt / 2);
+
+            const s4 = state.map((s, i) => s + k3d[i] * dt);
+            const k4d = derivatives(s4, time + dt);
+
+            for (let i = 0; i < 4; i++) {
+                state[i] += (k1d[i] + 2 * k2d[i] + 2 * k3d[i] + k4d[i]) * dt / 6;
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const [x1, v1, x2, v2] = state;
+            const scale = 200;
+
+            // Ground for cylinder
+            const groundY = 180;
+            ctx.fillStyle = '#ddd';
+            ctx.fillRect(0, groundY, 400, 220);
+
+            // Hatch pattern
+            ctx.strokeStyle = '#aaa';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 40; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * 15, groundY);
+                ctx.lineTo(i * 15 - 30, groundY + 30);
+                ctx.stroke();
+            }
+
+            // Cylinder position
+            const cylCenterX = 200 + x1 * scale;
+            const cylCenterY = groundY - R * scale;
+            const cylRadius = R * scale;
+            const innerRadius = r * scale;
+
+            // Draw input spring k1
+            const wallX = 30;
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            drawSpring(ctx, wallX, cylCenterY, cylCenterX - cylRadius, cylCenterY, 8, 15);
+
+            // k1 label
+            ctx.fillStyle = '#333';
+            ctx.font = '12px Arial';
+            ctx.fillText('k₁', (wallX + cylCenterX - cylRadius) / 2, cylCenterY - 20);
+
+            // Wall for spring
+            ctx.fillStyle = '#666';
+            ctx.fillRect(wallX - 15, cylCenterY - 40, 15, 80);
+
+            // Draw u(t) arrow and label
+            const ut = u(time);
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(wallX - 30, cylCenterY - 60);
+            ctx.lineTo(wallX - 30 + ut * 3, cylCenterY - 60);
+            ctx.stroke();
+            if (Math.abs(ut) > 0.5) {
+                const dir = ut > 0 ? 1 : -1;
+                ctx.beginPath();
+                ctx.moveTo(wallX - 30 + ut * 3, cylCenterY - 60);
+                ctx.lineTo(wallX - 30 + ut * 3 - dir * 8, cylCenterY - 65);
+                ctx.moveTo(wallX - 30 + ut * 3, cylCenterY - 60);
+                ctx.lineTo(wallX - 30 + ut * 3 - dir * 8, cylCenterY - 55);
+                ctx.stroke();
+            }
+            ctx.fillStyle = '#e74c3c';
+            ctx.font = '12px Arial';
+            ctx.fillText('u(t)', wallX - 45, cylCenterY - 70);
+
+            // Draw cylinder
+            ctx.fillStyle = '#999';
+            ctx.beginPath();
+            ctx.arc(cylCenterX, cylCenterY, cylRadius, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Inner part
+            ctx.fillStyle = '#666';
+            ctx.beginPath();
+            ctx.arc(cylCenterX, cylCenterY, innerRadius, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.strokeStyle = '#333';
+            ctx.stroke();
+
+            // Rotation indicator
+            const theta = x1 / R;
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(cylCenterX, cylCenterY);
+            ctx.lineTo(cylCenterX + cylRadius * 0.7 * Math.cos(theta),
+                      cylCenterY - cylRadius * 0.7 * Math.sin(theta));
+            ctx.stroke();
+
+            // Labels
+            ctx.fillStyle = '#333';
+            ctx.font = '14px Arial';
+            ctx.fillText('M', cylCenterX - 8, cylCenterY + 5);
+            ctx.fillText('R', cylCenterX + cylRadius + 5, cylCenterY);
+            ctx.fillText('r', cylCenterX + innerRadius + 3, cylCenterY - 10);
+
+            // Pulley position
+            const pulleyX = 500;
+            const pulleyY = 80;
+            const pulleyR = 15;
+
+            // Rope from cylinder to pulley
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(cylCenterX, cylCenterY - innerRadius);
+            ctx.lineTo(pulleyX - pulleyR, cylCenterY - innerRadius);
+            ctx.lineTo(pulleyX - pulleyR, pulleyY);
+            ctx.stroke();
+
+            // Pulley
+            ctx.fillStyle = '#ddd';
+            ctx.beginPath();
+            ctx.arc(pulleyX, pulleyY, pulleyR, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.strokeStyle = '#333';
+            ctx.stroke();
+            ctx.fillStyle = '#333';
+            ctx.font = '10px Arial';
+            ctx.fillText('Seil', pulleyX + 20, pulleyY - 5);
+
+            // Hanging mass position
+            const massBaseY = 120;
+            const massY = massBaseY + x2 * scale;
+
+            // Upper spring k2 from pulley to mass
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            drawSpring(ctx, pulleyX, pulleyY + pulleyR, pulleyX, massY - 20, 6, 10);
+            ctx.fillStyle = '#333';
+            ctx.font = '11px Arial';
+            ctx.fillText('k₂', pulleyX + 15, (pulleyY + pulleyR + massY - 20) / 2);
+
+            // Mass
+            ctx.fillStyle = '#667eea';
+            ctx.fillRect(pulleyX - 25, massY - 20, 50, 40);
+            ctx.strokeStyle = '#333';
+            ctx.strokeRect(pulleyX - 25, massY - 20, 50, 40);
+            ctx.fillStyle = '#fff';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('m', pulleyX, massY + 5);
+
+            // Lower spring k3 and damper c
+            const floorY = 380;
+
+            // Spring k3
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            drawSpring(ctx, pulleyX - 15, massY + 20, pulleyX - 15, floorY - 10, 5, 8);
+            ctx.fillStyle = '#333';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText('k₃', pulleyX - 35, (massY + 20 + floorY - 10) / 2);
+
+            // Damper c
+            drawDamper(ctx, pulleyX + 15, massY + 20, pulleyX + 15, floorY - 10);
+            ctx.fillText('c', pulleyX + 25, (massY + 20 + floorY - 10) / 2);
+
+            // Floor
+            ctx.fillStyle = '#666';
+            ctx.fillRect(pulleyX - 50, floorY - 10, 100, 20);
+
+            // Gravity arrow
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(40, 280);
+            ctx.lineTo(40, 320);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(40, 320);
+            ctx.lineTo(35, 310);
+            ctx.moveTo(40, 320);
+            ctx.lineTo(45, 310);
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.font = '14px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('g', 40, 335);
+
+            // Coordinate labels
+            ctx.fillStyle = '#667eea';
+            ctx.font = '12px serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('x₁', cylCenterX, groundY + 25);
+            ctx.fillText('x₂', pulleyX + 35, massY);
+
+            // Update info
+            document.getElementById('infoDisplay').innerHTML =
+                `時間: ${time.toFixed(2)} s<br>` +
+                `x₁: ${x1.toFixed(3)} m<br>` +
+                `ẋ₁: ${v1.toFixed(3)} m/s<br>` +
+                `x₂: ${x2.toFixed(3)} m<br>` +
+                `ẋ₂: ${v2.toFixed(3)} m/s<br>` +
+                `u(t): ${ut.toFixed(2)} N`;
+        }
+
+        function drawSpring(ctx, x1, y1, x2, y2, coils, amp) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            const segLen = len / (coils * 2 + 2);
+            ctx.lineTo(segLen, 0);
+
+            for (let i = 0; i < coils * 2; i++) {
+                const px = segLen * (i + 1.5);
+                const py = (i % 2 === 0 ? amp : -amp);
+                ctx.lineTo(px, py);
+            }
+            ctx.lineTo(len - segLen, 0);
+            ctx.lineTo(len, 0);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawDamper(ctx, x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx);
+
+            ctx.save();
+            ctx.translate(x1, y1);
+            ctx.rotate(angle);
+
+            const boxW = 12;
+            const boxH = 20;
+            const boxStart = len / 2 - boxH / 2;
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(boxStart, 0);
+            ctx.stroke();
+
+            ctx.strokeRect(boxStart, -boxW / 2, boxH, boxW);
+
+            ctx.beginPath();
+            ctx.moveTo(boxStart + boxH / 2, -boxW / 2 - 3);
+            ctx.lineTo(boxStart + boxH / 2, boxW / 2 + 3);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(boxStart + boxH, 0);
+            ctx.lineTo(len, 0);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawGraphX() {
+            ctxX.clearRect(0, 0, graphX.width, graphX.height);
+
+            const margin = 35;
+            const w = graphX.width - 2 * margin;
+            const h = graphX.height - 2 * margin;
+
+            ctxX.fillStyle = '#f8f9fa';
+            ctxX.fillRect(margin, margin, w, h);
+
+            ctxX.strokeStyle = '#333';
+            ctxX.lineWidth = 2;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin);
+            ctxX.lineTo(margin, margin + h);
+            ctxX.lineTo(margin + w, margin + h);
+            ctxX.stroke();
+
+            // Zero line
+            ctxX.strokeStyle = '#ccc';
+            ctxX.lineWidth = 1;
+            ctxX.beginPath();
+            ctxX.moveTo(margin, margin + h / 2);
+            ctxX.lineTo(margin + w, margin + h / 2);
+            ctxX.stroke();
+
+            const maxVal = 0.5;
+
+            // Plot x1
+            if (historyX1.length > 1) {
+                ctxX.strokeStyle = '#667eea';
+                ctxX.lineWidth = 2;
+                ctxX.beginPath();
+                for (let i = 0; i < historyX1.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyX1[i] / maxVal) * (h / 2);
+                    if (i === 0) ctxX.moveTo(px, py);
+                    else ctxX.lineTo(px, py);
+                }
+                ctxX.stroke();
+            }
+
+            // Plot x2
+            if (historyX2.length > 1) {
+                ctxX.strokeStyle = '#28a745';
+                ctxX.lineWidth = 2;
+                ctxX.beginPath();
+                for (let i = 0; i < historyX2.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyX2[i] / maxVal) * (h / 2);
+                    if (i === 0) ctxX.moveTo(px, py);
+                    else ctxX.lineTo(px, py);
+                }
+                ctxX.stroke();
+            }
+
+            // Legend
+            ctxX.font = '10px Arial';
+            ctxX.fillStyle = '#667eea';
+            ctxX.fillText('x₁', margin + 5, margin + 12);
+            ctxX.fillStyle = '#28a745';
+            ctxX.fillText('x₂', margin + 30, margin + 12);
+        }
+
+        function drawGraphV() {
+            ctxV.clearRect(0, 0, graphV.width, graphV.height);
+
+            const margin = 35;
+            const w = graphV.width - 2 * margin;
+            const h = graphV.height - 2 * margin;
+
+            ctxV.fillStyle = '#f8f9fa';
+            ctxV.fillRect(margin, margin, w, h);
+
+            ctxV.strokeStyle = '#333';
+            ctxV.lineWidth = 2;
+            ctxV.beginPath();
+            ctxV.moveTo(margin, margin);
+            ctxV.lineTo(margin, margin + h);
+            ctxV.lineTo(margin + w, margin + h);
+            ctxV.stroke();
+
+            // Zero line
+            ctxV.strokeStyle = '#ccc';
+            ctxV.lineWidth = 1;
+            ctxV.beginPath();
+            ctxV.moveTo(margin, margin + h / 2);
+            ctxV.lineTo(margin + w, margin + h / 2);
+            ctxV.stroke();
+
+            const maxVal = 2.0;
+
+            // Plot v1
+            if (historyV1.length > 1) {
+                ctxV.strokeStyle = '#667eea';
+                ctxV.lineWidth = 2;
+                ctxV.beginPath();
+                for (let i = 0; i < historyV1.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyV1[i] / maxVal) * (h / 2);
+                    if (i === 0) ctxV.moveTo(px, py);
+                    else ctxV.lineTo(px, py);
+                }
+                ctxV.stroke();
+            }
+
+            // Plot v2
+            if (historyV2.length > 1) {
+                ctxV.strokeStyle = '#28a745';
+                ctxV.lineWidth = 2;
+                ctxV.beginPath();
+                for (let i = 0; i < historyV2.length; i++) {
+                    const px = margin + (i / maxHistory) * w;
+                    const py = margin + h / 2 - (historyV2[i] / maxVal) * (h / 2);
+                    if (i === 0) ctxV.moveTo(px, py);
+                    else ctxV.lineTo(px, py);
+                }
+                ctxV.stroke();
+            }
+
+            // Legend
+            ctxV.font = '10px Arial';
+            ctxV.fillStyle = '#667eea';
+            ctxV.fillText('ẋ₁', margin + 5, margin + 12);
+            ctxV.fillStyle = '#28a745';
+            ctxV.fillText('ẋ₂', margin + 30, margin + 12);
+        }
+
+        function animate() {
+            const dt = 0.01;
+            const substeps = 10;
+
+            for (let i = 0; i < substeps; i++) {
+                rk4Step(dt / substeps);
+            }
+            time += dt;
+
+            historyX1.push(state[0]);
+            historyX2.push(state[2]);
+            historyV1.push(state[1]);
+            historyV2.push(state[3]);
+
+            if (historyX1.length > maxHistory) {
+                historyX1.shift();
+                historyX2.shift();
+                historyV1.shift();
+                historyV2.shift();
+            }
+
+            draw();
+            drawGraphX();
+            drawGraphV();
+
+            if (isRunning) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function start() {
+            if (!isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+
+        function stop() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+
+        function reset() {
+            stop();
+            state = [0, 0, 0, 0];
+            time = 0;
+            historyX1 = [];
+            historyX2 = [];
+            historyV1 = [];
+            historyV2 = [];
+            draw();
+            drawGraphX();
+            drawGraphV();
+        }
+
+        reset();
+    </script>
+</body>
+</html>
