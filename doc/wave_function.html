@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified Parametric Shape - Full Control + GIF Export</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;1,400;1,600&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --text-primary: #e8e6e3;
+            --text-muted: #6b6b7b;
+            --accent-pink: #ff6b9d;
+            --accent-cyan: #6bcfff;
+            --accent-gold: #ffd699;
+            --accent-green: #6bff9d;
+            --panel-bg: rgba(18, 18, 26, 0.9);
+            --border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            min-height: 100vh;
+            padding: 1.5rem;
+            gap: 1rem;
+        }
+
+        header {
+            text-align: center;
+            padding: 0.5rem 0;
+        }
+
+        h1 {
+            font-family: 'Cormorant Garamond', serif;
+            font-style: italic;
+            font-weight: 400;
+            font-size: clamp(1.6rem, 3.5vw, 2.5rem);
+            letter-spacing: 0.12em;
+            background: linear-gradient(135deg, #fff 0%, #9b9bab 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            margin-top: 0.3rem;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 1.5rem;
+            align-items: start;
+        }
+
+        .control-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            backdrop-filter: blur(20px);
+            position: sticky;
+            top: 1rem;
+            max-height: calc(100vh - 2rem);
+            overflow-y: auto;
+        }
+
+        .panel-section {
+            margin-bottom: 1.25rem;
+        }
+
+        .panel-title {
+            font-size: 0.6rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.4rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-title .preset-hint {
+            font-size: 0.5rem;
+            color: var(--accent-cyan);
+            letter-spacing: 0.05em;
+        }
+
+        .control-group {
+            margin-bottom: 1rem;
+        }
+
+        .control-group.compact {
+            margin-bottom: 0.75rem;
+        }
+
+        .control-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-bottom: 0.35rem;
+            letter-spacing: 0.05em;
+        }
+
+        .control-label .label-main {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .control-label .label-symbol {
+            color: var(--accent-gold);
+            font-size: 0.75rem;
+        }
+
+        .control-label .label-desc {
+            font-size: 0.55rem;
+            color: var(--text-muted);
+            opacity: 0.7;
+        }
+
+        .control-value {
+            color: var(--text-primary);
+            font-weight: 400;
+            min-width: 3.5em;
+            text-align: right;
+            font-size: 0.7rem;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: var(--border-color);
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--text-primary);
+            cursor: pointer;
+            transition: transform 0.15s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .coeff-slider-p { background: linear-gradient(to right, var(--accent-cyan), var(--accent-pink)); }
+        .coeff-slider-q { background: linear-gradient(to right, var(--accent-cyan), var(--accent-pink)); }
+        .coeff-slider-delta { background: linear-gradient(to right, #333, var(--accent-gold)); }
+        .coeff-slider-r1 { background: linear-gradient(to right, #333, #8b8b9b); }
+        .coeff-slider-m { background: linear-gradient(to right, #444, #fff); }
+        .coeff-slider-h { background: linear-gradient(to right, #333, var(--accent-pink)); }
+
+        .preset-buttons {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.4rem;
+            margin-bottom: 1rem;
+        }
+
+        .preset-btn {
+            padding: 0.5rem 0.3rem;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-muted);
+            font-family: inherit;
+            font-size: 0.55rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .preset-btn:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.15);
+            color: var(--text-primary);
+        }
+
+        .preset-btn.active {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--preset-color, var(--accent-cyan));
+            color: var(--text-primary);
+        }
+
+        .preset-btn[data-preset="heart"] { --preset-color: #ff6b9d; }
+        .preset-btn[data-preset="circle"] { --preset-color: #6bcfff; }
+        .preset-btn[data-preset="astroid"] { --preset-color: #ffffff; }
+        .preset-btn[data-preset="star"] { --preset-color: #8b8b9b; }
+        .preset-btn[data-preset="lemniscate"] { --preset-color: #ffd699; }
+
+        .equation-box {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .equation-box .eq-line {
+            font-size: 0.65rem;
+            color: var(--text-primary);
+            margin-bottom: 0.4rem;
+            font-family: 'Cormorant Garamond', serif;
+            font-style: italic;
+        }
+
+        .equation-box .eq-line:last-child {
+            margin-bottom: 0;
+        }
+
+        .canvas-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 540px;
+        }
+
+        .formula-bar {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            backdrop-filter: blur(20px);
+        }
+
+        .formula-main {
+            font-family: 'Cormorant Garamond', serif;
+            font-style: italic;
+            font-size: 1rem;
+            color: var(--text-primary);
+            text-align: center;
+            margin-bottom: 0.4rem;
+        }
+
+        .formula-detail {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 0.6rem;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-muted);
+            font-family: inherit;
+            font-size: 0.6rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+        }
+
+        .action-btn.primary {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+        }
+
+        .action-btn.recording {
+            background: rgba(255, 107, 107, 0.2);
+            border-color: #ff6b6b;
+            color: #ff6b6b;
+            animation: pulse 1s infinite;
+        }
+
+        .action-btn.gif-export {
+            background: rgba(107, 255, 157, 0.1);
+            border-color: var(--accent-green);
+            color: var(--accent-green);
+        }
+
+        .action-btn.gif-export:hover {
+            background: rgba(107, 255, 157, 0.2);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .harmonic-section {
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .harmonic-title {
+            font-size: 0.55rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.1em;
+        }
+
+        .harmonic-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.5rem;
+        }
+
+        .harmonic-item {
+            text-align: center;
+        }
+
+        .harmonic-item label {
+            display: block;
+            font-size: 0.5rem;
+            color: var(--text-muted);
+            margin-bottom: 0.2rem;
+        }
+
+        .harmonic-item input {
+            width: 100%;
+            height: 3px;
+        }
+
+        .harmonic-item .h-val {
+            font-size: 0.5rem;
+            color: var(--accent-gold);
+            margin-top: 0.15rem;
+        }
+
+        /* GIF Export Section */
+        .gif-section {
+            background: rgba(107, 255, 157, 0.05);
+            border: 1px solid rgba(107, 255, 157, 0.2);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .gif-section .section-title {
+            font-size: 0.55rem;
+            color: var(--accent-green);
+            margin-bottom: 0.6rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .gif-options {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 0.6rem;
+        }
+
+        .gif-option {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+
+        .gif-option label {
+            font-size: 0.5rem;
+            color: var(--text-muted);
+        }
+
+        .gif-option select,
+        .gif-option input[type="number"] {
+            padding: 0.4rem;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.6rem;
+        }
+
+        .gif-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .gif-buttons .action-btn {
+            flex: 1;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            margin-top: 0.5rem;
+            overflow: hidden;
+            display: none;
+        }
+
+        .progress-bar.active {
+            display: block;
+        }
+
+        .progress-bar .progress {
+            height: 100%;
+            background: var(--accent-green);
+            border-radius: 3px;
+            transition: width 0.1s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            font-size: 0.55rem;
+            color: var(--accent-green);
+            text-align: center;
+            margin-top: 0.4rem;
+            display: none;
+        }
+
+        .progress-text.active {
+            display: block;
+        }
+
+        /* Recording indicator */
+        .recording-indicator {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            background: rgba(255, 50, 50, 0.9);
+            border-radius: 6px;
+            font-size: 0.65rem;
+            color: white;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .recording-indicator.active {
+            opacity: 1;
+        }
+
+        .recording-indicator .rec-dot {
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        @media (max-width: 900px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            .control-panel {
+                position: static;
+                max-height: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Unified Parametric Equation</h1>
+            <p class="subtitle">Full Control + GIF Export</p>
+        </header>
+
+        <div class="main-content">
+            <aside class="control-panel">
+                <!-- Presets -->
+                <div class="panel-section">
+                    <h2 class="panel-title">
+                        Presets
+                        <span class="preset-hint">Click to load</span>
+                    </h2>
+                    <div class="preset-buttons">
+                        <button class="preset-btn active" data-preset="heart">Heart</button>
+                        <button class="preset-btn" data-preset="circle">Circle</button>
+                        <button class="preset-btn" data-preset="astroid">Astroid</button>
+                        <button class="preset-btn" data-preset="star">Star</button>
+                        <button class="preset-btn" data-preset="lemniscate">Lemni</button>
+                    </div>
+                </div>
+
+                <!-- Equation Display -->
+                <div class="equation-box">
+                    <div class="eq-line">x(t) = [ R(t) · cos<sup>p</sup>(t) · (1−h) + h·sin³(t) ] / D(t)</div>
+                    <div class="eq-line">y(t) = [ R(t) · sin<sup>q</sup>(t) · (1−δ) · (1−h) + sin(t)cos(t)·δ + G(t) ] / D(t)</div>
+                </div>
+
+                <!-- Shape Coefficients -->
+                <div class="panel-section">
+                    <h2 class="panel-title">Shape Coefficients</h2>
+
+                    <div class="control-group compact">
+                        <label class="control-label">
+                            <span class="label-main">
+                                <span class="label-symbol">p</span>
+                                <span class="label-desc">cos exponent</span>
+                            </span>
+                            <span class="control-value" id="p-value">1.00</span>
+                        </label>
+                        <input type="range" id="p-slider" class="coeff-slider-p" min="0.1" max="5" step="0.1" value="1">
+                    </div>
+
+                    <div class="control-group compact">
+                        <label class="control-label">
+                            <span class="label-main">
+                                <span class="label-symbol">q</span>
+                                <span class="label-desc">sin exponent</span>
+                            </span>
+                            <span class="control-value" id="q-value">1.00</span>
+                        </label>
+                        <input type="range" id="q-slider" class="coeff-slider-q" min="0.1" max="5" step="0.1" value="1">
+                    </div>
+
+                    <div class="control-group compact">
+                        <label class="control-label">
+                            <span class="label-main">
+                                <span class="label-symbol">δ</span>
+                                <span class="label-desc">lemniscate factor</span>
+                            </span>
+                            <span class="control-value" id="delta-value">0.00</span>
+                        </label>
+                        <input type="range" id="delta-slider" class="coeff-slider-delta" min="0" max="1" step="0.01" value="0">
+                    </div>
+
+                    <div class="control-group compact">
+                        <label class="control-label">
+                            <span class="label-main">
+                                <span class="label-symbol">r₁</span>
+                                <span class="label-desc">radial modulation</span>
+                            </span>
+                            <span class="control-value" id="r1-value">0.00</span>
+                        </label>
+                        <input type="range" id="r1-slider" class="coeff-slider-r1" min="0" max="0.8" step="0.01" value="0">
+                    </div>
+
+                    <div class="control-group compact">
+                        <label class="control-label">
+                            <span class="label-main">
+                                <span class="label-symbol">m</span>
+                                <span class="label-desc">star points</span>
+                            </span>
+                            <span class="control-value" id="m-value">5.00</span>
+                        </label>
+                        <input type="range" id="m-slider" class="coeff-slider-m" min="2" max="12" step="1" value="5">
+                    </div>
+
+                    <div class="control-group compact">
+                        <label class="control-label">
+                            <span class="label-main">
+                                <span class="label-symbol">h</span>
+                                <span class="label-desc">heart factor</span>
+                            </span>
+                            <span class="control-value" id="h-value">0.00</span>
+                        </label>
+                        <input type="range" id="h-slider" class="coeff-slider-h" min="0" max="1" step="0.01" value="0">
+                    </div>
+
+                    <!-- Harmonics -->
+                    <div class="harmonic-section">
+                        <div class="harmonic-title">G(t) Harmonics</div>
+                        <div class="harmonic-grid">
+                            <div class="harmonic-item">
+                                <label>c₁</label>
+                                <input type="range" id="c1-slider" min="-1" max="1" step="0.01" value="0">
+                                <div class="h-val" id="c1-value">0.00</div>
+                            </div>
+                            <div class="harmonic-item">
+                                <label>c₂</label>
+                                <input type="range" id="c2-slider" min="-1" max="1" step="0.01" value="0">
+                                <div class="h-val" id="c2-value">0.00</div>
+                            </div>
+                            <div class="harmonic-item">
+                                <label>c₃</label>
+                                <input type="range" id="c3-slider" min="-1" max="1" step="0.01" value="0">
+                                <div class="h-val" id="c3-value">0.00</div>
+                            </div>
+                            <div class="harmonic-item">
+                                <label>c₄</label>
+                                <input type="range" id="c4-slider" min="-1" max="1" step="0.01" value="0">
+                                <div class="h-val" id="c4-value">0.00</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Wave Parameters -->
+                <div class="panel-section">
+                    <h2 class="panel-title">Wave Parameters</h2>
+
+                    <div class="control-group compact">
+                        <label class="control-label">
+                            <span class="label-main">
+                                <span class="label-symbol">ω</span>
+                                <span class="label-desc">angular velocity</span>
+                            </span>
+                            <span class="control-value" id="omega-value">1.0</span>
+                        </label>
+                        <input type="range" id="omega-slider" min="0.1" max="3" step="0.1" value="1">
+                    </div>
+
+                    <div class="control-group compact">
+                        <label class="control-label">
+                            <span class="label-main">
+                                <span class="label-symbol">v</span>
+                                <span class="label-desc">wave speed</span>
+                            </span>
+                            <span class="control-value" id="speed-value">2.0</span>
+                        </label>
+                        <input type="range" id="speed-slider" min="0.5" max="5" step="0.1" value="2">
+                    </div>
+                </div>
+
+                <!-- GIF Export Section -->
+                <div class="panel-section">
+                    <h2 class="panel-title">
+                        GIF Export
+                        <span class="preset-hint">Save animation</span>
+                    </h2>
+
+                    <div class="gif-section">
+                        <div class="gif-options">
+                            <div class="gif-option">
+                                <label>Duration (sec)</label>
+                                <input type="number" id="gif-duration" value="2" min="1" max="5" step="0.5">
+                            </div>
+                            <div class="gif-option">
+                                <label>FPS</label>
+                                <select id="gif-fps">
+                                    <option value="10">10 fps</option>
+                                    <option value="15" selected>15 fps</option>
+                                    <option value="20">20 fps</option>
+                                </select>
+                            </div>
+                            <div class="gif-option">
+                                <label>Size</label>
+                                <select id="gif-size">
+                                    <option value="240">240px</option>
+                                    <option value="320" selected>320px</option>
+                                    <option value="400">400px</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="gif-buttons">
+                            <button class="action-btn gif-export" id="record-btn">
+                                🔴 Record GIF
+                            </button>
+                            <button class="action-btn" id="cancel-btn" disabled>
+                                Cancel
+                            </button>
+                        </div>
+                        <div class="progress-bar" id="progress-bar">
+                            <div class="progress" id="progress"></div>
+                        </div>
+                        <div class="progress-text" id="progress-text">Recording...</div>
+                    </div>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="action-btn" id="reset-btn">Reset</button>
+                    <button class="action-btn" id="random-btn">Random</button>
+                    <button class="action-btn primary" id="pause-btn">Pause</button>
+                </div>
+            </aside>
+
+            <main class="canvas-container">
+                <canvas id="canvas"></canvas>
+                <div class="recording-indicator" id="recording-indicator">
+                    <div class="rec-dot"></div>
+                    <span>REC</span>
+                </div>
+            </main>
+        </div>
+
+        <footer class="formula-bar">
+            <div class="formula-main">
+                Shape(t; p, q, δ, r₁, m, h, c₁..₄) → y(t) → Wave
+            </div>
+            <div class="formula-detail">
+                統一方程式で Heart, Circle, Astroid, Star, Lemniscate を表現 | GIF保存対応
+            </div>
+        </footer>
+    </div>
+
+    <!-- GIF Encoder (Embedded) -->
+    <script>
+    // Full-color GIF Encoder with median-cut quantization
+    class GIFEncoder {
+        constructor(width, height) {
+            this.width = width;
+            this.height = height;
+            this.frames = [];
+            this.delay = 100;
+            this.palette = null;
+            this.colorCache = new Map();
+        }
+
+        setDelay(ms) {
+            this.delay = ms;
+        }
+
+        addFrame(ctx) {
+            const imageData = ctx.getImageData(0, 0, this.width, this.height);
+            this.frames.push({
+                data: imageData.data,
+                delay: this.delay
+            });
+        }
+
+        finish() {
+            this.buildPalette();
+            return this.encode();
+        }
+
+        // Build a 256-color palette from all frames via median-cut
+        buildPalette() {
+            const totalPixels = this.width * this.height * this.frames.length;
+            const sampleStep = Math.max(1, Math.floor(totalPixels / 50000));
+            const samples = [];
+            let counter = 0;
+
+            for (const frame of this.frames) {
+                for (let i = 0; i < frame.data.length; i += 4) {
+                    if (counter++ % sampleStep === 0) {
+                        samples.push([frame.data[i], frame.data[i+1], frame.data[i+2]]);
+                    }
+                }
+            }
+
+            this.palette = this.medianCut(samples, 256);
+            while (this.palette.length < 256) {
+                this.palette.push([0, 0, 0]);
+            }
+            this.colorCache = new Map();
+        }
+
+        medianCut(colors, target) {
+            if (colors.length === 0) return [[0, 0, 0]];
+
+            let boxes = [colors];
+            while (boxes.length < target) {
+                let maxRange = -1, maxIdx = 0, splitCh = 0;
+                for (let i = 0; i < boxes.length; i++) {
+                    if (boxes[i].length <= 1) continue;
+                    for (let ch = 0; ch < 3; ch++) {
+                        let lo = 255, hi = 0;
+                        for (const c of boxes[i]) {
+                            if (c[ch] < lo) lo = c[ch];
+                            if (c[ch] > hi) hi = c[ch];
+                        }
+                        if (hi - lo > maxRange) {
+                            maxRange = hi - lo;
+                            maxIdx = i;
+                            splitCh = ch;
+                        }
+                    }
+                }
+                if (maxRange <= 0) break;
+
+                const box = boxes[maxIdx];
+                box.sort((a, b) => a[splitCh] - b[splitCh]);
+                const mid = box.length >> 1;
+                boxes.splice(maxIdx, 1, box.slice(0, mid), box.slice(mid));
+            }
+
+            return boxes.map(box => {
+                let r = 0, g = 0, b = 0;
+                for (const c of box) { r += c[0]; g += c[1]; b += c[2]; }
+                const n = box.length || 1;
+                return [Math.round(r / n), Math.round(g / n), Math.round(b / n)];
+            });
+        }
+
+        findNearest(r, g, b) {
+            const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+            const cached = this.colorCache.get(key);
+            if (cached !== undefined) return cached;
+
+            let best = 0, bestDist = Infinity;
+            for (let i = 0; i < this.palette.length; i++) {
+                const dr = r - this.palette[i][0];
+                const dg = g - this.palette[i][1];
+                const db = b - this.palette[i][2];
+                const d = dr * dr + dg * dg + db * db;
+                if (d < bestDist) { bestDist = d; best = i; }
+            }
+            this.colorCache.set(key, best);
+            return best;
+        }
+
+        indexFrame(data) {
+            const indexed = new Uint8Array(this.width * this.height);
+            for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+                indexed[j] = this.findNearest(data[i], data[i+1], data[i+2]);
+            }
+            return indexed;
+        }
+
+        encode() {
+            const stream = [];
+
+            // GIF Header
+            this.writeString(stream, 'GIF89a');
+
+            // Logical Screen Descriptor
+            this.writeLittleEndian(stream, this.width, 2);
+            this.writeLittleEndian(stream, this.height, 2);
+            stream.push(0xF7); // GCT flag=1, color res=7, sort=0, size=7 (256 colors)
+            stream.push(0);    // Background Color Index
+            stream.push(0);    // Pixel Aspect Ratio
+
+            // Global Color Table (256 RGB entries from quantized palette)
+            for (let i = 0; i < 256; i++) {
+                stream.push(this.palette[i][0]);
+                stream.push(this.palette[i][1]);
+                stream.push(this.palette[i][2]);
+            }
+
+            // Netscape Extension for looping
+            stream.push(0x21, 0xFF, 11);
+            this.writeString(stream, 'NETSCAPE2.0');
+            stream.push(3, 1, 0, 0, 0);
+
+            // Process each frame
+            for (const frame of this.frames) {
+                const indexed = this.indexFrame(frame.data);
+
+                // Graphics Control Extension
+                stream.push(0x21, 0xF9, 4, 0x04);
+                this.writeLittleEndian(stream, Math.round(frame.delay / 10), 2);
+                stream.push(0, 0);
+
+                // Image Descriptor
+                stream.push(0x2C);
+                this.writeLittleEndian(stream, 0, 2);
+                this.writeLittleEndian(stream, 0, 2);
+                this.writeLittleEndian(stream, this.width, 2);
+                this.writeLittleEndian(stream, this.height, 2);
+                stream.push(0); // No local color table
+
+                // LZW Image Data
+                this.writeLZW(stream, indexed);
+            }
+
+            // Trailer
+            stream.push(0x3B);
+
+            return new Blob([new Uint8Array(stream)], { type: 'image/gif' });
+        }
+
+        writeString(stream, str) {
+            for (let i = 0; i < str.length; i++) {
+                stream.push(str.charCodeAt(i));
+            }
+        }
+
+        writeLittleEndian(stream, num, bytes) {
+            for (let i = 0; i < bytes; i++) {
+                stream.push(num & 0xFF);
+                num >>= 8;
+            }
+        }
+
+        writeLZW(stream, indexed) {
+            const minCodeSize = 8;
+            stream.push(minCodeSize);
+
+            const clearCode = 1 << minCodeSize;
+            const eoiCode = clearCode + 1;
+
+            let codeSize = minCodeSize + 1;
+            let nextCode = eoiCode + 1;
+            let codeTable = {};
+
+            for (let i = 0; i < clearCode; i++) {
+                codeTable[String.fromCharCode(i)] = i;
+            }
+
+            let buffer = 0;
+            let bufferSize = 0;
+            let subBlock = [];
+
+            const writeCode = (code) => {
+                buffer |= code << bufferSize;
+                bufferSize += codeSize;
+                while (bufferSize >= 8) {
+                    subBlock.push(buffer & 0xFF);
+                    buffer >>= 8;
+                    bufferSize -= 8;
+                    if (subBlock.length === 255) {
+                        stream.push(255);
+                        for (let b of subBlock) stream.push(b);
+                        subBlock = [];
+                    }
+                }
+            };
+
+            writeCode(clearCode);
+
+            let indexBuffer = String.fromCharCode(indexed[0]);
+
+            for (let i = 1; i < indexed.length; i++) {
+                const k = String.fromCharCode(indexed[i]);
+                const combined = indexBuffer + k;
+
+                if (codeTable[combined] !== undefined) {
+                    indexBuffer = combined;
+                } else {
+                    writeCode(codeTable[indexBuffer]);
+
+                    if (nextCode < 4096) {
+                        codeTable[combined] = nextCode++;
+                        if (nextCode > (1 << codeSize) && codeSize < 12) {
+                            codeSize++;
+                        }
+                    } else {
+                        writeCode(clearCode);
+                        codeSize = minCodeSize + 1;
+                        nextCode = eoiCode + 1;
+                        codeTable = {};
+                        for (let j = 0; j < clearCode; j++) {
+                            codeTable[String.fromCharCode(j)] = j;
+                        }
+                    }
+
+                    indexBuffer = k;
+                }
+            }
+
+            writeCode(codeTable[indexBuffer]);
+            writeCode(eoiCode);
+
+            if (bufferSize > 0) {
+                subBlock.push(buffer & 0xFF);
+            }
+
+            if (subBlock.length > 0) {
+                stream.push(subBlock.length);
+                for (let b of subBlock) stream.push(b);
+            }
+
+            stream.push(0); // Block terminator
+        }
+    }
+    </script>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        let offscreenCanvas, offscreenCtx;
+
+        function setupCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+            return { width: rect.width, height: rect.height };
+        }
+
+        let { width, height } = setupCanvas();
+        window.addEventListener('resize', () => {
+            ({ width, height } = setupCanvas());
+        });
+
+        // Preset coefficients
+        const presets = {
+            heart: { p: 1, q: 1, delta: 0, r1: 0, m: 5, h: 1, c1: 0.8125, c2: -0.3125, c3: -0.125, c4: -0.0625 },
+            circle: { p: 1, q: 1, delta: 0, r1: 0, m: 5, h: 0, c1: 0, c2: 0, c3: 0, c4: 0 },
+            astroid: { p: 3, q: 3, delta: 0, r1: 0, m: 5, h: 0, c1: 0, c2: 0, c3: 0, c4: 0 },
+            star: { p: 1, q: 1, delta: 0, r1: 0.5, m: 5, h: 0, c1: 0, c2: 0, c3: 0, c4: 0 },
+            lemniscate: { p: 1, q: 1, delta: 1, r1: 0, m: 5, h: 0, c1: 0, c2: 0, c3: 0, c4: 0 }
+        };
+
+        // State
+        let state = {
+            p: 1, q: 1, delta: 0, r1: 0, m: 5, h: 1,
+            c1: 0.8125, c2: -0.3125, c3: -0.125, c4: -0.0625,
+            omega: 1, speed: 2,
+            paused: false, t: 0, waveHistory: [], currentPreset: 'heart'
+        };
+
+        // GIF Recording state
+        let gifState = { isRecording: false, cancelled: false };
+
+        // Unified shape function
+        function unifiedShape(t, coeffs) {
+            const { p, q, delta, r1, m, h, c1, c2, c3, c4 } = coeffs;
+            const cost = Math.cos(t), sint = Math.sin(t);
+            const R = 1 + r1 * Math.cos(m * t);
+            const D = 1 + delta * sint * sint;
+            const cosPow = Math.sign(cost) * Math.pow(Math.abs(cost), p);
+            const sinPow = Math.sign(sint) * Math.pow(Math.abs(sint), q);
+            const H = h * Math.pow(sint, 3);
+            const G = c1 * Math.cos(t) + c2 * Math.cos(2*t) + c3 * Math.cos(3*t) + c4 * Math.cos(4*t);
+            const xNum = R * cosPow * (1 - h) + H;
+            const yBase = sinPow * (1 - delta) + (sint * cost) * delta;
+            const yNum = R * yBase * (1 - h) + G;
+            return { x: xNum / D, y: yNum / D };
+        }
+
+        // Get dynamic color
+        function getDynamicColor() {
+            let r = 150, g = 180, b = 200;
+            r += state.h * 100; g -= state.h * 50; b -= state.h * 30;
+            r += state.delta * 50; g += state.delta * 30; b -= state.delta * 50;
+            r -= state.r1 * 80; g -= state.r1 * 80; b -= state.r1 * 60;
+            const af = Math.max(0, (state.p + state.q - 2) / 4);
+            r += af * 80; g += af * 80; b += af * 80;
+            return `rgb(${Math.round(Math.max(80, Math.min(255, r)))}, ${Math.round(Math.max(80, Math.min(255, g)))}, ${Math.round(Math.max(80, Math.min(255, b)))})`;
+        }
+
+        // Draw scene
+        function drawScene(context, w, h, t, waveHist, showInfo = true) {
+            context.fillStyle = '#12121a';
+            context.fillRect(0, 0, w, h);
+
+            const shapeRadius = Math.min(w, h) * 0.12;
+            const shapeCenterX = w * 0.18;
+            const shapeCenterY = h / 2;
+            const waveStartX = w * 0.32;
+            const color = getDynamicColor();
+
+            // Shape outline
+            context.beginPath();
+            context.strokeStyle = color;
+            context.lineWidth = Math.max(1, w / 400);
+            context.globalAlpha = 0.6;
+            for (let i = 0; i <= 360; i++) {
+                const angle = (i / 360) * Math.PI * 2;
+                const pos = unifiedShape(angle, state);
+                const x = shapeCenterX + pos.x * shapeRadius;
+                const y = shapeCenterY - pos.y * shapeRadius;
+                if (i === 0) context.moveTo(x, y);
+                else context.lineTo(x, y);
+            }
+            context.closePath();
+            context.stroke();
+            context.globalAlpha = 1;
+
+            // Tracing point
+            const paramT = state.omega * t;
+            const pos = unifiedShape(paramT, state);
+            const px = shapeCenterX + pos.x * shapeRadius;
+            const py = shapeCenterY - pos.y * shapeRadius;
+
+            const gradient = context.createRadialGradient(px, py, 0, px, py, 10);
+            gradient.addColorStop(0, color);
+            gradient.addColorStop(1, 'transparent');
+            context.fillStyle = gradient;
+            context.beginPath();
+            context.arc(px, py, 10, 0, Math.PI * 2);
+            context.fill();
+
+            context.fillStyle = color;
+            context.beginPath();
+            context.arc(px, py, 4, 0, Math.PI * 2);
+            context.fill();
+
+            // Wave history
+            waveHist.unshift(py);
+            const maxWaveLength = w - waveStartX - 20;
+            const maxHistory = Math.floor(maxWaveLength / state.speed);
+            while (waveHist.length > maxHistory) waveHist.pop();
+
+            // Baseline
+            context.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            context.setLineDash([3, 3]);
+            context.beginPath();
+            context.moveTo(waveStartX, shapeCenterY);
+            context.lineTo(w - 20, shapeCenterY);
+            context.stroke();
+            context.setLineDash([]);
+
+            // Connection line
+            context.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            context.setLineDash([2, 2]);
+            context.beginPath();
+            context.moveTo(waveStartX - 15, py);
+            context.lineTo(waveStartX, py);
+            context.stroke();
+            context.setLineDash([]);
+
+            // Wave
+            if (waveHist.length > 1) {
+                context.strokeStyle = color;
+                context.lineWidth = Math.max(1.5, w / 300);
+                context.beginPath();
+                for (let i = 0; i < waveHist.length; i++) {
+                    const x = waveStartX + i * state.speed;
+                    if (i === 0) context.moveTo(x, waveHist[i]);
+                    else context.lineTo(x, waveHist[i]);
+                }
+                context.stroke();
+            }
+
+            // Info
+            if (showInfo) {
+                context.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                context.font = `${Math.max(9, w * 0.018)}px "JetBrains Mono", monospace`;
+                context.textAlign = 'center';
+                context.fillText(`p=${state.p.toFixed(1)} q=${state.q.toFixed(1)} δ=${state.delta.toFixed(2)}`, shapeCenterX, shapeCenterY + shapeRadius + 15);
+                context.fillText(`r₁=${state.r1.toFixed(2)} m=${state.m.toFixed(0)} h=${state.h.toFixed(2)}`, shapeCenterX, shapeCenterY + shapeRadius + 28);
+            }
+        }
+
+        // Main render
+        function render() {
+            drawScene(ctx, width, height, state.t, state.waveHistory);
+            if (!state.paused && !gifState.isRecording) {
+                state.t += 0.03;
+            }
+            requestAnimationFrame(render);
+        }
+
+        // ==========================================
+        // GIF RECORDING
+        // ==========================================
+        async function startRecording() {
+            const duration = parseFloat(document.getElementById('gif-duration').value);
+            const fps = parseInt(document.getElementById('gif-fps').value);
+            const size = parseInt(document.getElementById('gif-size').value);
+
+            const gifWidth = size;
+            const gifHeight = Math.round(size * 0.75);
+
+            offscreenCanvas = document.createElement('canvas');
+            offscreenCanvas.width = gifWidth;
+            offscreenCanvas.height = gifHeight;
+            offscreenCtx = offscreenCanvas.getContext('2d');
+
+            const totalFrames = Math.round(duration * fps);
+            const frameDelay = 1000 / fps;
+            const dt = (2 * Math.PI) / totalFrames;
+
+            const encoder = new GIFEncoder(gifWidth, gifHeight);
+            encoder.setDelay(frameDelay);
+
+            gifState.isRecording = true;
+            gifState.cancelled = false;
+
+            // UI updates
+            document.getElementById('record-btn').disabled = true;
+            document.getElementById('cancel-btn').disabled = false;
+            document.getElementById('recording-indicator').classList.add('active');
+            document.getElementById('progress-bar').classList.add('active');
+            document.getElementById('progress-text').classList.add('active');
+
+            const gifWaveHistory = [];
+            let currentT = state.t;
+
+            for (let i = 0; i < totalFrames; i++) {
+                if (gifState.cancelled) {
+                    resetRecordingUI();
+                    return;
+                }
+
+                drawScene(offscreenCtx, gifWidth, gifHeight, currentT, gifWaveHistory, false);
+                encoder.addFrame(offscreenCtx);
+
+                currentT += dt;
+
+                const progress = ((i + 1) / totalFrames) * 100;
+                document.getElementById('progress').style.width = progress + '%';
+                document.getElementById('progress-text').textContent = `Recording: ${i + 1}/${totalFrames} frames`;
+
+                // Allow UI to update
+                await new Promise(r => setTimeout(r, 5));
+            }
+
+            document.getElementById('progress-text').textContent = 'Encoding GIF...';
+            await new Promise(r => setTimeout(r, 50));
+
+            const blob = encoder.finish();
+
+            // Download
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `wave-${Date.now()}.gif`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            resetRecordingUI();
+        }
+
+        function cancelRecording() {
+            gifState.cancelled = true;
+        }
+
+        function resetRecordingUI() {
+            gifState.isRecording = false;
+            document.getElementById('record-btn').disabled = false;
+            document.getElementById('cancel-btn').disabled = true;
+            document.getElementById('recording-indicator').classList.remove('active');
+            document.getElementById('progress-bar').classList.remove('active');
+            document.getElementById('progress-text').classList.remove('active');
+            document.getElementById('progress').style.width = '0%';
+        }
+
+        // ==========================================
+        // UI Setup
+        // ==========================================
+        function updateAllSliders() {
+            ['p', 'q', 'delta', 'r1', 'm', 'h', 'c1', 'c2', 'c3', 'c4'].forEach(id => {
+                document.getElementById(id + '-slider').value = state[id];
+                document.getElementById(id + '-value').textContent = state[id].toFixed(2);
+            });
+        }
+
+        function loadPreset(name) {
+            const preset = presets[name];
+            if (!preset) return;
+            Object.keys(preset).forEach(key => state[key] = preset[key]);
+            state.waveHistory = [];
+            updateAllSliders();
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.preset === name);
+            });
+        }
+
+        function setupCoeffSlider(id, prop) {
+            const slider = document.getElementById(id + '-slider');
+            const valueEl = document.getElementById(id + '-value');
+            slider.addEventListener('input', () => {
+                state[prop] = parseFloat(slider.value);
+                valueEl.textContent = state[prop].toFixed(2);
+                state.waveHistory = [];
+                document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+            });
+        }
+
+        ['p', 'q', 'delta', 'r1', 'm', 'h', 'c1', 'c2', 'c3', 'c4'].forEach(id => setupCoeffSlider(id, id));
+
+        function setupWaveSlider(id, prop) {
+            const slider = document.getElementById(id + '-slider');
+            const valueEl = document.getElementById(id + '-value');
+            slider.addEventListener('input', () => {
+                state[prop] = parseFloat(slider.value);
+                valueEl.textContent = state[prop].toFixed(1);
+            });
+        }
+
+        ['omega', 'speed'].forEach(id => setupWaveSlider(id, id));
+
+        // Event listeners
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => loadPreset(btn.dataset.preset));
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            loadPreset('heart');
+            state.omega = 1; state.speed = 2; state.t = 0;
+            ['omega', 'speed'].forEach(id => {
+                document.getElementById(id + '-slider').value = state[id];
+                document.getElementById(id + '-value').textContent = state[id].toFixed(1);
+            });
+        });
+
+        document.getElementById('random-btn').addEventListener('click', () => {
+            state.p = 0.5 + Math.random() * 4;
+            state.q = 0.5 + Math.random() * 4;
+            state.delta = Math.random();
+            state.r1 = Math.random() * 0.6;
+            state.m = 2 + Math.floor(Math.random() * 10);
+            state.h = Math.random();
+            state.c1 = (Math.random() - 0.5) * 1.5;
+            state.c2 = (Math.random() - 0.5) * 0.8;
+            state.c3 = (Math.random() - 0.5) * 0.4;
+            state.c4 = (Math.random() - 0.5) * 0.2;
+            state.waveHistory = [];
+            updateAllSliders();
+            document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+        });
+
+        document.getElementById('pause-btn').addEventListener('click', () => {
+            state.paused = !state.paused;
+            document.getElementById('pause-btn').textContent = state.paused ? 'Play' : 'Pause';
+        });
+
+        document.getElementById('record-btn').addEventListener('click', startRecording);
+        document.getElementById('cancel-btn').addEventListener('click', cancelRecording);
+
+        // Initialize
+        updateAllSliders();
+        render();
+    </script>
+</body>
+</html>
