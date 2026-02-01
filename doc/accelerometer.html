@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>加速度センサー デモ</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --border: #1e1e2e;
+    --text: #e0e0e8;
+    --text-dim: #6a6a80;
+    --accent-x: #ff4d6a;
+    --accent-y: #4dff91;
+    --accent-z: #4d91ff;
+    --glow-x: rgba(255, 77, 106, 0.15);
+    --glow-y: rgba(77, 255, 145, 0.15);
+    --glow-z: rgba(77, 145, 255, 0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans JP', 'JetBrains Mono', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .noise {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    z-index: 999;
+  }
+
+  .container {
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 24px 16px 40px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 32px;
+    padding-top: 16px;
+  }
+
+  header h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  header p {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: all 0.4s ease;
+  }
+
+  .status-badge.inactive {
+    background: rgba(255, 77, 106, 0.08);
+    border: 1px solid rgba(255, 77, 106, 0.2);
+    color: var(--accent-x);
+  }
+
+  .status-badge.active {
+    background: rgba(77, 255, 145, 0.08);
+    border: 1px solid rgba(77, 255, 145, 0.2);
+    color: var(--accent-y);
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .status-badge.active .status-dot {
+    animation: pulse 1.5s ease infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  /* Start Button */
+  .start-btn {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    margin-bottom: 28px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .start-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--glow-x), var(--glow-y), var(--glow-z));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .start-btn:hover::before { opacity: 1; }
+  .start-btn:active { transform: scale(0.98); }
+  .start-btn span { position: relative; z-index: 1; }
+
+  .start-btn.hidden { display: none; }
+
+  /* 3D Ball Visualization */
+  .viz-section {
+    margin-bottom: 28px;
+  }
+
+  .ball-container {
+    width: 100%;
+    aspect-ratio: 1;
+    max-width: 280px;
+    margin: 0 auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .ball-container .grid-line {
+    position: absolute;
+    background: var(--border);
+  }
+
+  .ball-container .grid-line.h {
+    width: 100%;
+    height: 1px;
+    top: 50%;
+    left: 0;
+  }
+
+  .ball-container .grid-line.v {
+    width: 1px;
+    height: 100%;
+    top: 0;
+    left: 50%;
+  }
+
+  .ball {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle at 35% 35%, #fff, var(--accent-y) 40%, #1a6b3a);
+    box-shadow:
+      0 0 20px rgba(77, 255, 145, 0.3),
+      0 0 60px rgba(77, 255, 145, 0.1);
+    transition: transform 0.08s linear;
+    z-index: 2;
+  }
+
+  .ball-label {
+    position: absolute;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    z-index: 1;
+  }
+
+  .ball-label.top { top: 12px; left: 50%; transform: translateX(-50%); }
+  .ball-label.bottom { bottom: 12px; left: 50%; transform: translateX(-50%); }
+  .ball-label.left { left: 12px; top: 50%; transform: translateY(-50%); }
+  .ball-label.right { right: 12px; top: 50%; transform: translateY(-50%); }
+
+  /* Axis Data Cards */
+  .axis-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 28px;
+  }
+
+  .axis-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .axis-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+  }
+
+  .axis-card.x::before { background: var(--accent-x); }
+  .axis-card.y::before { background: var(--accent-y); }
+  .axis-card.z::before { background: var(--accent-z); }
+
+  .axis-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+
+  .axis-card.x .axis-icon { background: var(--glow-x); color: var(--accent-x); }
+  .axis-card.y .axis-icon { background: var(--glow-y); color: var(--accent-y); }
+  .axis-card.z .axis-icon { background: var(--glow-z); color: var(--accent-z); }
+
+  .axis-info { flex: 1; min-width: 0; }
+
+  .axis-label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+
+  .axis-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .axis-card.x .axis-value { color: var(--accent-x); }
+  .axis-card.y .axis-value { color: var(--accent-y); }
+  .axis-card.z .axis-value { color: var(--accent-z); }
+
+  .axis-unit {
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    font-weight: 400;
+    margin-left: 2px;
+  }
+
+  .axis-bar-track {
+    width: 60px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .axis-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.1s linear;
+    width: 0%;
+  }
+
+  .axis-card.x .axis-bar-fill { background: var(--accent-x); }
+  .axis-card.y .axis-bar-fill { background: var(--accent-y); }
+  .axis-card.z .axis-bar-fill { background: var(--accent-z); }
+
+  /* Graph Section */
+  .graph-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 28px;
+  }
+
+  .graph-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .graph-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .graph-legend {
+    display: flex;
+    gap: 12px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--text-dim);
+  }
+
+  .legend-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  canvas {
+    width: 100%;
+    height: 160px;
+    display: block;
+    border-radius: 8px;
+  }
+
+  /* Rotation Data */
+  .rotation-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+  }
+
+  .rotation-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+
+  .rotation-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .rotation-item {
+    text-align: center;
+    padding: 10px 0;
+  }
+
+  .rotation-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    letter-spacing: 0.05em;
+  }
+
+  .rotation-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .rotation-unit {
+    font-size: 0.55rem;
+    color: var(--text-dim);
+    font-weight: 400;
+  }
+
+  /* Error Message */
+  .error-msg {
+    text-align: center;
+    padding: 24px;
+    background: rgba(255, 77, 106, 0.06);
+    border: 1px solid rgba(255, 77, 106, 0.15);
+    border-radius: 12px;
+    margin-bottom: 28px;
+    display: none;
+  }
+
+  .error-msg p {
+    font-size: 0.85rem;
+    color: var(--accent-x);
+    line-height: 1.6;
+  }
+
+  /* Animations */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .animate-in {
+    animation: fadeUp 0.5s ease forwards;
+    opacity: 0;
+  }
+
+  .animate-in:nth-child(1) { animation-delay: 0.05s; }
+  .animate-in:nth-child(2) { animation-delay: 0.1s; }
+  .animate-in:nth-child(3) { animation-delay: 0.15s; }
+  .animate-in:nth-child(4) { animation-delay: 0.2s; }
+  .animate-in:nth-child(5) { animation-delay: 0.25s; }
+  .animate-in:nth-child(6) { animation-delay: 0.3s; }
+</style>
+</head>
+<body>
+<div class="noise"></div>
+<div class="container">
+
+  <header class="animate-in">
+    <h1>Accelerometer</h1>
+    <p>DeviceMotionEvent API デモ</p>
+    <div class="status-badge inactive" id="statusBadge">
+      <span class="status-dot"></span>
+      <span id="statusText">待機中</span>
+    </div>
+  </header>
+
+  <button class="start-btn animate-in" id="startBtn" onclick="startSensor()">
+    <span>▶ センサーを起動する</span>
+  </button>
+
+  <div class="error-msg" id="errorMsg">
+    <p id="errorText"></p>
+  </div>
+
+  <div class="viz-section animate-in">
+    <div class="ball-container" id="ballContainer">
+      <div class="grid-line h"></div>
+      <div class="grid-line v"></div>
+      <span class="ball-label top">-Y</span>
+      <span class="ball-label bottom">+Y</span>
+      <span class="ball-label left">-X</span>
+      <span class="ball-label right">+X</span>
+      <div class="ball" id="ball"></div>
+    </div>
+  </div>
+
+  <div class="axis-cards">
+    <div class="axis-card x animate-in">
+      <div class="axis-icon">X</div>
+      <div class="axis-info">
+        <div class="axis-label">横方向（左右）</div>
+        <div class="axis-value"><span id="valX">0.00</span><span class="axis-unit">m/s²</span></div>
+      </div>
+      <div class="axis-bar-track">
+        <div class="axis-bar-fill" id="barX"></div>
+      </div>
+    </div>
+    <div class="axis-card y animate-in">
+      <div class="axis-icon">Y</div>
+      <div class="axis-info">
+        <div class="axis-label">縦方向（前後）</div>
+        <div class="axis-value"><span id="valY">0.00</span><span class="axis-unit">m/s²</span></div>
+      </div>
+      <div class="axis-bar-track">
+        <div class="axis-bar-fill" id="barY"></div>
+      </div>
+    </div>
+    <div class="axis-card z animate-in">
+      <div class="axis-icon">Z</div>
+      <div class="axis-info">
+        <div class="axis-label">垂直方向（上下）</div>
+        <div class="axis-value"><span id="valZ">0.00</span><span class="axis-unit">m/s²</span></div>
+      </div>
+      <div class="axis-bar-track">
+        <div class="axis-bar-fill" id="barZ"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="graph-section animate-in">
+    <div class="graph-header">
+      <span class="graph-title">リアルタイムグラフ</span>
+      <div class="graph-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent-x)"></div>X</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent-y)"></div>Y</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent-z)"></div>Z</div>
+      </div>
+    </div>
+    <canvas id="graph"></canvas>
+  </div>
+
+  <div class="rotation-section animate-in">
+    <div class="rotation-title">回転速度（ジャイロ）</div>
+    <div class="rotation-grid">
+      <div class="rotation-item">
+        <div class="rotation-label">Alpha (α)</div>
+        <div class="rotation-value"><span id="rotA">0.00</span><span class="rotation-unit"> °/s</span></div>
+      </div>
+      <div class="rotation-item">
+        <div class="rotation-label">Beta (β)</div>
+        <div class="rotation-value"><span id="rotB">0.00</span><span class="rotation-unit"> °/s</span></div>
+      </div>
+      <div class="rotation-item">
+        <div class="rotation-label">Gamma (γ)</div>
+        <div class="rotation-value"><span id="rotG">0.00</span><span class="rotation-unit"> °/s</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // --- State ---
+  const MAX_POINTS = 120;
+  const historyX = [], historyY = [], historyZ = [];
+  let isActive = false;
+
+  // --- DOM ---
+  const $ = id => document.getElementById(id);
+  const valX = $('valX'), valY = $('valY'), valZ = $('valZ');
+  const barX = $('barX'), barY = $('barY'), barZ = $('barZ');
+  const rotA = $('rotA'), rotB = $('rotB'), rotG = $('rotG');
+  const ball = $('ball'), ballContainer = $('ballContainer');
+  const canvas = $('graph');
+  const ctx = canvas.getContext('2d');
+  const statusBadge = $('statusBadge');
+  const statusText = $('statusText');
+  const startBtn = $('startBtn');
+  const errorMsg = $('errorMsg');
+  const errorText = $('errorText');
+
+  // --- Canvas setup ---
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * (window.devicePixelRatio || 1);
+    canvas.height = rect.height * (window.devicePixelRatio || 1);
+    ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+
+  // --- Bar helper ---
+  function setBar(el, value, max = 20) {
+    const pct = Math.min(Math.abs(value) / max * 100, 100);
+    el.style.width = pct + '%';
+  }
+
+  // --- Ball helper ---
+  function moveBall(x, y) {
+    const containerRect = ballContainer.getBoundingClientRect();
+    const r = containerRect.width / 2;
+    const maxOffset = r - 20;
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const px = clamp(x / 10 * maxOffset, -maxOffset, maxOffset);
+    const py = clamp(y / 10 * maxOffset, -maxOffset, maxOffset);
+    ball.style.transform = `translate(calc(-50% + ${px}px), calc(-50% + ${py}px))`;
+  }
+
+  // --- Graph drawing ---
+  function drawGraph() {
+    const w = canvas.getBoundingClientRect().width;
+    const h = canvas.getBoundingClientRect().height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Grid lines
+    ctx.strokeStyle = '#1e1e2e';
+    ctx.lineWidth = 1;
+    const midY = h / 2;
+    ctx.beginPath();
+    ctx.moveTo(0, midY); ctx.lineTo(w, midY);
+    ctx.stroke();
+    ctx.setLineDash([2, 4]);
+    ctx.beginPath();
+    ctx.moveTo(0, midY - h / 4); ctx.lineTo(w, midY - h / 4);
+    ctx.moveTo(0, midY + h / 4); ctx.lineTo(w, midY + h / 4);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Draw lines
+    function drawLine(data, color) {
+      if (data.length < 2) return;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const step = w / (MAX_POINTS - 1);
+      for (let i = 0; i < data.length; i++) {
+        const x = i * step;
+        const y = midY - (data[i] / 20) * (h / 2);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    drawLine(historyX, '#ff4d6a');
+    drawLine(historyY, '#4dff91');
+    drawLine(historyZ, '#4d91ff');
+  }
+
+  // --- Motion handler ---
+  function handleMotion(event) {
+    if (!isActive) {
+      isActive = true;
+      statusBadge.className = 'status-badge active';
+      statusText.textContent = '計測中';
+    }
+
+    const acc = event.accelerationIncludingGravity || {};
+    const rot = event.rotationRate || {};
+
+    const x = acc.x ?? 0;
+    const y = acc.y ?? 0;
+    const z = acc.z ?? 0;
+
+    // Update text values
+    valX.textContent = x.toFixed(2);
+    valY.textContent = y.toFixed(2);
+    valZ.textContent = z.toFixed(2);
+
+    // Update bars
+    setBar(barX, x);
+    setBar(barY, y);
+    setBar(barZ, z);
+
+    // Update ball
+    moveBall(x, y);
+
+    // Update rotation
+    rotA.textContent = (rot.alpha ?? 0).toFixed(2);
+    rotB.textContent = (rot.beta ?? 0).toFixed(2);
+    rotG.textContent = (rot.gamma ?? 0).toFixed(2);
+
+    // Push to history
+    historyX.push(x); historyY.push(y); historyZ.push(z);
+    if (historyX.length > MAX_POINTS) { historyX.shift(); historyY.shift(); historyZ.shift(); }
+
+    drawGraph();
+  }
+
+  // --- Show error ---
+  function showError(msg) {
+    errorMsg.style.display = 'block';
+    errorText.textContent = msg;
+  }
+
+  // --- Start ---
+  async function startSensor() {
+    startBtn.classList.add('hidden');
+
+    // Check support
+    if (!('DeviceMotionEvent' in window)) {
+      showError('このブラウザは DeviceMotionEvent に対応していません。スマートフォンのブラウザからアクセスしてください。');
+      return;
+    }
+
+    // iOS 13+ permission
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+      try {
+        const permission = await DeviceMotionEvent.requestPermission();
+        if (permission !== 'granted') {
+          showError('加速度センサーへのアクセスが拒否されました。ブラウザの設定から許可してください。');
+          return;
+        }
+      } catch (e) {
+        showError('権限リクエストに失敗しました: ' + e.message);
+        return;
+      }
+    }
+
+    window.addEventListener('devicemotion', handleMotion);
+
+    // Fallback: if no data after 2 seconds, show message
+    setTimeout(() => {
+      if (!isActive) {
+        showError('センサーデータを受信できません。HTTPS 環境でスマートフォンからアクセスしてください。PC のブラウザでは動作しません。');
+      }
+    }, 2000);
+  }
+</script>
+</body>
+</html>
