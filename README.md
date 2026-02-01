@@ -7,6 +7,8 @@
 任意のHTMLファイルをダウンロードしてブラウザで開くか、GitHub Pagesで直接実行できます。
 
 ## シミュレーション一覧
+###
+https://nnn112358.github.io/Physics_Simulation/doc/accelerometer.html
 
 ### 基本振動系
 - [バネ・マス・ダンパ系](https://nnn112358.github.io/Physics_Simulation/spring_mass_damper.html)
